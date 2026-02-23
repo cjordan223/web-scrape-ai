@@ -1,0 +1,136 @@
+# job_scraper default configuration
+
+search:
+  searx_url: "http://localhost:8888/search"
+  timeout: 15
+  max_results_per_query: 20
+  engines: "google,bing,duckduckgo"
+  time_range: "month"
+  request_delay: 1.0
+
+filter:
+  title_keywords:
+    - security
+    - cyber
+    - appsec
+    - devsecops
+    - detection
+    - vulnerability
+    - soc
+    - infosec
+    - secops
+    - "application security"
+    - "cloud security"
+    - "security automation"
+    - "security engineer"
+    - "threat"
+    - "penetration"
+  seniority_exclude:
+    - senior
+    - staff
+    - principal
+    - lead
+    - manager
+    - director
+  max_experience_years: 4
+  content_blocklist:
+    - clearance
+    - ts/sci
+    - "ts-sci"
+    - polygraph
+    - "top secret"
+    - "secret clearance"
+  title_role_words:
+    - engineer
+    - analyst
+    - architect
+    - developer
+    - specialist
+    - consultant
+    - administrator
+    - operator
+    - intern
+    - associate
+    - responder
+    - researcher
+    - pentester
+    - tester
+  url_domain_blocklist:
+    - dictionary.com
+    - collinsdictionary.com
+    - techtarget.com
+    - wikipedia.org
+    - merriam-webster.com
+    - investopedia.com
+    - reddit.com
+    - quora.com
+    - youtube.com
+    - medium.com
+  require_remote: false
+  fetch_jd: true
+  jd_max_chars: 15000
+
+queries:
+  # --- Greenhouse ---
+  - board: greenhouse
+    board_site: "boards.greenhouse.io"
+    title_phrase: "security engineer"
+  - board: greenhouse
+    board_site: "boards.greenhouse.io"
+    title_phrase: "application security"
+  - board: greenhouse
+    board_site: "boards.greenhouse.io"
+    title_phrase: "detection engineer"
+
+  # --- Lever ---
+  - board: lever
+    board_site: "jobs.lever.co"
+    title_phrase: "security engineer"
+  - board: lever
+    board_site: "jobs.lever.co"
+    title_phrase: "devsecops"
+
+  # --- Ashby ---
+  - board: ashby
+    board_site: "jobs.ashbyhq.com"
+    title_phrase: "security engineer"
+  - board: ashby
+    board_site: "jobs.ashbyhq.com"
+    title_phrase: "cloud security"
+
+  # --- Workday ---
+  - board: workday
+    board_site: "myworkdayjobs.com"
+    title_phrase: "security engineer"
+  - board: workday
+    board_site: "myworkdayjobs.com"
+    title_phrase: "SOC analyst"
+
+  # --- BambooHR ---
+  - board: bamboohr
+    board_site: "bamboohr.com/careers"
+    title_phrase: "security engineer"
+
+  # --- iCIMS ---
+  - board: icims
+    board_site: "icims.com"
+    title_phrase: "vulnerability"
+
+  # --- SmartRecruiters ---
+  - board: smartrecruiters
+    board_site: "jobs.smartrecruiters.com"
+    title_phrase: "security engineer"
+
+  # --- Open web (no site: restriction) ---
+  - board: unknown
+    board_site: ""
+    title_phrase: "junior security engineer"
+    suffix: "remote"
+  - board: unknown
+    board_site: ""
+    title_phrase: "entry level cybersecurity"
+    suffix: "remote"
+  - board: unknown
+    board_site: ""
+    title_phrase: "security automation engineer"
+    suffix: "remote"
