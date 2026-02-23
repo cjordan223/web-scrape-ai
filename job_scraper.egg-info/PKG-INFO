@@ -8,3 +8,4 @@ Requires-Dist: pydantic>=2.0
 Requires-Dist: pyyaml
 Requires-Dist: rich
 Requires-Dist: typer
+Requires-Dist: crawl4ai

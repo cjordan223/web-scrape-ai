@@ -33,6 +33,7 @@ filter:
     - manager
     - director
   max_experience_years: 4
+  min_salary_k: 120
   content_blocklist:
     - clearance
     - ts/sci
@@ -66,9 +67,28 @@ filter:
     - quora.com
     - youtube.com
     - medium.com
-  require_remote: false
+  require_remote: true
   fetch_jd: true
   jd_max_chars: 15000
+
+llm_review:
+  enabled: true
+  url: "http://localhost:8800/v1/chat/completions"
+  model: "mlx-community/Qwen3-Coder-Next-4bit"
+  fail_open: true
+  timeout: 30
+  jd_max_chars: 2000
+
+crawl:
+  enabled: true
+  request_delay: 2.0
+  max_results_per_target: 50
+  targets:
+    # Ashby boards — server-rendered, reliable link extraction
+    - url: "https://jobs.ashbyhq.com/ramp"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/notion"
+      board: ashby
 
 queries:
   # --- Greenhouse ---

@@ -144,6 +144,18 @@ tr.expanded td{background:var(--accent-light);border-bottom-color:var(--accent-l
 .verdict-dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.7rem;margin-top:1px}
 .verdict-dot.pass{background:#dcfce7;color:#166534}
 .verdict-dot.fail{background:#fee2e2;color:#991b1b}
+.verdict-dot.llm{background:#f3f0ff;color:var(--purple)}
+
+/* ── Rejection stage pills ──────────────────────────────────── */
+.pill-stage-url_domain{background:#f3f4f6;color:#6b7280}
+.pill-stage-title_relevance{background:#fffbeb;color:#d97706}
+.pill-stage-title_role{background:#fffbeb;color:#d97706}
+.pill-stage-seniority{background:#f3f0ff;color:#7c3aed}
+.pill-stage-experience{background:#ecfeff;color:#0891b2}
+.pill-stage-content_blocklist{background:#fee2e2;color:#991b1b}
+.pill-stage-remote{background:#fff7ed;color:#c2410c}
+.pill-stage-salary{background:#f0fdf4;color:#166534}
+.pill-stage-llm_review{background:#f3f0ff;color:#7c3aed}
 .verdict-stage{font-weight:600;font-size:.85rem}
 .verdict-reason{font-size:.82rem;color:var(--text-secondary)}
 
@@ -268,6 +280,10 @@ a:hover{text-decoration:underline}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 13V6a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h8"/><line x1="16" y1="17" x2="22" y2="17"/><line x1="16" y1="21" x2="22" y2="21"/></svg>
       <span>Jobs</span>
     </div>
+    <div class="nav-item" :class="{active: view==='rejected'}" @click="go('rejected')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+      <span>Rejected</span>
+    </div>
     <div class="nav-item" :class="{active: view==='runs'}" @click="go('runs')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       <span>Runs</span>
@@ -304,7 +320,13 @@ a:hover{text-decoration:underline}
 <div x-show="view==='overview'" x-transition.opacity>
   <div class="page-header">
     <div class="page-title">Overview</div>
-    <div class="last-updated" x-text="'Updated ' + timeAgo(lastFetch)"></div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="pill" :class="llmStatus?.available ? 'pill-success' : 'pill-fail'"
+            x-text="llmStatus?.available ? 'LLM online' : 'LLM offline'"
+            :title="llmStatus?.available ? llmStatus.models.join(', ') : 'LLM server not reachable at ' + llmStatus?.url">
+      </span>
+      <div class="last-updated" x-text="'Updated ' + timeAgo(lastFetch)"></div>
+    </div>
   </div>
 
   <div class="cards">
@@ -425,6 +447,7 @@ a:hover{text-decoration:underline}
           <th @click="toggleSort('board')" :class="{sorted: jSort.by==='board'}">Board <span class="sort-arrow" x-text="jSort.by==='board'?(jSort.dir==='asc'?'&#9650;':'&#9660;'):'&#9660;'"></span></th>
           <th @click="toggleSort('seniority')" :class="{sorted: jSort.by==='seniority'}">Seniority <span class="sort-arrow" x-text="jSort.by==='seniority'?(jSort.dir==='asc'?'&#9650;':'&#9660;'):'&#9660;'"></span></th>
           <th @click="toggleSort('experience_years')" :class="{sorted: jSort.by==='experience_years'}">Exp <span class="sort-arrow" x-text="jSort.by==='experience_years'?(jSort.dir==='asc'?'&#9650;':'&#9660;'):'&#9660;'"></span></th>
+          <th @click="toggleSort('salary_k')" :class="{sorted: jSort.by==='salary_k'}">Salary <span class="sort-arrow" x-text="jSort.by==='salary_k'?(jSort.dir==='asc'?'&#9650;':'&#9660;'):'&#9660;'"></span></th>
           <th @click="toggleSort('created_at')" :class="{sorted: jSort.by==='created_at'}">Date <span class="sort-arrow" x-text="jSort.by==='created_at'?(jSort.dir==='asc'?'&#9650;':'&#9660;'):'&#9660;'"></span></th>
           <th style="width:40px"></th>
         </tr>
@@ -446,6 +469,7 @@ a:hover{text-decoration:underline}
                   <div style="margin-bottom:8px"><strong>URL:</strong> <a :href="job.url" target="_blank" x-text="job.url"></a></div>
                   <div style="margin-bottom:8px"><strong>Query:</strong> <span x-text="job.query" style="color:var(--text-secondary)"></span></div>
                   <div style="margin-bottom:8px"><strong>Run:</strong> <span x-text="job.run_id" style="color:var(--text-secondary)"></span></div>
+                  <div style="margin-bottom:8px" x-show="expandedDetail?.salary_k"><strong>Salary:</strong> <span x-text="expandedDetail?.salary_k ? '$' + Math.round(expandedDetail.salary_k/1000) + 'K' : ''" style="color:var(--green);font-weight:600"></span></div>
 
                   <template x-if="expandedDetail">
                     <div>
@@ -453,9 +477,15 @@ a:hover{text-decoration:underline}
                         <div style="font-weight:600;margin-bottom:8px">Filter Verdicts</div>
                         <template x-for="v in expandedDetail.filter_verdicts">
                           <div class="verdict-step">
-                            <div class="verdict-dot" :class="v.passed?'pass':'fail'" x-text="v.passed?'&#10003;':'&#10007;'"></div>
+                            <div class="verdict-dot"
+                                 :class="v.stage==='llm_review' ? 'llm' : (v.passed?'pass':'fail')"
+                                 x-text="v.stage==='llm_review' ? '&#129504;' : (v.passed?'&#10003;':'&#10007;')">
+                            </div>
                             <div>
-                              <div class="verdict-stage" x-text="v.stage"></div>
+                              <div class="verdict-stage"
+                                   :style="v.stage==='llm_review' ? 'color:var(--purple)' : ''"
+                                   x-text="v.stage==='llm_review' ? 'AI Review' : v.stage">
+                              </div>
                               <div class="verdict-reason" x-text="v.reason"></div>
                             </div>
                           </div>
@@ -478,6 +508,7 @@ a:hover{text-decoration:underline}
             <td><span class="pill" :class="'pill-'+job.board" x-text="job.board"></span></td>
             <td><span class="pill" :class="'pill-'+job.seniority" x-text="job.seniority"></span></td>
             <td x-text="job.experience_years ?? '—'"></td>
+            <td x-text="job.salary_k ? '$' + Math.round(job.salary_k/1000) + 'K' : '—'" style="white-space:nowrap;color:var(--text)" :style="job.salary_k ? 'font-weight:600' : ''"></td>
             <td style="white-space:nowrap" x-text="fmtDate(job.created_at)"></td>
             <td><a :href="job.url" target="_blank" class="ext-link" title="Open job posting"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></td>
           </tr>
@@ -494,6 +525,130 @@ a:hover{text-decoration:underline}
         <button :disabled="jPage<=1" @click="jPage--;fetchJobs()">Prev</button>
         <span class="page-num" x-text="jPage + ' / ' + jobs.pages"></span>
         <button :disabled="jPage>=jobs.pages" @click="jPage++;fetchJobs()">Next</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     VIEW: REJECTED
+     ══════════════════════════════════════════════════════════════ -->
+<div x-show="view==='rejected'" x-transition.opacity>
+  <div class="page-header">
+    <div class="page-title">Rejected Jobs</div>
+    <div style="font-size:.85rem;color:var(--text-secondary)" x-text="(rejectedStats?.total || 0).toLocaleString() + ' total rejections'"></div>
+  </div>
+
+  <!-- Stage breakdown strip -->
+  <div class="panel" style="margin-bottom:24px" x-show="rejectedStats">
+    <div class="panel-header"><div class="panel-title">Rejection Breakdown by Stage</div><div style="font-size:.8rem;color:var(--text-secondary)">Click to filter</div></div>
+    <div style="padding:14px 20px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span class="pill" style="cursor:pointer;font-size:.82rem;padding:4px 12px"
+            :class="rf.stage===''?'pill-running':'pill-unknown'"
+            @click="rf.stage='';rPage=1;fetchRejected()"
+            x-text="'All (' + (rejectedStats?.total||0) + ')'"></span>
+      <template x-for="[stage, cnt] in Object.entries(rejectedStats?.by_stage||{})" :key="stage">
+        <span class="pill" style="cursor:pointer;font-size:.82rem;padding:4px 12px"
+              :class="rf.stage===stage ? 'pill-running' : ('pill-stage-'+stage)"
+              @click="rf.stage=stage;rPage=1;fetchRejected()"
+              x-text="stage + ' (' + cnt + ')'"></span>
+      </template>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="filters">
+      <select x-model="rf.stage" @change="rPage=1;fetchRejected()">
+        <option value="">All Stages</option>
+        <template x-for="s in rejectedStages"><option :value="s" x-text="s"></option></template>
+      </select>
+      <select x-model="rf.run_id" @change="rPage=1;fetchRejected()">
+        <option value="">All Runs</option>
+        <template x-for="r in runIds"><option :value="r" x-text="r.slice(0,12)+'...'"></option></template>
+      </select>
+      <input type="text" placeholder="Search titles..." x-model.debounce.300ms="rf.search" @input="rPage=1;fetchRejected()" style="min-width:180px">
+      <button class="btn btn-ghost btn-sm" @click="rf={stage:'',run_id:'',search:''};rPage=1;fetchRejected()">Clear</button>
+    </div>
+
+    <div class="stats-bar" x-show="rejected.total > 0">
+      <span>Showing <strong x-text="rejected.items.length"></strong> of <strong x-text="rejected.total"></strong></span>
+    </div>
+
+    <div x-show="rejectedLoading" class="loading"><div class="spinner"></div></div>
+
+    <template x-if="!rejectedLoading && rejected.items.length === 0">
+      <div class="empty"><div class="empty-icon">&#10004;</div><div class="empty-text">No rejections match your filters</div></div>
+    </template>
+
+    <table x-show="!rejectedLoading && rejected.items.length > 0">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Board</th>
+          <th>Rejected At</th>
+          <th>Reason</th>
+          <th>Date</th>
+          <th style="width:40px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="job in rejected.items" :key="job.id">
+          <tr>
+            <td>
+              <div @click="toggleRejected(job.id)" style="cursor:pointer">
+                <div style="font-weight:600;max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="job.title"></div>
+                <div style="font-size:.8rem;color:var(--text-secondary);max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="job.snippet"></div>
+              </div>
+              <!-- Expanded detail -->
+              <template x-if="expandedRejectedId === job.id">
+                <div class="job-detail" @click.stop>
+                  <div style="margin-bottom:8px"><strong>URL:</strong> <a :href="job.url" target="_blank" x-text="job.url"></a></div>
+                  <div style="margin-bottom:8px"><strong>Run:</strong> <span x-text="job.run_id" style="color:var(--text-secondary)"></span></div>
+                  <template x-if="expandedRejectedDetail">
+                    <div class="verdicts" style="margin-top:8px">
+                      <div style="font-weight:600;margin-bottom:8px">Filter Verdicts</div>
+                      <template x-for="v in expandedRejectedDetail.filter_verdicts">
+                        <div class="verdict-step">
+                          <div class="verdict-dot"
+                               :class="v.stage==='llm_review' ? 'llm' : (v.passed?'pass':'fail')"
+                               x-text="v.stage==='llm_review' ? '&#129504;' : (v.passed?'&#10003;':'&#10007;')">
+                          </div>
+                          <div>
+                            <div class="verdict-stage"
+                                 :style="v.stage==='llm_review' ? 'color:var(--purple)' : (!v.passed ? 'color:var(--red)' : '')"
+                                 x-text="v.stage==='llm_review' ? 'AI Review' : v.stage">
+                            </div>
+                            <div class="verdict-reason" x-text="v.reason"></div>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                  <template x-if="!expandedRejectedDetail">
+                    <div class="loading" style="padding:12px"><div class="spinner"></div></div>
+                  </template>
+                </div>
+              </template>
+            </td>
+            <td><span class="pill" :class="'pill-'+job.board" x-text="job.board"></span></td>
+            <td><span class="pill" :class="'pill-stage-'+job.rejection_stage" x-text="job.rejection_stage"></span></td>
+            <td style="font-size:.82rem;color:var(--text-secondary);max-width:280px;word-break:break-word" x-text="job.rejection_reason"></td>
+            <td style="white-space:nowrap" x-text="fmtDate(job.created_at)"></td>
+            <td><a :href="job.url" target="_blank" class="ext-link" title="Open URL"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+
+    <div class="pagination" x-show="rejected.pages > 1">
+      <div class="pagination-info" x-text="'Page ' + rPage + ' of ' + rejected.pages + ' (' + rejected.total + ' total)'"></div>
+      <div class="pagination-controls">
+        <select x-model="rPerPage" @change="rPage=1;fetchRejected()" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.85rem">
+          <option value="50">50</option><option value="100">100</option><option value="200">200</option>
+        </select>
+        <button :disabled="rPage<=1" @click="rPage--;fetchRejected()">Prev</button>
+        <span class="page-num" x-text="rPage + ' / ' + rejected.pages"></span>
+        <button :disabled="rPage>=rejected.pages" @click="rPage++;fetchRejected()">Next</button>
       </div>
     </div>
   </div>
@@ -948,6 +1103,7 @@ a:hover{text-decoration:underline}
     <button class="preset-btn" @click="sqlText='SELECT SUBSTR(url, 1, INSTR(SUBSTR(url, 9), \\'/\\') + 8) as domain, COUNT(*) as cnt FROM results GROUP BY domain ORDER BY cnt DESC LIMIT 20';runSQL()">Top domains</button>
     <button class="preset-btn" @click="sqlText='SELECT board, seniority, COUNT(*) as cnt FROM results GROUP BY board, seniority ORDER BY cnt DESC';runSQL()">Board x Seniority</button>
     <button class="preset-btn" @click="sqlText='SELECT date(created_at) as day, COUNT(*) as cnt FROM results GROUP BY day ORDER BY day DESC LIMIT 30';runSQL()">Daily counts</button>
+    <button class="preset-btn" @click="sqlText='SELECT title, salary_k, seniority, board FROM results WHERE salary_k IS NOT NULL ORDER BY salary_k DESC LIMIT 25';runSQL()">Salary data</button>
   </div>
 
   <div class="panel">
@@ -1011,6 +1167,7 @@ function dashboard() {
     lastFetch: null,
     isActive: false,
     dbSizeLabel: '',
+    llmStatus: null,
 
     // Overview
     ov: {},
@@ -1026,6 +1183,15 @@ function dashboard() {
     boards: ['greenhouse','lever','ashby','workday','bamboohr','icims','smartrecruiters','unknown'],
     seniorities: ['junior','mid','senior','staff','principal','lead','manager','director','unknown'],
     runIds: [],
+
+    // Rejected
+    rejected: {items:[],total:0,pages:0},
+    rejectedStats: null,
+    rejectedStages: [],
+    rf: {stage:'', run_id:'', search:''},
+    rPage: 1, rPerPage: 50,
+    rejectedLoading: false,
+    expandedRejectedId: null, expandedRejectedDetail: null,
 
     // Runs
     runs: [], runsLoading: false,
@@ -1062,6 +1228,7 @@ function dashboard() {
       this.fetchOverview();
       this.fetchActiveRun();
       this.fetchRunIds();
+      this.fetchLLMStatus();
       setInterval(() => {
         if (this.view === 'overview') this.fetchOverview();
         if (this.view === 'jobs') this.fetchJobs();
@@ -1069,12 +1236,14 @@ function dashboard() {
         if (this.view === 'dedup') { this.fetchDedupStats(); this.fetchFilterStats(); }
       }, 30000);
       setInterval(() => this.fetchActiveRun(), 10000);
+      setInterval(() => this.fetchLLMStatus(), 60000);
     },
 
     go(v) {
       this.view = v;
       if (v === 'overview') this.fetchOverview();
       if (v === 'jobs' && this.jobs.items.length === 0) this.fetchJobs();
+      if (v === 'rejected' && !this.rejectedStats) { this.fetchRejectedStats(); this.fetchRejected(); }
       if (v === 'runs' && this.runs.length === 0) this.fetchRuns();
       if (v === 'dedup' && !this.dedupLoaded) { this.fetchDedupStats(); this.fetchFilterStats(); }
       if (v === 'schedules' && this.schedJobs.length === 0) this.fetchSchedules();
@@ -1222,6 +1391,49 @@ function dashboard() {
         this.passRate = totalDedup > 0 ? Math.round(totalPassed / totalDedup * 100) + '%' : '—';
         this.$nextTick(() => this.renderFilterChart());
       } catch(e) { console.error('filters', e); }
+    },
+
+    // ── Rejected ─────────────────────────────────────────────
+    async fetchRejectedStats() {
+      try {
+        const r = await fetch('/api/rejected/stats');
+        this.rejectedStats = await r.json();
+      } catch(e) { console.error('rejected stats', e); }
+    },
+
+    async fetchRejected() {
+      this.rejectedLoading = true;
+      const p = new URLSearchParams({page: this.rPage, per_page: this.rPerPage});
+      if (this.rf.stage) p.set('stage', this.rf.stage);
+      if (this.rf.run_id) p.set('run_id', this.rf.run_id);
+      if (this.rf.search) p.set('search', this.rf.search);
+      try {
+        const r = await fetch('/api/rejected?' + p);
+        const data = await r.json();
+        this.rejected = data;
+        this.rejectedStages = data.stages || [];
+      } catch(e) { console.error('rejected', e); }
+      this.rejectedLoading = false;
+    },
+
+    async toggleRejected(id) {
+      if (this.expandedRejectedId === id) {
+        this.expandedRejectedId = null; this.expandedRejectedDetail = null; return;
+      }
+      this.expandedRejectedId = id;
+      this.expandedRejectedDetail = null;
+      try {
+        const r = await fetch('/api/rejected/' + id);
+        this.expandedRejectedDetail = await r.json();
+      } catch(e) { console.error('rejected detail', e); }
+    },
+
+    // ── LLM status ──────────────────────────────────────────
+    async fetchLLMStatus() {
+      try {
+        const r = await fetch('/api/llm/status');
+        this.llmStatus = await r.json();
+      } catch(e) { this.llmStatus = {available: false, models: [], url: 'http://localhost:8800'}; }
     },
 
     // ── Schedules ────────────────────────────────────────────

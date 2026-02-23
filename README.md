@@ -85,7 +85,7 @@ Every job is evaluated in order. Fails fast on the first rejection.
 | 4. Seniority | Rejects excluded levels | "Senior Security Engineer" → rejected |
 | 5. Experience | Parses years from JD text | "8+ years required" → rejected (max 4) |
 | 6. Content blocklist | Scans title + snippet + JD | "TS/SCI clearance required" → rejected |
-| 7. Remote | Optional: require remote keywords | Only runs if `require_remote: true` |
+| 7. Remote | Mandatory: require remote keywords | Only runs if `require_remote: true` (default) |
 
 Each stage produces a `FilterVerdict` with a reason — every job has an audit trail.
 
@@ -183,7 +183,7 @@ filter:
   max_experience_years: 4
   content_blocklist: [clearance, ts/sci, polygraph, ...]
   url_domain_blocklist: [dictionary.com, wikipedia.org, ...]
-  require_remote: false
+  require_remote: true
   fetch_jd: true
   jd_max_chars: 15000
 

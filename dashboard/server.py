@@ -10,6 +10,9 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
+import urllib.error
+import urllib.request
+
 import uvicorn
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -150,7 +153,7 @@ def list_jobs(
     date_from: str | None = None,
     date_to: str | None = None,
 ):
-    allowed_sort = {"created_at", "title", "board", "seniority", "experience_years"}
+    allowed_sort = {"created_at", "title", "board", "seniority", "experience_years", "salary_k"}
     if sort_by not in allowed_sort:
         sort_by = "created_at"
     if sort_dir not in ("asc", "desc"):
@@ -190,7 +193,7 @@ def list_jobs(
     try:
         total = conn.execute(f"SELECT COUNT(*) FROM results{where}", params).fetchone()[0]
         rows = conn.execute(
-            f"""SELECT id, url, title, board, seniority, experience_years,
+            f"""SELECT id, url, title, board, seniority, experience_years, salary_k,
                        snippet, query, run_id, created_at
                 FROM results{where}
                 ORDER BY {sort_by} {sort_dir}
@@ -746,6 +749,110 @@ def get_schedule_log(label: str, lines: int = Query(100, ge=1, le=2000)):
         }
     except OSError as e:
         return JSONResponse({"error": str(e)}, 500)
+
+
+# ---------------------------------------------------------------------------
+# Routes — API: Rejected jobs
+# ---------------------------------------------------------------------------
+@app.get("/api/rejected/stats")
+def rejected_stats():
+    conn = get_db()
+    try:
+        total = conn.execute("SELECT COUNT(*) FROM rejected").fetchone()[0]
+        by_stage = {
+            r["rejection_stage"]: r["cnt"]
+            for r in conn.execute(
+                "SELECT rejection_stage, COUNT(*) as cnt FROM rejected GROUP BY rejection_stage ORDER BY cnt DESC"
+            ).fetchall()
+        }
+        return {"total": total, "by_stage": by_stage}
+    finally:
+        conn.close()
+
+
+@app.get("/api/rejected")
+def list_rejected(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    stage: str | None = None,
+    run_id: str | None = None,
+    search: str | None = None,
+):
+    conditions: list[str] = []
+    params: dict = {}
+
+    if stage:
+        conditions.append("rejection_stage = :stage")
+        params["stage"] = stage
+    if run_id:
+        conditions.append("run_id = :run_id")
+        params["run_id"] = run_id
+    if search:
+        conditions.append("title LIKE :search")
+        params["search"] = f"%{search}%"
+
+    where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+    offset = (page - 1) * per_page
+    params["limit"] = per_page
+    params["offset"] = offset
+
+    conn = get_db()
+    try:
+        total = conn.execute(f"SELECT COUNT(*) FROM rejected{where}", params).fetchone()[0]
+        rows = conn.execute(
+            f"""SELECT id, url, title, board, snippet, rejection_stage, rejection_reason, run_id, created_at
+                FROM rejected{where}
+                ORDER BY created_at DESC
+                LIMIT :limit OFFSET :offset""",
+            params,
+        ).fetchall()
+        stages = [
+            r["rejection_stage"]
+            for r in conn.execute(
+                "SELECT DISTINCT rejection_stage FROM rejected ORDER BY rejection_stage"
+            ).fetchall()
+        ]
+        return {
+            "items": [dict(r) for r in rows],
+            "total": total,
+            "page": page,
+            "pages": (total + per_page - 1) // per_page,
+            "stages": stages,
+        }
+    finally:
+        conn.close()
+
+
+@app.get("/api/rejected/{rejected_id}")
+def get_rejected(rejected_id: int):
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT * FROM rejected WHERE id = ?", (rejected_id,)).fetchone()
+        if not row:
+            return JSONResponse({"error": "Not found"}, 404)
+        data = dict(row)
+        data["filter_verdicts"] = json.loads(data.get("filter_verdicts") or "[]")
+        return data
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Routes — API: LLM status
+# ---------------------------------------------------------------------------
+LLM_URL = os.environ.get("LLM_URL", "http://localhost:8800")
+
+
+@app.get("/api/llm/status")
+def llm_status():
+    """Check whether the local LLM server is reachable."""
+    try:
+        with urllib.request.urlopen(f"{LLM_URL}/v1/models", timeout=2) as resp:
+            data = json.loads(resp.read())
+        models = [m["id"] for m in data.get("data", [])]
+        return {"available": True, "models": models, "url": LLM_URL}
+    except Exception:
+        return {"available": False, "models": [], "url": LLM_URL}
 
 
 # ---------------------------------------------------------------------------

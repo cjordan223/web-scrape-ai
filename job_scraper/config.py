@@ -29,6 +29,7 @@ class FilterConfig(BaseModel):
         "senior", "staff", "principal", "lead", "manager", "director",
     ])
     max_experience_years: int = 4
+    min_salary_k: int = 120
     content_blocklist: list[str] = Field(default_factory=lambda: [
         "clearance", "ts/sci", "ts-sci", "polygraph", "top secret",
         "secret clearance",
@@ -43,7 +44,7 @@ class FilterConfig(BaseModel):
         "wikipedia.org", "merriam-webster.com", "investopedia.com",
         "reddit.com", "quora.com", "youtube.com", "medium.com",
     ])
-    require_remote: bool = False
+    require_remote: bool = True
     fetch_jd: bool = True
     jd_max_chars: int = 15000
 
@@ -55,10 +56,34 @@ class QueryTemplate(BaseModel):
     suffix: str = ""
 
 
+class CrawlTarget(BaseModel):
+    url: str
+    board: str = "unknown"
+    link_pattern: str | None = None
+
+
+class CrawlConfig(BaseModel):
+    enabled: bool = False
+    targets: list[CrawlTarget] = Field(default_factory=list)
+    request_delay: float = 2.0
+    max_results_per_target: int = 50
+
+
+class LLMReviewConfig(BaseModel):
+    enabled: bool = False
+    url: str = "http://localhost:8800/v1/chat/completions"
+    model: str = "mlx-community/Qwen3-Coder-Next-4bit"
+    fail_open: bool = True
+    timeout: int = 30
+    jd_max_chars: int = 2000
+
+
 class ScraperConfig(BaseModel):
     search: SearchConfig = Field(default_factory=SearchConfig)
     filter: FilterConfig = Field(default_factory=FilterConfig)
     queries: list[QueryTemplate] = Field(default_factory=list)
+    crawl: CrawlConfig = Field(default_factory=CrawlConfig)
+    llm_review: LLMReviewConfig = Field(default_factory=LLMReviewConfig)
 
 
 def load_config(config_path: Optional[Path] = None) -> ScraperConfig:

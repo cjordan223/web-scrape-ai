@@ -59,6 +59,7 @@ class JobResult(BaseModel):
     board: JobBoard = JobBoard.unknown
     seniority: Seniority = Seniority.unknown
     experience_years: Optional[int] = None
+    salary_k: Optional[int] = None
     jd_text: Optional[str] = None
     snippet: str = ""
     query: str = ""

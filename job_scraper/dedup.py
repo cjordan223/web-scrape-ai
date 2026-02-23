@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS results (
     board TEXT,
     seniority TEXT,
     experience_years INTEGER,
+    salary_k INTEGER,
     snippet TEXT,
     query TEXT,
     jd_text TEXT,
@@ -55,6 +56,24 @@ CREATE TABLE IF NOT EXISTS runs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs(started_at);
+
+CREATE TABLE IF NOT EXISTS rejected (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    url TEXT NOT NULL,
+    title TEXT NOT NULL,
+    board TEXT,
+    snippet TEXT,
+    rejection_stage TEXT NOT NULL,
+    rejection_reason TEXT NOT NULL,
+    filter_verdicts TEXT,
+    run_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(url, run_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rejected_run_id ON rejected(run_id);
+CREATE INDEX IF NOT EXISTS idx_rejected_stage ON rejected(rejection_stage);
+CREATE INDEX IF NOT EXISTS idx_rejected_created_at ON rejected(created_at);
 """
 
 
@@ -65,6 +84,14 @@ class JobStore:
         self._conn = sqlite3.connect(str(self.db_path))
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(_SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Apply incremental schema migrations for existing DBs."""
+        cols = {row[1] for row in self._conn.execute("PRAGMA table_info(results)")}
+        if "salary_k" not in cols:
+            self._conn.execute("ALTER TABLE results ADD COLUMN salary_k INTEGER")
+            self._conn.commit()
 
     # --- Dedup ---
 
@@ -91,12 +118,12 @@ class JobStore:
         verdicts_json = json.dumps([v.model_dump() for v in job.filter_verdicts])
         self._conn.execute(
             """INSERT INTO results
-               (url, title, board, seniority, experience_years, snippet, query, jd_text, filter_verdicts, run_id, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               (url, title, board, seniority, experience_years, salary_k, snippet, query, jd_text, filter_verdicts, run_id, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(url, run_id) DO NOTHING""",
             (
                 job.url, job.title, job.board.value, job.seniority.value,
-                job.experience_years, job.snippet, job.query,
+                job.experience_years, job.salary_k, job.snippet, job.query,
                 job.jd_text, verdicts_json, run_id, now,
             ),
         )
@@ -105,6 +132,44 @@ class JobStore:
     def save_results(self, jobs: list[JobResult], run_id: str) -> None:
         for job in jobs:
             self.save_result(job, run_id)
+
+    # --- Rejected ---
+
+    def save_rejected(
+        self,
+        url: str,
+        title: str,
+        snippet: str,
+        board: str,
+        rejection_stage: str,
+        rejection_reason: str,
+        filter_verdicts: list,
+        run_id: str,
+    ) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        verdicts_json = json.dumps([v.model_dump() for v in filter_verdicts])
+        self._conn.execute(
+            """INSERT INTO rejected
+               (url, title, board, snippet, rejection_stage, rejection_reason, filter_verdicts, run_id, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(url, run_id) DO NOTHING""",
+            (url, title, board, snippet, rejection_stage, rejection_reason, verdicts_json, run_id, now),
+        )
+        self._conn.commit()
+
+    def save_rejected_batch(self, items: list[tuple], run_id: str) -> None:
+        """items: list of (SearchResult, stage, reason, verdicts)"""
+        now = datetime.now(timezone.utc).isoformat()
+        for r, stage, reason, verdicts in items:
+            verdicts_json = json.dumps([v.model_dump() for v in verdicts])
+            self._conn.execute(
+                """INSERT INTO rejected
+                   (url, title, board, snippet, rejection_stage, rejection_reason, filter_verdicts, run_id, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(url, run_id) DO NOTHING""",
+                (r.url, r.title, r.board.value, r.snippet, stage, reason, verdicts_json, run_id, now),
+            )
+        self._conn.commit()
 
     def result_count(self) -> int:
         row = self._conn.execute("SELECT COUNT(*) FROM results").fetchone()

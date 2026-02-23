@@ -3,6 +3,7 @@ pyproject.toml
 job_scraper/__init__.py
 job_scraper/__main__.py
 job_scraper/config.py
+job_scraper/crawler.py
 job_scraper/dedup.py
 job_scraper/fetcher.py
 job_scraper/filters.py

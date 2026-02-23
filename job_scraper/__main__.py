@@ -24,6 +24,7 @@ def scrape(
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Write JSON output to file"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Don't mark jobs as seen or persist results"),
     no_fetch: bool = typer.Option(False, "--no-fetch", help="Skip JD fetching (faster, title filters only)"),
+    no_crawl: bool = typer.Option(False, "--no-crawl", help="Skip Crawl4AI board crawling (SearXNG only)"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable debug logging"),
 ):
     """Run a full scrape cycle."""
@@ -37,6 +38,7 @@ def scrape(
         config_path=config,
         mark_seen=not dry_run,
         fetch_jd=False if no_fetch else None,
+        crawl=not no_crawl,
     )
 
     # Summary table (include accumulated totals)

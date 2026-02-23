@@ -13,6 +13,7 @@ dependencies = [
     "pyyaml",
     "rich",
     "typer",
+    "crawl4ai",
 ]
 
 [project.scripts]

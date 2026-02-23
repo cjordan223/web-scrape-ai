@@ -14,23 +14,25 @@ The scraper is the primary consumer of SearXNG. It runs every 30 min via launchd
 
 ```bash
 source venv/bin/activate
-python -m job_scraper scrape -v      # full cycle
+python -m job_scraper scrape -v      # full cycle (SearXNG + Crawl4AI)
+python -m job_scraper scrape -v --no-crawl  # SearXNG only
 python -m job_scraper stats          # check DB totals
 python -m job_scraper recent -n 20   # recent results
 python dashboard/server.py           # start dashboard on :8899
 ```
 
-SearXNG must be running (`docker compose up -d`) on port 8888.
+SearXNG must be running (`docker compose up -d`) on port 8888. Crawl4AI requires Playwright browsers (`playwright install chromium`).
 
 ## Package Layout
 
-- `job_scraper/__init__.py` — `scrape_jobs()` is the public API. Orchestrates: query → dedup → fetch → filter → persist.
+- `job_scraper/__init__.py` — `scrape_jobs()` is the public API. Orchestrates: query → crawl → merge → dedup → fetch → filter → persist.
 - `job_scraper/searcher.py` — builds queries from templates, hits SearXNG JSON API, rate-limits between queries
+- `job_scraper/crawler.py` — Crawl4AI-based board crawler. Hits company job pages, extracts listing URLs via per-board regex patterns, returns `SearchResult` list merged with SearXNG results before dedup.
 - `job_scraper/fetcher.py` — fetches job URLs, strips HTML to plain text via stdlib HTMLParser
 - `job_scraper/filters.py` — 7-stage pipeline: url_domain → title_relevance → title_role → seniority → experience → blocklist → remote. Each stage returns a FilterVerdict.
 - `job_scraper/dedup.py` — `JobStore` class wraps SQLite. Three tables: `seen_urls` (dedup), `results` (passing jobs), `runs` (run metadata with timing/counts/status).
 - `job_scraper/config.py` — Pydantic models for config. `load_config()` reads `config.default.yaml` and deep-merges user overrides.
-- `job_scraper/config.default.yaml` — 15 query templates, filter keywords/blocklists, search settings. This is the main knob to tune.
+- `job_scraper/config.default.yaml` — 15 query templates, crawl targets, filter keywords/blocklists, search settings. This is the main knob to tune.
 - `job_scraper/models.py` — `Seniority`, `JobBoard` enums, `SearchResult`, `FilterVerdict`, `JobResult`, `ScrapeRun`
 - `job_scraper/__main__.py` — Typer CLI with `scrape`, `stats`, `recent` commands
 
@@ -59,6 +61,8 @@ SearXNG must be running (`docker compose up -d`) on port 8888.
 
 ## Key Design Decisions
 
+- **Two discovery sources** — SearXNG (search-based) + Crawl4AI (crawl-based). Results merge before dedup; everything downstream is source-agnostic.
+- **Crawl4AI limited to server-rendered boards** — Greenhouse and Lever are JS SPAs that don't yield links. Ashby boards render server-side and work reliably.
 - **No LLM calls** — scraper discovers and filters only. LLM analysis is in job-pipeline-v2.
 - **All passing jobs returned** — not first-match. Downstream decides which to process.
 - **SQLite for everything** — dedup + results + run history in one DB file. No external services.
