@@ -14,9 +14,10 @@ SearXNG/
 │   ├── job_scraper/        # Python package
 │   ├── dashboard/          # FastAPI + Alpine.js SPA (:8899)
 │   └── pyproject.toml
-├── tailoring/              # Tailoring engine (see plan.md)
+├── tailoring/              # Tailoring engine (see tailoring/README.md)
 │   ├── tailor/             # CLI package: select/run/validate
 │   ├── Baseline-Dox/       # Baseline LaTeX templates
+│   ├── QUALITY_BAR.md      # Validation gate spec and tuning guide
 │   └── output/             # Generated per-job artifacts
 ├── docs/
 │   └── ENGINES.md          # SearXNG engine reference
@@ -63,25 +64,21 @@ Current defaults are strict:
 
 ## Tailoring Engine
 
-See [`plan.md`](plan.md) for implementation details.
+See [`tailoring/README.md`](tailoring/README.md) for full documentation and tuning guide.
 
 ```bash
 source venv/bin/activate
 cd tailoring
-python -m tailor select
-python -m tailor run --job-id <ID>
-python -m tailor validate output/<job-slug>/
+python -m tailor select              # browse recent jobs
+python -m tailor run --job-id <ID>   # full pipeline → .tex + .pdf
+python -m tailor validate output/<slug>/  # test gates on existing output
 ```
 
-Tailoring runs now include full LLM transparency traces at:
+3-stage LLM pipeline per document: **strategy** (JSON plan) → **draft** (LaTeX) → **QA** (review + structural repair). Validated against hard gates (compilation, char count, bullet count). Retries up to 3x with error feedback.
 
-- `tailoring/output/<job-slug>/llm_trace.jsonl`
+Requires LM Studio (or any OpenAI-compatible server) on port 1234 and pdflatex.
 
-The dashboard (`job-scraper/dashboard`) includes a **Tailoring** tab to inspect:
-
-- analyzer + resume/cover strategy/draft/QA prompt payloads
-- raw model responses
-- attempt-level validation/failure events
+Every run writes `llm_trace.jsonl` with full prompt/response transparency. The dashboard (`job-scraper/dashboard`) includes a **Tailoring** tab to inspect traces.
 
 ## Port Map
 
