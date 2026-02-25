@@ -1,0 +1,39 @@
+
+Tailoring for: Software Engineer II @ Instructure, Inc.
+Company: instructure
+URL: https://jobs.ashbyhq.com/instructure/d441f51e-8b16-4a1f-821d-fbe2190eb873
+Output: /Users/conner/Documents/SearXNG/tailoring/output/95-instructure-software-engineer-ii-instructure-inc--2026-02-25
+
+→ Analyzing JD against skills inventory...
+15:15:21 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:15:52 INFO     tailor.ollama — LLM call complete (5367 chars returned)
+15:15:52 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/95-instructure-software-engineer-ii-instructure-inc--2026-02-25/analysis.json (11 requirements mapped)
+  Mapped 11 requirements
+  Company: instructure
+  Role: Software Engineer II
+
+→ Generating Resume...
+15:15:52 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+15:16:12 INFO     tailor.ollama — LLM call complete (1850 chars returned)
+15:16:12 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+15:16:58 INFO     tailor.ollama — LLM call complete (7781 chars returned)
+15:16:58 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+15:17:45 INFO     tailor.ollama — LLM call complete (7748 chars returned)
+15:17:45 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/95-instructure-software-engineer-ii-instructure-inc--2026-02-25/Conner_Jordan_Resume.tex (7736 chars)
+  Validating (attempt 1/3)...
+15:17:46 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/95-instructure-software-engineer-ii-instructure-inc--2026-02-25/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+15:17:46 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+15:18:00 INFO     tailor.ollama — LLM call complete (1482 chars returned)
+15:18:00 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:18:28 INFO     tailor.ollama — LLM call complete (4405 chars returned)
+15:18:28 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:18:57 INFO     tailor.ollama — LLM call complete (4245 chars returned)
+15:18:57 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/95-instructure-software-engineer-ii-instructure-inc--2026-02-25/Conner_Jordan_Cover_Letter.tex (4234 chars)
+  Validating (attempt 1/3)...
+15:18:58 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/95-instructure-software-engineer-ii-instructure-inc--2026-02-25/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/95-instructure-software-engineer-ii-instructure-inc--2026-02-25

@@ -1,0 +1,62 @@
+
+Tailoring for: Application Security Engineer - Lumin Digital
+Company: LuminDigital
+URL: https://jobs.lever.co/LuminDigital/bfb3fb44-be9d-43ed-b2c8-4602cb62d78a
+Output: /Users/conner/Documents/SearXNG/tailoring/output/69-lumindigital-application-security-engineer---lumin-digital-2026-02-25
+
+→ Analyzing JD against skills inventory...
+11:50:07 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+11:50:37 INFO     tailor.ollama — LLM call complete (5208 chars returned)
+11:50:37 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/69-lumindigital-application-security-engineer---lumin-digital-2026-02-25/analysis.json (11 requirements mapped)
+  Mapped 11 requirements
+  Company: LuminDigital
+  Role: Application Security Engineer
+
+→ Generating Resume...
+11:50:37 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+11:50:55 INFO     tailor.ollama — LLM call complete (1617 chars returned)
+11:50:55 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+11:51:41 INFO     tailor.ollama — LLM call complete (7921 chars returned)
+11:51:41 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+11:52:28 INFO     tailor.ollama — LLM call complete (7794 chars returned)
+11:52:28 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/69-lumindigital-application-security-engineer---lumin-digital-2026-02-25/Conner_Jordan_Resume.tex (7781 chars)
+  Validating (attempt 1/3)...
+11:52:29 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/69-lumindigital-application-security-engineer---lumin-digital-2026-02-25/Conner_Jordan_Resume.pdf
+  ✗ Resume failed: FAIL — too much whitespace (fill ratio 0.93, min 0.96)
+  Regenerating with feedback...
+11:52:29 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+11:52:49 INFO     tailor.ollama — LLM call complete (1841 chars returned)
+11:52:49 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+11:53:34 INFO     tailor.ollama — LLM call complete (7067 chars returned)
+11:53:34 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+11:54:18 INFO     tailor.ollama — LLM call complete (7095 chars returned)
+11:54:18 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/69-lumindigital-application-security-engineer---lumin-digital-2026-02-25/Conner_Jordan_Resume.tex (7086 chars)
+  Validating (attempt 2/3)...
+11:54:19 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/69-lumindigital-application-security-engineer---lumin-digital-2026-02-25/Conner_Jordan_Resume.pdf
+  ✗ Resume failed: FAIL — bullet count 12, expected 14; char count ratio 0.84 (±0.08 allowed)
+  Regenerating with feedback...
+11:54:19 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+11:54:38 INFO     tailor.ollama — LLM call complete (1794 chars returned)
+11:54:38 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+11:55:23 INFO     tailor.ollama — LLM call complete (7216 chars returned)
+11:55:23 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+11:56:10 INFO     tailor.ollama — LLM call complete (7956 chars returned)
+11:56:10 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/69-lumindigital-application-security-engineer---lumin-digital-2026-02-25/Conner_Jordan_Resume.tex (7944 chars)
+  Validating (attempt 3/3)...
+11:56:11 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/69-lumindigital-application-security-engineer---lumin-digital-2026-02-25/Conner_Jordan_Resume.pdf
+  ✗ Resume failed: FAIL — bullet count 16, expected 14; char count ratio 0.85 (±0.08 allowed)
+
+→ Generating Cover Letter...
+11:56:11 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+11:56:24 INFO     tailor.ollama — LLM call complete (1361 chars returned)
+11:56:24 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+11:56:51 INFO     tailor.ollama — LLM call complete (4364 chars returned)
+11:56:51 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+11:57:20 INFO     tailor.ollama — LLM call complete (4154 chars returned)
+11:57:20 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/69-lumindigital-application-security-engineer---lumin-digital-2026-02-25/Conner_Jordan_Cover_Letter.tex (4141 chars)
+  Validating (attempt 1/3)...
+11:57:21 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/69-lumindigital-application-security-engineer---lumin-digital-2026-02-25/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/69-lumindigital-application-security-engineer---lumin-digital-2026-02-25
+Run failed quality gates for: Resume

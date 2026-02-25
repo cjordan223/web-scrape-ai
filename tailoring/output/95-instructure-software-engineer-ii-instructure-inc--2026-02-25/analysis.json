@@ -1,0 +1,88 @@
+{
+  "company_name": "instructure",
+  "role_title": "Software Engineer II",
+  "requirements": [
+    {
+      "jd_requirement": "Professional working experience with modern frontend technologies (React, TypeScript)",
+      "matched_category": "Web and Internal Security Tooling",
+      "matched_skills": "React.js",
+      "evidence": "Built internal security tooling using React.js for operator-facing interfaces; experienced in full-stack development with JavaScript/TypeScript",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Professional working experience with modern backend technologies (Ruby on Rails, Node)",
+      "matched_category": "Programming Languages",
+      "matched_skills": "Node.js",
+      "evidence": "Used Node.js in internal tooling and API development; experienced with JavaScript/TypeScript ecosystems",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Professional working experience with relational databases (Postgres, schema design, query tuning, migrations, understanding of transactions and isolation)",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": "Data normalization,Correlation logic,Entity resolution",
+      "evidence": "Built multi-source data ingestion and reconciliation pipelines requiring deep understanding of relational schema design, query optimization, and transactional integrity",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Ability to contribute to a feature's development from start to finish, including asking questions to clarify requirements, working across disciplines, participating in solution scoping, and implementing changes in your area",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Cross-functional execution,Requirements-to-controls translation",
+      "evidence": "Owned end-to-end delivery of security automation systems across engineering and security teams; translated ambiguous requirements into deployable controls",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Strong focus on problem-solving, coupled with the judgment to seek assistance or ask questions effectively and at the right time",
+      "matched_category": "Core Skills",
+      "matched_skills": "Vulnerability remediation automation,Endpoint hardening workflows",
+      "evidence": "Built pragmatic, production-grade security tooling by iteratively clarifying operational problems and escalating appropriately when dependencies or constraints emerged",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Demonstrated ability to learn and grow based on mentorship, realtime feedback, and past experiences",
+      "matched_category": "Core Skills",
+      "matched_skills": "Deployable security controls",
+      "evidence": "Continuously evolved internal tooling based on operator feedback and incident learnings; shipped iterative improvements grounded in real-world use cases",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Be comfortable participating in an on-call rotation (or similar incident response process) for the services you own",
+      "matched_category": "DevSecOps",
+      "matched_skills": "Operational reliability practices",
+      "evidence": "Built and operated production security services with runbooks, alerting, and on-call readiness; emphasized reliability-first design",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Integrate AI tools (such as Claude, GitHub Copilot, and Gemini) into every aspect of your work, including new feature development, incident response, and investigations",
+      "matched_category": "AI for SecOps",
+      "matched_skills": "RAG pipelines,LangChain,Retrieval tuning",
+      "evidence": "Built AI-augmented security workflows using LangChain and RAG pipelines with strong governance and auditability; applied AI to incident triage and investigation",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Follow and promote accessibility (WCAG aware UI), testing (unit/integration/e2e), CI/CD, and participate in code reviews",
+      "matched_category": "Testing and Quality Automation",
+      "matched_skills": "Accessibility testing (WCAG/ADA),Automated validation workflows",
+      "evidence": "Integrated WCAG compliance checks into CI pipelines and built automated test suites for internal tools; practiced CI/CD with GitHub Actions/GitLab CI",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Build for international audiences: i18n/l10n pipelines, time-zone correctness, and data residency considerations",
+      "matched_category": "DevSecOps",
+      "matched_skills": "Infrastructure as Code",
+      "evidence": "Designed infrastructure and data pipelines with region-aware configurations using Terraform/Ansible; applied data residency controls in cloud deployments",
+      "priority": "low"
+    },
+    {
+      "jd_requirement": "Instrument services with logs/metrics/traces (Observe or similar) and contribute to incident ready observability",
+      "matched_category": "DevSecOps",
+      "matched_skills": "Operational reliability practices",
+      "evidence": "Built observability into security services using Grafana, Prometheus, and structured logging; designed incident-ready runbooks and dashboards",
+      "priority": "high"
+    }
+  ],
+  "tone_notes": "Match Instructure\u2019s mission-driven, inclusive tone\u2014emphasize impact on educators/learners, collaboration across disciplines, and continuous learning. Highlight ownership, reliability, and user-centered design rather than just technical depth.",
+  "skills_line_recommendation": "full",
+  "summary_angle": "Position Conner as a security-aware full-stack engineer who builds reliable, accessible systems end-to-end\u2014with strong emphasis on automation, observability, and AI-augmented operations\u2014aligned with Instructure\u2019s mission to empower educators and learners globally.",
+  "_job_id": 95,
+  "_job_url": "https://jobs.ashbyhq.com/instructure/d441f51e-8b16-4a1f-821d-fbe2190eb873"
+}

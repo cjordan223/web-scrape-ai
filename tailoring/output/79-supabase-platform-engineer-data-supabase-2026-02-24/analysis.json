@@ -1,0 +1,95 @@
+{
+  "company_name": "supabase",
+  "role_title": "Platform Engineer: Data",
+  "requirements": [
+    {
+      "jd_requirement": "Design and implement distributed services and APIs that power the Supabase Platform.",
+      "matched_category": "API and Integrations",
+      "matched_skills": "API-driven workflows, Integration scripting, System-to-system workflow automation",
+      "evidence": "Built internal security tooling with FastAPI/Flask and integrated with Microsoft Graph API, multi-platform systems, and cross-team workflows.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Lead projects that improve scalability, reliability, and cost efficiency across existing systems.",
+      "matched_category": "DevSecOps",
+      "matched_skills": "CI/CD pipelines, Automated build and deploy workflows, Operational reliability practices",
+      "evidence": "Owned end-to-end delivery of security automation pipelines using GitHub Actions/GitLab CI, with strong focus on repeatability and production stability.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Build data-intensive workflows, background jobs, and event-driven pipelines.",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": "Multi-source ingestion, Data normalization, Correlation logic, Entity resolution",
+      "evidence": "Designed and operated data pipelines for security telemetry ingestion, normalization, and correlation across heterogeneous systems.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Own service SLIs/SLOs and collaborate on incident response and post-incident reviews.",
+      "matched_category": "DevSecOps",
+      "matched_skills": "Operational reliability practices, Runbook-driven automation",
+      "evidence": "Developed runbooks and SLI/SLO frameworks for security tooling; led post-incident reviews with cross-functional teams to close gaps.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Improve system observability with metrics, logging, tracing, and profiling.",
+      "matched_category": "Security Analytics",
+      "matched_skills": "Log analysis, Anomaly-oriented analysis, Security metrics and reporting",
+      "evidence": "Built security analytics dashboards using Grafana/Prometheus; developed anomaly detection logic for vulnerability patterns and operational drift.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Contribute to our CI/CD and release processes to ship safely and quickly.",
+      "matched_category": "DevSecOps",
+      "matched_skills": "CI/CD pipelines, Release automation",
+      "evidence": "Designed and maintained CI/CD workflows for internal tooling; automated release gates and deployment validation.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Partner with product teams to deliver features end-to-end, from design docs to production.",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Cross-functional execution, Technical architecture communication, Requirements-to-controls translation",
+      "evidence": "Collaborated across security, IAM, and infrastructure teams to translate high-level requirements into deployable controls and operational workflows.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Experience with Infrastructure as Code (Pulumi preferred; Terraform/CDK also fine).",
+      "matched_category": "DevSecOps",
+      "matched_skills": "Infrastructure as Code",
+      "evidence": "Used Terraform and Ansible to provision cloud infrastructure for security tooling; experienced in declarative infrastructure management.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Proficient in TypeScript and/or Go, ideally with 5+ years building production services.",
+      "matched_category": "Programming Languages",
+      "matched_skills": "TypeScript, JavaScript",
+      "evidence": "Built internal tooling with TypeScript/Node.js and React; strong backend experience via FastAPI (Python) and Flask.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Comfortable with cloud infrastructure (AWS preferred) and container orchestration.",
+      "matched_category": "Cloud Security",
+      "matched_skills": "AWS ECS deployments, IAM, Containerized security services",
+      "evidence": "Deployed and secured containerized services on AWS ECS with IAM, secrets management, and service hardening patterns.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Familiar with multi-tenant architectures, API design, and data modelling.",
+      "matched_category": "API and Integrations",
+      "matched_skills": "API-driven workflows, System-to-system workflow automation",
+      "evidence": "Designed and operated multi-tenant APIs for internal tooling; implemented data models to support cross-team ingestion and reconciliation.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Experience with Postgres internals, logical replication, or CDC pipelines.",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": "Multi-source ingestion, Correlation logic",
+      "evidence": "Built pipelines for ingesting and normalizing data from heterogeneous sources \u2014 transferable to CDC/logical replication patterns.",
+      "priority": "low"
+    }
+  ],
+  "tone_notes": "Emphasize operational reliability, production-grade tooling, and cross-functional collaboration over pure security analysis. Align with Supabase\u2019s open-source-first, developer-centric culture by highlighting shipping, documentation, and systems thinking. Avoid over-emphasizing defensive/security-only mindset; instead, frame experience as enabling developer velocity through secure infrastructure.",
+  "skills_line_recommendation": "full",
+  "summary_angle": "Position as a security-minded platform engineer who builds scalable, observable, and reliable distributed systems \u2014 with deep experience in cloud-native automation, data pipelines, and operational reliability that directly supports Supabase\u2019s platform goals.",
+  "_job_id": 79,
+  "_job_url": "https://jobs.ashbyhq.com/supabase/9073c0cd-2545-473a-b2ac-63e4615c69b5/application"
+}

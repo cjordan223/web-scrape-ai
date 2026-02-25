@@ -1,0 +1,19 @@
+{
+  "summary_strategy": "Position Conner as a security engineer who builds and operates production-grade DLP systems\u2014not just policy designers\u2014highlighting his automation-first approach, endpoint hardening expertise, and experience translating compliance requirements into deployable controls",
+  "skills_strategy": "Use the condensed 3-line format to emphasize Security Engineering & Automation, Cloud/Platform Integrations (highlighting Microsoft Graph API and CrowdStrike RTR), and Security Data & AI (emphasizing asset correlation, Pandas/NumPy analytics, and RAG governance), all aligned with DLP operational needs",
+  "experience_focus": [
+    {
+      "company": "University of California|Great Wolf Resorts|Simple.biz",
+      "must_highlight": "endpoint hardening automation, API-driven security workflows, compliance-to-controls translation",
+      "safe_metrics_to_keep": "10,000+ devices managed, 200 hours saved annually, 500 hours reduced workload, 25 percent compliance improvement, 30 percent reduction in user-reported issues",
+      "claims_to_avoid": "no invented metrics, no unverified tool claims (e.g., Zscaler/Qualys), no hypothetical policy design without evidence of implementation"
+    }
+  ],
+  "risk_controls": [
+    "Do not add tools or responsibilities not explicitly supported in baseline resume or analysis mapping",
+    "Never fabricate metrics\u2014even if implied\u2014unless directly quoted from source material",
+    "Avoid phrases like 'designed for compliance'; instead use 'translated requirements into deployable controls' or 'operationalized standardized asset remediation'",
+    "Replace speculative DLP-specific claims with evidence-based parallels: e.g., 'BitLocker enforcement across 10,000+ devices' instead of 'implemented DLP policies'",
+    "Do not mention Zscaler, Qualys, or Jira unless explicitly stated in resume; use Defender XDR and Rapid7 only where documented"
+  ]
+}

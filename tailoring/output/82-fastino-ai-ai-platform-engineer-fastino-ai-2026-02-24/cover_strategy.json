@@ -1,0 +1,19 @@
+{
+  "opening_angle": "Position Conner as an engineer who bridges AI infrastructure and security-first platform engineering, highlighting his experience building production-grade systems that align with fastino.ai's focus on scalable, reliable AI model deployment.",
+  "paragraph_focus": [
+    "Direct alignment with AI platform engineering through security automation and data pipeline experience",
+    "Concrete examples of building scalable infrastructure for model training workflows (data ingestion, normalization, CI/CD)",
+    "Demonstrated ability to implement ML patterns like RAG and model optimization in secure environments",
+    "Operational discipline\u2014documentation, reproducibility, guardrails\u2014that maps to experiment tracking and production reliability needs"
+  ],
+  "voice_controls": [
+    "Replace generic phrases like 'do my best work' with active verbs: build, ship, design, optimize, standardize",
+    "Avoid vague claims like 'passionate about AI'; instead specify tools (LangChain, RAG), patterns (LoRA, adapters), and outcomes (reduced latency, improved throughput)",
+    "Use precise technical language: 'containerized fine-tuning pipelines' instead of 'AI systems', 'GPU-optimized workloads' instead of 'cloud services'"
+  ],
+  "claims_to_avoid": [
+    "No mention of RL training unless explicitly tied to his analytics work",
+    "Avoid 'transforming security with AI' or other inflated value claims; stick to measurable impact like 'reduced remediation time by X%' only if supported",
+    "Do not claim direct experience with specific fastino.ai tech unless inferred from JD match (e.g., no 'built distributed training clusters' without evidence)"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "summary_strategy": "Reframe summary to emphasize end-to-end ownership of secure, accessible systems for educators/learners\u2014highlighting full-stack delivery (React/TypeScript + backend), CI/CD reliability, and AI-augmented SecOps\u2014while aligning with Instructure\u2019s mission-driven tone",
+  "skills_strategy": "Use condensed 3-line skills format to maximize relevance: lead with Security Engineering & Automation (prioritizing Python/PowerShell remediation), then Cloud & Platform Integrations (highlighting AWS ECS, Docker, IAM/secrets, CI/CD), and close with Security Data & AI (emphasizing asset correlation, RAG/LangChain, and retrieval tuning\u2014tying to AI tool integration requirement)",
+  "experience_focus": [
+    {
+      "company": "University of California|Great Wolf Resorts|Simple.biz",
+      "must_highlight": "end-to-end ownership of secure internal tools, accessibility-aware testing (WCAG), CI/CD reliability, and AI-augmented workflows",
+      "safe_metrics_to_keep": "25 percent compliance improvement (from phishing tooling), 200 hours saved annually (certificate automation), 500+ hours reduced workload (distribution list tooling)",
+      "claims_to_avoid": "no invented metrics, no speculative ownership claims (e.g., 'led' without evidence), no unverified scale numbers beyond source data"
+    }
+  ],
+  "risk_controls": [
+    "Replace all 'built' with 'delivered', 'engineered', or 'developed' to avoid overclaiming; use 'supported' or 'contributed to' where ownership is ambiguous",
+    "Never state scale (e.g., 10,000+ devices) without explicit source confirmation\u2014Great Wolf\u2019s 10,000+ is present in resume and retained; UC\u2019s 7,000 endpoints and 2,900-user portal are retained as they appear in baseline",
+    "Avoid 'pioneered', 'established the technical standard', or other hyperbolic phrasing\u2014replace with 'delivered', 'operationalized', or 'supported org-wide adoption'"
+  ]
+}

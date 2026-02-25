@@ -1,0 +1,179 @@
+\documentclass[letterpaper,10pt]{article}
+
+% Basics
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{tabularx}
+\usepackage{fontawesome5}
+\usepackage{microtype}
+
+% Fonts
+\usepackage{CormorantGaramond}
+\usepackage{charter}
+
+% Colors
+\usepackage{xcolor}
+\definecolor{SlateGrey}{HTML}{2E2E2E}
+\definecolor{LightGrey}{HTML}{666666}
+\colorlet{heading}{black}
+\colorlet{emphasis}{SlateGrey}
+
+% Layout — optimized for one page
+\usepackage[margin=0.35in, top=0.08in, bottom=0.35in]{geometry}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+\setlength{\tabcolsep}{1pt}
+\linespread{0.88}
+\microtypesetup{protrusion=true,expansion=true}
+
+% Item spacing (tightened for one page)
+\setlist[itemize]{leftmargin=0.11in, topsep=0pt, partopsep=0pt, parsep=0pt, itemsep=1pt}
+
+% Section style
+\titleformat{\section}
+  {\large\bfseries\scshape\raggedright\color{heading}}
+  {}{0em}{}[\titlerule \vspace{-4pt}]
+\titlespacing*{\section}{0pt}{2pt}{0pt}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+
+\pdfgentounicode=1
+
+% Convenience commands
+\newcommand{\resumeItem}[1]{\item{\small #1}}
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0in,label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-2pt}}
+
+\newcommand{\resumeSubheading}[4]{%
+  \vspace{-2pt}\item
+  \begin{tabular*}{\textwidth}[t]{l@{\extracolsep{\fill}}r}
+    \textbf{\large #1} & \textbf{\small #2} \\
+    \textit{\large #3} & \textit{\small #4} \\
+  \end{tabular*}\vspace{-2pt}
+}
+
+%-------------------------------------
+\begin{document}
+
+% Header
+\begin{center}
+  {\Huge \textbf{Conner Jordan}}\\[0pt]
+  {\Large Security Engineer}\\[0pt]
+  \href{tel:+18059759793}{\faPhone\ +1 (805) 975-9793} \,|\, 
+  \href{mailto:connercharlesjordan@gmail.com}{\faEnvelope\ connercharlesjordan@gmail.com} \,|\, 
+  \faMapMarker\ San Luis Obispo, CA \\[-2pt]
+  \href{https://www.linkedin.com/in/conner-jordan-4b268514a/}{\faLinkedin\ linkedin.com/in/conner-jordan-4b268514a}
+  \,|\, \href{https://github.com/cjordan223}{\faGithub\ github.com/cjordan223}
+  \,|\, \href{https://connerjordan.com/}{\faGlobe\ connerjordan.com}
+\end{center}
+
+\vspace{4pt}
+
+% SUMMARY
+\section{PROFESSIONAL SUMMARY}
+\vspace{8pt}
+\resumeSubHeadingListStart
+\item {\small
+Security/DevSecOps Engineer who ships production security services and automation (cloud + endpoints), translating requirements into deployable controls and measurable risk reduction}
+\resumeSubHeadingListEnd
+\vspace{6pt}
+
+% SKILLS
+\section{TECHNICAL SKILLS}
+\vspace{6pt}
+\resumeSubHeadingListStart
+\item {\small
+\textbf{Languages:} Python, C, C++, TypeScript, Java, SQL, PowerShell, Bash, Swift, Rust, Go
+
+\vspace{3pt}
+\textbf{Security Tooling:} \textbf{Security Tooling:} Vulnerability management, SIEM, EDR, XDR, SOAR, endpoint management, patch orchestration.
+
+\vspace{3pt}
+\textbf{AI/ML and Research:} RAG pipelines, vector databases, NLP, retrieval evaluation and tuning, LLM developer tooling
+
+\vspace{3pt}
+\textbf{Frameworks and Infrastructure:} Flask, FastAPI, Django, React.js, Node.js, Docker, Spring Boot, MCP/FastMCP, Next.js
+
+\vspace{3pt}
+\textbf{DevOps and CI/CD:} CI/CD pipelines, infrastructure as code, configuration management, container orchestration, serverless compute, managed databases, secrets management, AWS/GCP/Azure
+
+\vspace{3pt}
+\textbf{Databases:} \textbf{Databases:} PostgreSQL, MySQL, MongoDB, DynamoDB, SQLite, Redis, Snowflake, ClickHouse, Databricks, vector databases.
+}
+\resumeSubHeadingListEnd
+\vspace{6pt}
+
+% EXPERIENCE
+\section{WORK EXPERIENCE}
+\vspace{8pt}
+\resumeSubHeadingListStart
+
+\resumeSubheading
+  {University of California, Office of the President}{Oakland, CA (Remote)}
+  {Security Engineer}{March 2025 - Present}
+  \vspace{2pt}
+\resumeItemListStart
+  \resumeItem{Designed and built Coraline, an open-source-ready Dockerized Flask \& React security tool on AWS ECS that ingests and correlates data from five disparate security and IT inventory sources; implemented hierarchical confidence-matching algorithms to reconcile over 500 drifted assets across 7,000+ endpoints.}
+  \resumeItem{Engineered an AI/ML-powered RAG security chatbot using LangChain, vector databases, and NLP techniques, establishing the technical standard for internal AI deployments and enabling instant retrieval of SecOps knowledge across the organization.}
+  \resumeItem{Built API-driven vulnerability response automation for a heterogeneous fleet of macOS and Windows devices, analyzing vulnerability classes and accelerating patch deployment to ensure compliance with University-wide cybersecurity mandates.}
+  \resumeItem{Architected secure server infrastructure for a 2,900-user identity portal; led cross-departmental integration of MFA providers and enforced strict network security protocols through code review and secure implementation practices.}
+  \resumeItem{Translated complex security requirements into deployable controls by partnering across IAM, Networking, and Endpoint teams; communicated technical architectures to both engineers and leadership to drive informed decision-making.}
+  \resumeItem{Pioneered audit-ready governance for AI security tooling across UC’s developer ecosystem, including org-wide runbooks that operationalized standardized asset remediation.}
+  \resumeItemListEnd
+\vspace{6pt}
+
+\resumeSubheading
+  {Great Wolf Resorts}{Chicago Corporate Office (Remote)}
+  {Security Support Engineer}{May 2023 - March 2025}
+\vspace{2pt}
+\resumeItemListStart
+  \resumeItem{Built and maintained Python and PowerShell security automation tools for hybrid Azure tenant management, deploying endpoint agent updates, patching, and BitLocker enforcement across 10,000+ devices.}
+  \resumeItem{Developed security certificate deployment tooling using CrowdStrike RTR and PowerShell scripting, preventing service disruptions and saving an estimated 200 hours annually through automated remediation.}
+  \resumeItem{Engineered a PowerShell CLI tool integrated with Microsoft Graph API to manage distribution lists of 10,000+ users, eliminating manual error and reducing annual workload by over 500 hours.}
+  \resumeItem{Built Python-based log analysis frameworks in Rapid7 using Pandas and NumPy, developing data pipelines and dynamic visualizations to detect anomalous behavior and common vulnerability patterns.}
+  \resumeItem{Developed custom Python tools to analyze phishing simulation data from KnowBe4, transforming raw metrics into actionable security insights that improved organizational compliance rates by 25 percent.}
+\resumeItemListEnd
+\vspace{6pt}
+
+\resumeSubheading
+  {Simple.biz}{Durham, NC (Remote)}
+  {Freelance Web Developer}{August 2022 - May 2023}
+\vspace{2pt}
+\resumeItemListStart
+  \resumeItem{Delivered production-grade web applications to paying clients, building CI/CD pipelines with automated build and deployment scripts that ensured consistent, secure releases.}
+  \resumeItem{Implemented automated security and accessibility testing using Selenium, integrating WCAG/ADA compliance checks into development workflows to surface issues early and reduce defects.}
+  \resumeItem{Conducted systematic cross-browser and cross-device compatibility testing with scripted automation, root-causing rendering discrepancies and achieving a 30 percent reduction in user-reported issues.}
+\resumeItemListEnd
+
+\resumeSubHeadingListEnd
+\vspace{4pt}
+
+
+% EDUCATION
+\section{EDUCATION}
+\vspace{8pt}
+\resumeSubHeadingListStart
+  \resumeSubheading
+    {California State University - Monterey Bay}{}
+    {B.S., Computer Science}{}
+  \item {\small \textit{Capstone Award for Innovation }}
+  \item {\small Developed PhishFinder, a security tool comprising a Chrome extension and Python backend API that performs automated analysis of SPF, DKIM, and DMARC protocols using NLP and LLM-based classification to detect phishing attacks; awarded Most Innovative Project at the 2024 Capstone Festival.}
+\resumeSubHeadingListEnd
+\vspace{6pt}
+
+
+% CERTIFICATIONS
+\section{CERTIFICATIONS}
+\resumeSubHeadingListStart
+\vspace{10pt}
+\item {\small \textbf{AWS Certified Cloud Practitioner} \hfill \textit{January 2025}}
+\resumeSubHeadingListEnd
+
+\end{document}

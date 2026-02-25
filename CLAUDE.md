@@ -4,9 +4,9 @@
 
 Two things in one directory:
 
-1. **SearXNG instance** — a Dockerized metasearch engine on `localhost:8888`
-2. **`job_scraper` package** — Python package that uses SearXNG to discover, filter, and persist security job postings
-3. **Dashboard** — FastAPI + Alpine.js SPA providing full visibility into scraper data, DB contents, scheduled jobs, and raw SQL access
+1. **SearXNG instance** — a Dockerized metasearch engine on `localhost:8888` (config at repo root)
+2. **`job_scraper` package** — Python package in `job-scraper/` that uses SearXNG to discover, filter, and persist security job postings
+3. **Dashboard** — FastAPI + Alpine.js SPA in `job-scraper/dashboard/` providing full visibility into scraper data, DB contents, scheduled jobs, and raw SQL access
 
 The scraper is the primary consumer of SearXNG. It runs every 30 min via launchd, accumulates results in SQLite at `~/.local/share/job_scraper/jobs.db`.
 
@@ -14,6 +14,7 @@ The scraper is the primary consumer of SearXNG. It runs every 30 min via launchd
 
 ```bash
 source venv/bin/activate
+cd job-scraper
 python -m job_scraper scrape -v      # full cycle (SearXNG + Crawl4AI)
 python -m job_scraper scrape -v --no-crawl  # SearXNG only
 python -m job_scraper stats          # check DB totals
@@ -21,18 +22,21 @@ python -m job_scraper recent -n 20   # recent results
 python dashboard/server.py           # start dashboard on :8899
 ```
 
-SearXNG must be running (`docker compose up -d`) on port 8888. Crawl4AI requires Playwright browsers (`playwright install chromium`).
+SearXNG must be running (`docker compose up -d` from repo root) on port 8888. Crawl4AI requires Playwright browsers (`playwright install chromium`).
 
 ## Package Layout
 
+All paths below are relative to `job-scraper/`:
+
 - `job_scraper/__init__.py` — `scrape_jobs()` is the public API. Orchestrates: query → crawl → merge → dedup → fetch → filter → persist.
 - `job_scraper/searcher.py` — builds queries from templates, hits SearXNG JSON API, rate-limits between queries
-- `job_scraper/crawler.py` — Crawl4AI-based board crawler. Hits company job pages, extracts listing URLs via per-board regex patterns, returns `SearchResult` list merged with SearXNG results before dedup.
+- `job_scraper/crawler.py` — Crawl4AI-based crawler. Hits Ashby board pages and aggregator search results (SimplyHired, LinkedIn), extracts listing URLs via per-board regex patterns, returns `SearchResult` list merged with SearXNG results before dedup.
 - `job_scraper/fetcher.py` — fetches job URLs, strips HTML to plain text via stdlib HTMLParser
-- `job_scraper/filters.py` — 7-stage pipeline: url_domain → title_relevance → title_role → seniority → experience → blocklist → remote. Each stage returns a FilterVerdict.
+- `job_scraper/filters.py` — policy + relevance pipeline: url_domain → source_quality → title_relevance → title_role → seniority → early_career → jd_quality → jd_presence(soft) → experience → blocklist → remote → location → salary → scoring. Each stage returns a `FilterVerdict`. Senior/lead pass seniority; staff/principal/manager/director are hard-blocked.
 - `job_scraper/dedup.py` — `JobStore` class wraps SQLite. Three tables: `seen_urls` (dedup), `results` (passing jobs), `runs` (run metadata with timing/counts/status).
+- `job_scraper/urlnorm.py` — canonicalizes URLs before dedup/persistence to remove tracking params and reduce replay duplicates.
 - `job_scraper/config.py` — Pydantic models for config. `load_config()` reads `config.default.yaml` and deep-merges user overrides.
-- `job_scraper/config.default.yaml` — 15 query templates, crawl targets, filter keywords/blocklists, search settings. This is the main knob to tune.
+- `job_scraper/config.default.yaml` — 31 query templates, 32 crawl targets (21 Ashby, 5 Greenhouse, 3 Lever, 3 SimplyHired), filter keywords/blocklists, search settings. This is the main knob to tune.
 - `job_scraper/models.py` — `Seniority`, `JobBoard` enums, `SearchResult`, `FilterVerdict`, `JobResult`, `ScrapeRun`
 - `job_scraper/__main__.py` — Typer CLI with `scrape`, `stats`, `recent` commands
 
@@ -61,13 +65,16 @@ SearXNG must be running (`docker compose up -d`) on port 8888. Crawl4AI requires
 
 ## Key Design Decisions
 
-- **Two discovery sources** — SearXNG (search-based) + Crawl4AI (crawl-based). Results merge before dedup; everything downstream is source-agnostic.
-- **Crawl4AI limited to server-rendered boards** — Greenhouse and Lever are JS SPAs that don't yield links. Ashby boards render server-side and work reliably.
-- **No LLM calls** — scraper discovers and filters only. LLM analysis is in job-pipeline-v2.
+- **Three discovery strategies** — SearXNG `site:` queries (search-based) + Crawl4AI on Ashby boards (direct crawl) + Crawl4AI on aggregators like SimplyHired/LinkedIn (crawl their search results to reach jobs on Greenhouse/Lever/Workday indirectly). All merge before dedup; everything downstream is source-agnostic.
+- **Crawl4AI: Ashby + aggregators, not Greenhouse/Lever directly** — Greenhouse redirects to company career SPAs, Lever blocks headless browsers. Tested with `wait_for`, `js_code`, `process_iframes`, `enable_stealth` — none help. The workaround is crawling aggregators that already indexed those boards. See GitHub issue #1 for full crawlability assessment.
 - **All passing jobs returned** — not first-match. Downstream decides which to process.
 - **SQLite for everything** — dedup + results + run history in one DB file. No external services.
 - **No external orchestrators** — launchd for scheduling, not Docker-based schedulers. Simpler, zero friction.
 - **Word-boundary regex** — title keyword matching uses `\b` to prevent substring false positives (e.g. "soc" inside "Associate").
+- **Remote-first policy** — defaults reject `on-site/in-office` signals. `hybrid` is accepted as potentially remote-compatible. `require_explicit_remote: false` means jobs without any location signal pass.
+- **Early-career exclusion** — internships/new-grad/co-op/apprenticeship/fellowship postings are blocked.
+- **JD quality guardrails** — known shell/login pages (especially LinkedIn shell content) are rejected to avoid polluted experience/salary parsing.
+- **Salary parsing hardening** — parser ignores `401k` benefits text, uses compensation context windows, and keeps salaries in a realistic range.
 - **Blocklist checks title+snippet+JD** — catches clearance requirements even without JD fetch.
 - **Filter verdicts** — every job gets an audit trail of why it passed/failed each stage.
 - **Dashboard reads DB read-only** — no write operations, no conflicts with scraper.
@@ -81,7 +88,8 @@ SearXNG must be running (`docker compose up -d`) on port 8888. Crawl4AI requires
 
 - Mac Mini at 192.168.1.19
 - Python 3.14 in `./venv/`
-- SearXNG in Docker on port 8888
+- SearXNG in Docker on port 8888 (config at repo root: `docker-compose.yml`, `settings.yml`)
+- Job scraper package in `job-scraper/`
 - Dashboard on port 8899
 - Scheduling via launchd (com.jobscraper.scrape, every 30 min)
 - Logs at `~/.local/share/job_scraper/scrape.log`

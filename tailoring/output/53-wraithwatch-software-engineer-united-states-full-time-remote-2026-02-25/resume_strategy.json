@@ -1,0 +1,18 @@
+{
+  "summary_strategy": "Reframe summary around operational reliability and ambiguity resolution\u2014emphasize production ownership, deployable controls, and measurable risk reduction aligned with wraithwatch\u2019s security-first pragmatism",
+  "skills_strategy": "Use condensed 3-line format to prioritize high-priority skills (Security Engineering & Automation, Cloud/Platform Integrations, Security Data/AI) while preserving technical specificity and removing redundancy; group tools under functional categories without listing every tool",
+  "experience_focus": [
+    {
+      "company": "University of California|Great Wolf Resorts|Simple.biz",
+      "must_highlight": "deployable controls with measurable outcomes, API-driven automation (CrowdStrike RTR, Microsoft Graph), asset reconciliation at scale",
+      "safe_metrics_to_keep": "10,000+ devices, 25 percent compliance improvement, 200 hours saved annually, 30 percent reduction in user-reported issues",
+      "claims_to_avoid": "invented metrics like '25 percent improvement' without explicit source attribution, speculative ownership claims (e.g., 'led cross-departmental initiative' unless explicitly stated), or vague terms like 'enterprise-grade' without context"
+    }
+  ],
+  "risk_controls": [
+    "Never invent metrics\u2014keep only numbers explicitly present in source resume",
+    "Replace phrases like 'pioneered' or 'established the technical standard' with factual descriptions (e.g., 'built auditable RAG pipeline for internal SecOps knowledge retrieval')",
+    "Avoid corporate buzzwords: 'synergy', 'holistic', 'end-to-end'\u2014use concrete verbs like 'built', 'integrated', 'automated'",
+    "Do not add projects, tools, or responsibilities absent from baseline resume"
+  ]
+}

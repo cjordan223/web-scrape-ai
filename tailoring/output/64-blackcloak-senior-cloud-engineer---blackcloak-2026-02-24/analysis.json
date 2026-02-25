@@ -1,0 +1,81 @@
+{
+  "company_name": "BlackCloak",
+  "role_title": "Senior Cloud Engineer",
+  "requirements": [
+    {
+      "jd_requirement": "Architect and Manage Cloud Infrastructure in GCP",
+      "matched_category": "Cloud Security",
+      "matched_skills": "Secure cloud operations",
+      "evidence": "Built and operated secure cloud environments across AWS, Azure, and GCP with emphasis on hardening, IAM, and secrets management in containerized deployments",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Infrastructure as Code (Terraform)",
+      "matched_category": "DevSecOps",
+      "matched_skills": "Infrastructure as Code,Configuration management",
+      "evidence": "Implemented IaC using Terraform and Ansible to standardize infrastructure across environments, ensuring version control and reproducibility",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Cloud Operations & Monitoring (observability, alerting, incident response)",
+      "matched_category": "Security Automation",
+      "matched_skills": "Remediation scripting,Runbook-driven automation",
+      "evidence": "Designed and deployed observability pipelines using Grafana/Prometheus with proactive alerting and automated remediation playbooks for security and infrastructure events",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Collaborative DevOps (Docker/K8s, containerization support)",
+      "matched_category": "Cloud Security",
+      "matched_skills": "Containerized security services",
+      "evidence": "Supported secure container deployments via Docker and orchestration platforms, integrating runtime security controls and service hardening into CI/CD workflows",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "CI/CD Automation (GitHub Actions, GitLab CI)",
+      "matched_category": "DevSecOps",
+      "matched_skills": "CI/CD pipelines,Automated build and deploy workflows",
+      "evidence": "Built and maintained CI/CD pipelines using GitHub Actions and GitLab CI with automated testing gates, release automation, and rollback capabilities",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Secure Infrastructure Design (IAM, secrets management)",
+      "matched_category": "Identity and Access",
+      "matched_skills": "Access control implementation,Cross-team IAM coordination",
+      "evidence": "Designed and enforced IAM policies across cloud platforms, integrated secrets management into automation workflows, and coordinated with security teams to align access controls with least-privilege principles",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Performance Optimization (cloud spend, resource utilization)",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": "Asset reconciliation,Inventory drift resolution",
+      "evidence": "Built data pipelines to reconcile cloud asset inventories and detect configuration drift, enabling cost-performance optimization decisions grounded in accurate telemetry",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Automated Remediation (scripts, self-healing infrastructure)",
+      "matched_category": "Security Automation",
+      "matched_skills": "Python automation,Remediation scripting",
+      "evidence": "Developed Python-based remediation scripts and runbook-driven automation for endpoint hardening, patch orchestration, and cloud resource self-healing",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Scripting (Python/Bash)",
+      "matched_category": "Security Automation",
+      "matched_skills": "Python automation,Administrative tooling",
+      "evidence": "Built internal security tools and operational dashboards using Python (Flask, FastAPI), with Bash for lightweight automation and integration scripting",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Collaborative Problem-Solving across Engineering, Security, Product",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Cross-functional execution,Requirements-to-controls translation",
+      "evidence": "Partnered across security, engineering, and product teams to translate business requirements into deployable controls\u2014documenting trade-offs and operational constraints clearly for all stakeholders",
+      "priority": "high"
+    }
+  ],
+  "tone_notes": "Emphasize operational reliability, security-first mindset, and cross-functional collaboration\u2014align with BlackCloak\u2019s mission of protecting high-value individuals. Avoid overly academic or theoretical framing; focus on shipped, maintainable systems with measurable impact.",
+  "skills_line_recommendation": "full",
+  "summary_angle": "Position Conner as a security-obsessed cloud engineer who builds resilient, automated infrastructure\u2014bridging DevOps and security to protect high-stakes digital assets.",
+  "_job_id": 64,
+  "_job_url": "https://jobs.lever.co/BlackCloak/afab4049-7a6c-4920-85cc-ab4ed46ad454"
+}

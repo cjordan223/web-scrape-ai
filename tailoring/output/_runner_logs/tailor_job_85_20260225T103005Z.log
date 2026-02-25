@@ -1,0 +1,62 @@
+
+Tailoring for: Platform Engineer, Forward Deployed Engineering (FDE) @ OpenAI
+Company: openai
+URL: https://jobs.ashbyhq.com/openai/059ac93e-3fc9-42e9-a4f4-367c0fd5de14
+Output: /Users/conner/Documents/SearXNG/tailoring/output/85-openai-platform-engineer-forward-deployed-engineering-fde-openai-2026-02-25
+
+→ Analyzing JD against skills inventory...
+02:30:05 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+02:30:28 INFO     tailor.ollama — LLM call complete (4140 chars returned)
+02:30:28 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/85-openai-platform-engineer-forward-deployed-engineering-fde-openai-2026-02-25/analysis.json (8 requirements mapped)
+  Mapped 8 requirements
+  Company: openai
+  Role: Platform Engineer, Forward Deployed Engineering (FDE)
+
+→ Generating Resume...
+02:30:28 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+02:30:44 INFO     tailor.ollama — LLM call complete (1465 chars returned)
+02:30:44 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+02:31:30 INFO     tailor.ollama — LLM call complete (8090 chars returned)
+02:31:30 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+02:32:17 INFO     tailor.ollama — LLM call complete (8003 chars returned)
+02:32:17 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/85-openai-platform-engineer-forward-deployed-engineering-fde-openai-2026-02-25/Conner_Jordan_Resume.tex (7991 chars)
+  Validating (attempt 1/3)...
+02:32:18 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/85-openai-platform-engineer-forward-deployed-engineering-fde-openai-2026-02-25/Conner_Jordan_Resume.pdf
+  ✗ Resume failed: FAIL — too much whitespace (fill ratio 0.95, min 0.96)
+  Regenerating with feedback...
+02:32:18 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+02:32:35 INFO     tailor.ollama — LLM call complete (1620 chars returned)
+02:32:35 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+02:33:22 INFO     tailor.ollama — LLM call complete (8010 chars returned)
+02:33:22 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+02:34:09 INFO     tailor.ollama — LLM call complete (7935 chars returned)
+02:34:09 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/85-openai-platform-engineer-forward-deployed-engineering-fde-openai-2026-02-25/Conner_Jordan_Resume.tex (7924 chars)
+  Validating (attempt 2/3)...
+02:34:10 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/85-openai-platform-engineer-forward-deployed-engineering-fde-openai-2026-02-25/Conner_Jordan_Resume.pdf
+  ✗ Resume failed: FAIL — too much whitespace (fill ratio 0.95, min 0.96)
+  Regenerating with feedback...
+02:34:10 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+02:34:28 INFO     tailor.ollama — LLM call complete (1631 chars returned)
+02:34:28 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+02:35:14 INFO     tailor.ollama — LLM call complete (7536 chars returned)
+02:35:14 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+02:36:00 INFO     tailor.ollama — LLM call complete (7548 chars returned)
+02:36:00 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/85-openai-platform-engineer-forward-deployed-engineering-fde-openai-2026-02-25/Conner_Jordan_Resume.tex (7535 chars)
+  Validating (attempt 3/3)...
+02:36:00 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/85-openai-platform-engineer-forward-deployed-engineering-fde-openai-2026-02-25/Conner_Jordan_Resume.pdf
+  ✗ Resume failed: FAIL — char count ratio 0.84 (±0.08 allowed)
+
+→ Generating Cover Letter...
+02:36:00 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+02:36:16 INFO     tailor.ollama — LLM call complete (1719 chars returned)
+02:36:16 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+02:36:43 INFO     tailor.ollama — LLM call complete (4413 chars returned)
+02:36:43 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+02:37:12 INFO     tailor.ollama — LLM call complete (4251 chars returned)
+02:37:12 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/85-openai-platform-engineer-forward-deployed-engineering-fde-openai-2026-02-25/Conner_Jordan_Cover_Letter.tex (4238 chars)
+  Validating (attempt 1/3)...
+02:37:13 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/85-openai-platform-engineer-forward-deployed-engineering-fde-openai-2026-02-25/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/85-openai-platform-engineer-forward-deployed-engineering-fde-openai-2026-02-25
+Run failed quality gates for: Resume

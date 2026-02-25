@@ -1,0 +1,67 @@
+{
+  "company_name": "openai",
+  "role_title": "Platform Engineer, Forward Deployed Engineering (FDE)",
+  "requirements": [
+    {
+      "jd_requirement": "Build new platform capabilities for security and infrastructure",
+      "matched_category": "DevSecOps",
+      "matched_skills": "CI/CD pipelines, Infrastructure as Code, Automated build and deploy workflows",
+      "evidence": "Built production-grade internal tooling with Flask/FastAPI and CI/CD pipelines using GitHub Actions/GitLab CI; owns full lifecycle from design to deployment with operational reliability practices",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Work across security, infrastructure, and engineering teams to deliver deployable controls",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Cross-functional execution, Requirements-to-controls translation, Stakeholder communication",
+      "evidence": "Translates ambiguous security requirements into deployable controls and operational documentation; coordinates across IAM, endpoint, and infrastructure teams",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Automate security workflows at scale (e.g., remediation, patching, access control)",
+      "matched_category": "Security Automation",
+      "matched_skills": "Python automation, Remediation scripting, Runbook-driven automation",
+      "evidence": "Developed endpoint patch orchestration and remote remediation workflows for macOS/Windows fleets; built API-driven security automation using Python, PowerShell, and Microsoft Graph",
+      "priority": "very_high"
+    },
+    {
+      "jd_requirement": "Design and operate secure cloud services (e.g., IAM, secrets management, containerized workloads)",
+      "matched_category": "Cloud Security",
+      "matched_skills": "IAM implementation, Secrets management, Containerized security services",
+      "evidence": "Operationalized IAM and secrets management across AWS ECS deployments; hardened containerized services with secure cloud operations practices",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Integrate security tooling across heterogeneous platforms (e.g., EDR, SIEM, asset databases)",
+      "matched_category": "API and Integrations",
+      "matched_skills": "API-driven workflows, System-to-system workflow automation, Multi-platform integrations",
+      "evidence": "Built integrations with CrowdStrike RTR, Defender XDR, Rapid7, and Zeek via APIs to enable cross-platform correlation and remediation",
+      "priority": "very_high"
+    },
+    {
+      "jd_requirement": "Leverage data engineering to improve security visibility and decision-making",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": "Multi-source ingestion, Entity resolution, Inventory drift resolution",
+      "evidence": "Reconciled inconsistent asset data across EDR and CMDB sources; built normalization and drift resolution pipelines to support accurate security posture tracking",
+      "priority": "very_high"
+    },
+    {
+      "jd_requirement": "Apply AI/ML responsibly to enhance SecOps workflows (e.g., RAG, NLP for context)",
+      "matched_category": "AI for SecOps",
+      "matched_skills": "RAG pipelines, LangChain, Embeddings-based retrieval",
+      "evidence": "Built auditable RAG pipelines using LangChain and vector databases to surface security context during incident response; tuned retrieval for operational relevance",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Own end-to-end delivery of tooling with documentation and operational reliability",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Operational documentation, Runbooks, Cross-functional execution",
+      "evidence": "Delivered maintainable tooling with full runbook coverage; ensured solutions were usable and stable post-handoff",
+      "priority": "high"
+    }
+  ],
+  "tone_notes": "Match OpenAI\u2019s FDE tone: pragmatic, builder-oriented, and mission-driven. Emphasize operational reliability over theoretical security; highlight cross-team ownership and measurable impact. Avoid overly academic or marketing language\u2014focus on shipped systems, real constraints, and team enablement.",
+  "skills_line_recommendation": "full",
+  "summary_angle": "Position Conner as a security-focused platform engineer who builds and operates production-grade automation, cloud-native services, and AI-augmented tooling\u2014delivered with operational discipline and cross-functional ownership.",
+  "_job_id": 85,
+  "_job_url": "https://jobs.ashbyhq.com/openai/059ac93e-3fc9-42e9-a4f4-367c0fd5de14"
+}

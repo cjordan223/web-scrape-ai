@@ -1,0 +1,17 @@
+{
+  "summary_strategy": "Reframe as a platform engineer who builds secure, scalable data infrastructure \u2014 emphasize production-grade tooling, operational reliability, and cross-functional delivery over defensive security framing",
+  "skills_strategy": "Use condensed 3-line format prioritizing Cloud/Platform, Security Data/AI, and API automation; drop generic categories like 'Web & Internal Tooling' in favor of explicit alignment with Supabase's data-first, open-source platform focus",
+  "experience_focus": [
+    {
+      "company": "University of California|Great Wolf Resorts|Simple.biz",
+      "must_highlight": "production-grade tooling delivery, data pipeline construction, operational reliability practices",
+      "safe_metrics_to_keep": "10,000+ devices managed, 200 hours saved annually, 500 hours reduced workload, 30% fewer user-reported issues",
+      "claims_to_avoid": "any mention of 'security analysis', 'risk reduction engineering', or unverified claims about impact scale beyond documented metrics"
+    }
+  ],
+  "risk_controls": [
+    "Never invent specific tools, metrics, or outcomes not explicitly present in source resume",
+    "Replace speculative claims (e.g., 'improved SLAs') with factual operational outcomes only",
+    "Avoid passive corporate phrasing like 'spearheaded', 'drove' \u2014 use active verbs: built, designed, deployed, automated"
+  ]
+}

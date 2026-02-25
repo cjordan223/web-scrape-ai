@@ -1,0 +1,19 @@
+{
+  "opening_angle": "Connect Conner's security-aware full-stack engineering to Instructure\u2019s mission of empowering educators by framing reliability, accessibility, and automation as enablers of educational impact",
+  "paragraph_focus": [
+    "Direct alignment with Software Engineer II role through security-first, user-centered tooling experience",
+    "Concrete examples of full-stack delivery (React, Node, Postgres) with emphasis on operator usability and reliability",
+    "AI-augmented security workflows grounded in real-world operational constraints, reflecting Instructure\u2019s pragmatic innovation culture",
+    "Commitment to accessibility, testing, and cross-disciplinary collaboration\u2014tying technical rigor to learner and educator outcomes"
+  ],
+  "voice_controls": [
+    "Replace generic phrases like 'secure, maintainable systems' with mission-aligned language such as 'systems that support educators and learners reliably'",
+    "Avoid passive constructions; use active voice with ownership markers like 'I built', 'I delivered', 'I owned'",
+    "Replace vague claims of 'problem-solving' with specific behaviors like 'clarified ambiguous requirements through cross-functional workshops'"
+  ],
+  "claims_to_avoid": [
+    "No mention of 'best-in-class', 'industry-leading', or unverifiable superlatives",
+    "No inflated metrics (e.g., 'reduced time by 80%') without explicit source support",
+    "No assumptions about Instructure\u2019s internal tools or architecture beyond publicly known facts (e.g., Canvas platform)"
+  ]
+}

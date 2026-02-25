@@ -1,0 +1,127 @@
+FILTER TUNING NOTES
+===================
+Written: 2026-02-22
+Updated: 2026-02-24 — major filter relaxation to increase pass rate
+
+HOW TO REVIEW
+-------------
+1. Start dashboard: python dashboard/server.py
+2. Go to http://localhost:8899 → "Rejected" view
+3. Click each stage chip to filter by rejection reason
+4. SQL Console shortcut:
+     SELECT rejection_stage, rejection_reason, title, url FROM rejected ORDER BY rejection_stage, rejection_reason LIMIT 200;
+   Or by stage:
+     SELECT title, url, snippet, rejection_reason FROM rejected WHERE rejection_stage = 'salary' ORDER BY created_at DESC;
+
+CURRENT FILTER STAGES (in order, config in job_scraper/config.default.yaml)
+-----------------------------------------------------------------------------
+1. url_domain        - blocks dictionary.com, reddit, wikipedia etc.
+2. source_quality    - rejects bare "Apply"/"Apply Now" titles, listing pages, unknown boards (if require_known_board=true)
+3. title_relevance   - soft signal (penalty if no security keyword)
+4. title_role        - soft signal (penalty if no role word; cannot auto-accept)
+5. seniority         - HARD reject: staff, principal, manager, director
+                       PASS: senior, lead, junior, mid, unknown
+6. early_career      - hard reject (intern/new-grad/apprentice/co-op/fellowship)
+7. jd_quality        - rejects LinkedIn shell pages, closed postings, missing JD on aggregator domains
+8. jd_presence       - SOFT signal (no longer hard-rejects missing/short JD)
+9. experience        - soft signal from JD years parsing
+10. content_blocklist - hard reject if title/snippet/JD contains clearance keywords
+11. remote           - hard reject for explicit onsite/in-office/non-remote
+                       hybrid PASSES (treated as potentially remote)
+                       "Remote" with no location qualifier passes US location check
+12. location         - requires US signal OR "Remote" with no non-US signal
+13. salary           - only rejects if parsed salary < min_salary_k ($70K); missing = pass
+14. scoring          - decision bands: accept / review(quarantine) / reject
+15. llm_review       - LLM common-sense check (Qwen3-Coder-Next-4bit on LM Studio :1234)
+
+CURRENT SETTINGS (2026-02-24)
+------------------------------
+  min_salary_k: 70           # lowered from 95
+  min_jd_chars: 50           # lowered from 120; jd_presence is now soft (no hard reject)
+  require_remote: true       # blocks onsite/in-office, but hybrid passes
+  require_known_board: false # unknown boards allowed (was true)
+  require_us_location: true  # but "Remote" alone is accepted
+  max_experience_years: 6
+  seniority_exclude:         # soft penalty only (senior/lead removed from hard block)
+    - staff
+    - principal
+    - manager
+    - director
+  crawl targets: 32          # was 16
+  max_results_per_target: 50 # was 10
+  queries: 31 with "remote" suffix on key searches
+
+WHAT TO LOOK FOR
+----------------
+title_relevance rejections:
+  - Legitimate security jobs with unusual keyword patterns? → add to title_keywords in config.yaml
+  - Pure noise (dictionaries, articles, non-job pages)? → possibly add to url_domain_blocklist
+
+title_role rejections:
+  - Real security roles with an unusual role word? → add to title_role_words
+  - e.g. "Security Consultant" not matching? → "consultant" is already there, check spelling
+
+seniority rejections:
+  - Only staff/principal/manager/director are hard-blocked now
+  - Senior and lead pass through (these are target-level roles)
+
+remote rejections:
+  - Remote check blocks onsite/in-office but accepts hybrid
+  - Jobs with "Remote" keyword and no non-US signal pass location check automatically
+  - Keep require_remote: true to enforce "no explicit onsite" policy
+
+salary behavior:
+  - "no JD text" or "no salary found" does not auto-reject
+  - Only parsed salary below $70K is rejected
+  - Missing JD text no longer hard-rejects at jd_presence stage
+
+llm_review rejections:
+  - Review the reasons carefully. LLM should only reject:
+    a) physical security roles
+    b) job aggregator pages (not actual postings)
+    c) clearly senior-only despite passing seniority filter
+  - If LLM is being too aggressive on salary/seniority already caught by rules,
+    tighten the system prompt in job_scraper/llm_reviewer.py
+
+TUNING LEVERS (config.default.yaml)
+-------------------------------------
+filter:
+  min_salary_k: 70        # lower to 0 to disable salary filtering
+  require_remote: true    # blocks explicit onsite/in-office
+  require_known_board: false  # set true to reject unknown board URLs
+  min_jd_chars: 50        # jd_presence is soft — only affects scoring
+  max_experience_years: 6 # lower if too many over-senior roles slip in
+  score_accept_threshold: 0
+  score_reject_threshold: -3
+  seniority_exclude:      # these get soft penalty in scoring, not hard block
+    - staff
+    - principal
+    - manager
+    - director
+  title_keywords:         # add new keywords if missing real jobs
+    - ...
+  title_role_words:       # add new role words if missing real jobs
+    - ...
+
+LLM config in config.default.yaml:
+  llm_review:
+    enabled: true         # set false to disable
+    fail_open: true       # if server down, job passes
+    jd_max_chars: 2000    # increase if LLM needs more context
+
+NOTES FROM FIRST RUN (2026-02-22)
+-----------------------------------
+- 151 raw → 8 rejections captured in first partial run (DB was fresh)
+- Rejection breakdown: title_relevance x5, remote x1, salary x1, seniority x1
+- "Java Security Engineer Trainee" → salary rejected (no JD = ZipRecruiter/Indeed blocked)
+- "Staff Cyber Security Engineer @ Kong" → correct seniority reject
+- "Corporate Security Engineer @ Harvey" → remote rejected (check if actually remote)
+- LLM running cleanly, good pass/fail decisions observed
+
+CHANGES (2026-02-24) — Filter Relaxation
+------------------------------------------
+Problem: 98.6% rejection rate (8 passed / 594 rejected). Zero SearXNG results passing.
+Root causes: hybrid rejected as onsite, require_known_board blocking valid URLs,
+  jd_presence hard-rejecting short/missing JDs, salary threshold too high ($95K),
+  senior/lead hard-blocked, location too strict.
+Changes: see git diff for full details. Target: 5-10 jobs per run.

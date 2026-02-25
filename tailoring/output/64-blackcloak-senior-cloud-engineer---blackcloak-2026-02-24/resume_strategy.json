@@ -1,0 +1,17 @@
+{
+  "summary_strategy": "Reframe summary to emphasize secure cloud infrastructure delivery with measurable operational reliability, aligning directly with BlackCloak's high-stakes security mission and removing academic framing",
+  "skills_strategy": "Use condensed 3-line skills format prioritizing Cloud, DevSecOps, and AI/Security Data Engineering\u2014highlighting AWS/GCP/Azure, Docker/IaC, and RAG automation while trimming less relevant items like frontend frameworks",
+  "experience_focus": [
+    {
+      "company": "University of California|Great Wolf Resorts|Simple.biz",
+      "must_highlight": "secure cloud deployments, infrastructure automation at scale, cross-platform endpoint remediation",
+      "safe_metrics_to_keep": "10,000+ devices, 25 percent compliance improvement, 200 hours saved annually",
+      "claims_to_avoid": "no invented metrics like '30 percent reduction' unless explicitly sourced, no speculative ownership claims like 'led cross-departmental integration'"
+    }
+  ],
+  "risk_controls": [
+    "Replace all speculative metrics with qualitative claims if uncertain (e.g., 'reduced manual effort significantly' instead of '30 percent reduction')",
+    "Never invent responsibilities\u2014only use actions explicitly stated in baseline resume or analysis mapping",
+    "Avoid corporate buzzwords like 'synergy', 'holistic', or 'future-proof'; use concrete verbs: built, deployed, automated, enforced"
+  ]
+}

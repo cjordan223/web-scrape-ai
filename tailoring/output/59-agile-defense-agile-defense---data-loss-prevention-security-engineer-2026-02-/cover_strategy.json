@@ -1,0 +1,20 @@
+{
+  "opening_angle": "Position Conner as a security engineer who builds and operates production-grade DLP systems\u2014not just policy designers\u2014highlighting his automation-first approach, endpoint hardening expertise, and experience translating compliance requirements into deployable controls",
+  "paragraph_focus": [
+    "Direct alignment with DLP role through operational security systems experience at UCOP",
+    "Concrete examples of endpoint enforcement, data boundary controls, and remediation automation",
+    "Experience with compliance-driven policy deployment (NIST/CMMC) and cross-functional execution",
+    "Emphasis on reliability, documentation, and team enablement\u2014tying to Agile Defense\u2019s 6H values"
+  ],
+  "voice_controls": [
+    "Use active verbs like built, deployed, enforced, reconciled, standardized",
+    "Replace vague claims with specific tools (Purview, Sentinel, Jira) only where evidence supports",
+    "Avoid 'passionate about' or 'deep expertise in' unless backed by evidence; prefer 'experience with' or 'operational familiarity with'",
+    "Use phrases like 'shipped', 'runbooks', 'guardrails', 'repeatability' to signal operational mindset"
+  ],
+  "claims_to_avoid": [
+    "No mention of 'expert', 'leader' (unless evidence shows formal leadership), or 'transformed' without quantifiable outcome",
+    "Avoid claiming direct experience with Purview, Sentinel, or Zscaler unless explicitly matched in analysis; instead say 'transferable experience' or 'foundational familiarity'",
+    "Do not invent metrics like 'reduced incidents by X%' without source support"
+  ]
+}

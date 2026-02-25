@@ -1,0 +1,18 @@
+{
+  "summary_strategy": "Position Conner as an AI Platform Engineer who builds secure, scalable infrastructure for model training and deployment\u2014emphasizing his proven ability to translate security requirements into deployable controls, automate complex data workflows, and integrate AI tooling with production systems.",
+  "skills_strategy": "Use the 5-line condensed format, prioritizing Security Data Engineering, Cloud & DevSecOps, and AI for SecOps; reorder to highlight relevant competencies first (data pipelines, model infrastructure, automation), and replace generic terms like 'security tooling' with precise AI/ML-aligned phrasing (e.g., 'model training data pipelines', 'experiment reproducibility systems').",
+  "experience_focus": [
+    {
+      "company": "University of California|Great Wolf Resorts|Simple.biz",
+      "must_highlight": "multi-source data ingestion and normalization, API-driven automation for security tooling, reproducible infrastructure patterns",
+      "safe_metrics_to_keep": "7,000+ endpoints, 10,000+ devices, 25 percent compliance improvement",
+      "claims_to_avoid": "any mention of 'LLM fine-tuning', 'RL training', or unverified model performance metrics; avoid implying direct experience with LoRA/distillation unless explicitly stated"
+    }
+  ],
+  "risk_controls": [
+    "Do not invent specific AI infrastructure components (e.g., no 'Kubeflow', 'MLflow' unless listed in tools)",
+    "Replace speculative claims like 'optimized GPU utilization' with factual statements about cloud service optimization (e.g., 'containerized deployments on AWS ECS')",
+    "Avoid corporate verbs like 'spearheaded' or 'drove'; use 'built', 'engineered', 'architected', 'delivered'",
+    "Never assume metrics beyond those explicitly provided (e.g., no 'reduced costs by X%' unless stated)"
+  ]
+}

@@ -1,0 +1,74 @@
+
+Tailoring for: AI Platform Engineer @ fastino.ai
+Company: fastino-ai
+URL: https://jobs.ashbyhq.com/fastino-ai/e98b22d5-caa2-4225-86e5-8bdc229aeed0
+Output: /Users/conner/Documents/SearXNG/tailoring/output/82-fastino-ai-ai-platform-engineer-fastino-ai-2026-02-24
+
+21:14:27 INFO     tailor.analyzer — Using cached analysis from /Users/conner/Documents/SearXNG/tailoring/output/82-fastino-ai-ai-platform-engineer-fastino-ai-2026-02-24/analysis.json
+→ Using cached analysis
+  Mapped 5 requirements
+  Company: fastino.ai
+  Role: AI Platform Engineer
+
+→ Generating Resume...
+21:14:27 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+21:14:44 INFO     tailor.ollama — LLM call complete (1530 chars returned)
+21:14:44 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+21:15:30 INFO     tailor.ollama — LLM call complete (8067 chars returned)
+21:15:30 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+21:16:17 INFO     tailor.ollama — LLM call complete (8007 chars returned)
+21:16:17 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/82-fastino-ai-ai-platform-engineer-fastino-ai-2026-02-24/Conner_Jordan_Resume.tex (7995 chars)
+  Validating (attempt 1/3)...
+  Error: [Errno 2] No such file or directory: 'pdflatex'
+21:16:17 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+21:16:36 INFO     tailor.ollama — LLM call complete (1555 chars returned)
+21:16:36 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+21:17:22 INFO     tailor.ollama — LLM call complete (7776 chars returned)
+21:17:22 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+21:18:09 INFO     tailor.ollama — LLM call complete (7716 chars returned)
+21:18:09 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/82-fastino-ai-ai-platform-engineer-fastino-ai-2026-02-24/Conner_Jordan_Resume.tex (7704 chars)
+  Validating (attempt 2/3)...
+  Error: [Errno 2] No such file or directory: 'pdflatex'
+21:18:09 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+21:18:27 INFO     tailor.ollama — LLM call complete (1766 chars returned)
+21:18:27 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+21:19:15 INFO     tailor.ollama — LLM call complete (8198 chars returned)
+21:19:15 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+21:20:02 INFO     tailor.ollama — LLM call complete (8111 chars returned)
+21:20:02 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/82-fastino-ai-ai-platform-engineer-fastino-ai-2026-02-24/Conner_Jordan_Resume.tex (8099 chars)
+  Validating (attempt 3/3)...
+  Error: [Errno 2] No such file or directory: 'pdflatex'
+  ✗ Resume failed after 3 attempts
+
+→ Generating Cover Letter...
+21:20:02 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+21:20:17 INFO     tailor.ollama — LLM call complete (1973 chars returned)
+21:20:17 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+21:20:44 INFO     tailor.ollama — LLM call complete (4546 chars returned)
+21:20:44 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+21:21:12 INFO     tailor.ollama — LLM call complete (4225 chars returned)
+21:21:12 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/82-fastino-ai-ai-platform-engineer-fastino-ai-2026-02-24/Conner_Jordan_Cover_Letter.tex (4213 chars)
+  Validating (attempt 1/3)...
+  Error: [Errno 2] No such file or directory: 'pdflatex'
+21:21:12 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+21:21:25 INFO     tailor.ollama — LLM call complete (1529 chars returned)
+21:21:25 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+21:21:52 INFO     tailor.ollama — LLM call complete (4584 chars returned)
+21:21:52 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+21:22:22 INFO     tailor.ollama — LLM call complete (4437 chars returned)
+21:22:22 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/82-fastino-ai-ai-platform-engineer-fastino-ai-2026-02-24/Conner_Jordan_Cover_Letter.tex (4424 chars)
+  Validating (attempt 2/3)...
+  Error: [Errno 2] No such file or directory: 'pdflatex'
+21:22:22 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+21:22:35 INFO     tailor.ollama — LLM call complete (1625 chars returned)
+21:22:35 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+21:23:02 INFO     tailor.ollama — LLM call complete (4408 chars returned)
+21:23:02 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+21:23:31 INFO     tailor.ollama — LLM call complete (4344 chars returned)
+21:23:31 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/82-fastino-ai-ai-platform-engineer-fastino-ai-2026-02-24/Conner_Jordan_Cover_Letter.tex (4182 chars)
+  Validating (attempt 3/3)...
+  Error: [Errno 2] No such file or directory: 'pdflatex'
+  ✗ Cover Letter failed after 3 attempts
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/82-fastino-ai-ai-platform-engineer-fastino-ai-2026-02-24
+Run failed quality gates for: Resume, Cover Letter

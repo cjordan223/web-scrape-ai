@@ -1,0 +1,53 @@
+{
+  "company_name": "wraithwatch",
+  "role_title": "Software Engineer",
+  "requirements": [
+    {
+      "jd_requirement": "4+ years professional experience in building and deploying software or services as part of a corporate or enterprise security engineering team.",
+      "matched_category": "Security Engineering",
+      "matched_skills": "Secure implementation practices, Deployable security controls, Risk reduction engineering",
+      "evidence": "Conner has built and operated production-grade security systems across endpoint, cloud, and identity domains\u2014focusing on deployable controls with measurable risk reduction in real-world environments.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Deep, hands-on understanding of the current landscape of cybersecurity tools (EDRs, device management, identity, SIEMs, SOARs, XDRs, etc) and experience configuring, tuning, or automating these systems via APIs.",
+      "matched_category": "Security Automation",
+      "matched_skills": "API-driven security workflows, Remediation scripting, Administrative tooling",
+      "evidence": "Conner has automated workflows across CrowdStrike Falcon, Defender XDR, and Rapid7 InsightVM via APIs; built runbook-driven remediation pipelines for endpoint patching and device management.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Experience implementing or assisting with the implementation of enterprise / corporate security controls such as anti-malware policies, identity and access controls, detection engineering, device management, or similar.",
+      "matched_category": "Identity and Access",
+      "matched_skills": "Access control implementation, MFA integrations, Authentication provider integration",
+      "evidence": "Conner has architected IAM integrations across identity portals and authentication providers, implemented cross-team access control policies, and built operational guardrails for IAM deployments.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Development experience in any modern programming language, including but not limited to Python, Rust, or Go.",
+      "matched_category": "DevSecOps",
+      "matched_skills": "CI/CD pipelines, Automated build and deploy workflows",
+      "evidence": "Conner builds production tooling in Python (Flask, FastAPI) and PowerShell; has shipped CI/CD pipelines via GitHub Actions/GitLab CI with infrastructure-as-code (Terraform, Ansible).",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Interest in modern machine learning or artificial intelligence capabilities, especially emerging subsets of Generative AI such as agentic behavior, tool calling, knowledge graph integration, retrieval augmented generation, etc.",
+      "matched_category": "AI for SecOps",
+      "matched_skills": "RAG pipelines, LangChain, Embeddings-based retrieval, Retrieval tuning",
+      "evidence": "Conner has built auditable RAG pipelines using LangChain and vector databases for security context retrieval, with emphasis on governance and operational safety.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Ability to deal with ambiguity and learn new technologies quickly.",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Cross-functional execution, Requirements-to-controls translation",
+      "evidence": "Conner consistently turns ambiguous operational problems into deployable controls\u2014documenting runbooks and translating stakeholder needs into maintainable systems.",
+      "priority": "high"
+    }
+  ],
+  "tone_notes": "Match wraithwatch\u2019s tone: mission-driven, security-first, pragmatic engineering. Emphasize ownership, reliability, and operational impact\u2014not just technical capability. Avoid hype; focus on deployable systems, resilience, and measurable outcomes.",
+  "skills_line_recommendation": "full",
+  "summary_angle": "Position Conner as a security engineer who builds and operates production-grade systems where ambiguity meets real-world constraints\u2014highlighting his work at the intersection of security automation, cloud-native delivery, and AI-augmented SecOps with a bias for operational reliability.",
+  "_job_id": 53,
+  "_job_url": "https://jobs.ashbyhq.com/wraithwatch/b05f8e8c-4781-4dd7-88c0-aa5b17d022d3"
+}

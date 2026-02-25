@@ -1,0 +1,62 @@
+
+Tailoring for: Platform Engineer: Data @ Supabase
+Company: supabase
+URL: https://jobs.ashbyhq.com/supabase/9073c0cd-2545-473a-b2ac-63e4615c69b5/application
+Output: /Users/conner/Documents/SearXNG/tailoring/output/79-supabase-platform-engineer-data-supabase-2026-02-24
+
+→ Analyzing JD against skills inventory...
+22:19:39 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+22:20:12 INFO     tailor.ollama — LLM call complete (5633 chars returned)
+22:20:12 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/79-supabase-platform-engineer-data-supabase-2026-02-24/analysis.json (12 requirements mapped)
+  Mapped 12 requirements
+  Company: supabase
+  Role: Platform Engineer: Data
+
+→ Generating Resume...
+22:20:12 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+22:20:29 INFO     tailor.ollama — LLM call complete (1338 chars returned)
+22:20:29 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+22:21:14 INFO     tailor.ollama — LLM call complete (7592 chars returned)
+22:21:14 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+22:21:59 INFO     tailor.ollama — LLM call complete (7576 chars returned)
+22:21:59 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/79-supabase-platform-engineer-data-supabase-2026-02-24/Conner_Jordan_Resume.tex (7563 chars)
+  Validating (attempt 1/3)...
+22:22:00 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/79-supabase-platform-engineer-data-supabase-2026-02-24/Conner_Jordan_Resume.pdf
+  ✗ Resume failed: FAIL — char count ratio 0.83 (±0.08 allowed)
+  Regenerating with feedback...
+22:22:00 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+22:22:19 INFO     tailor.ollama — LLM call complete (1712 chars returned)
+22:22:19 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+22:23:05 INFO     tailor.ollama — LLM call complete (7701 chars returned)
+22:23:05 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+22:23:52 INFO     tailor.ollama — LLM call complete (7667 chars returned)
+22:23:52 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/79-supabase-platform-engineer-data-supabase-2026-02-24/Conner_Jordan_Resume.tex (7654 chars)
+  Validating (attempt 2/3)...
+22:23:53 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/79-supabase-platform-engineer-data-supabase-2026-02-24/Conner_Jordan_Resume.pdf
+  ✗ Resume failed: FAIL — char count ratio 0.84 (±0.08 allowed)
+  Regenerating with feedback...
+22:23:53 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+22:24:09 INFO     tailor.ollama — LLM call complete (1320 chars returned)
+22:24:09 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+22:24:55 INFO     tailor.ollama — LLM call complete (7556 chars returned)
+22:24:55 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+22:25:41 INFO     tailor.ollama — LLM call complete (7561 chars returned)
+22:25:41 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/79-supabase-platform-engineer-data-supabase-2026-02-24/Conner_Jordan_Resume.tex (7548 chars)
+  Validating (attempt 3/3)...
+22:25:42 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/79-supabase-platform-engineer-data-supabase-2026-02-24/Conner_Jordan_Resume.pdf
+  ✗ Resume failed: FAIL — char count ratio 0.87 (±0.08 allowed)
+
+→ Generating Cover Letter...
+22:25:42 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+22:25:56 INFO     tailor.ollama — LLM call complete (1384 chars returned)
+22:25:56 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+22:26:24 INFO     tailor.ollama — LLM call complete (4443 chars returned)
+22:26:24 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+22:26:53 INFO     tailor.ollama — LLM call complete (4303 chars returned)
+22:26:53 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/79-supabase-platform-engineer-data-supabase-2026-02-24/Conner_Jordan_Cover_Letter.tex (4290 chars)
+  Validating (attempt 1/3)...
+22:26:54 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/79-supabase-platform-engineer-data-supabase-2026-02-24/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/79-supabase-platform-engineer-data-supabase-2026-02-24
+Run failed quality gates for: Resume

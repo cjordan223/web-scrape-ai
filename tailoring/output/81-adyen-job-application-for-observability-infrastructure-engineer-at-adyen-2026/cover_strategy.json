@@ -1,0 +1,21 @@
+{
+  "opening_angle": "Connect Adyen's need for resilient observability infrastructure to Conner's experience building production-grade security systems that must scale across heterogeneous environments\u2014positioning him as a security engineer who naturally thinks in terms of telemetry, reliability, and self-service guardrails.",
+  "paragraph_focus": [
+    "Reframe security data engineering experience as observability pipeline design\u2014emphasize multi-source ingestion, normalization, entity resolution, and data isolation",
+    "Highlight hybrid infrastructure ownership (bare-metal + Kubernetes), IaC, and CI/CD automation with concrete examples from UCOP",
+    "Show Python/Go-ready automation mindset through endpoint remediation and runbook-driven systems, linking to self-healing observability tooling",
+    "Emphasize operational reliability patterns: on-call ownership, alert prevention, and guardrails\u2014tying directly to Adyen's culture of ownership and ethical innovation"
+  ],
+  "voice_controls": [
+    "Use active verbs like build, operate, automate, reconcile, standardize\u2014avoid 'involved in', 'contributed to', or passive phrasing",
+    "Replace vague claims like 'deep expertise' with specific actions: 'wrote runbooks that standardized remediation across 10+ teams'",
+    "Avoid jargon without context\u2014e.g., say 'containerized services deployed via Helm-style workflows' instead of 'Kubernetes-native architecture'",
+    "Keep metrics qualitative unless directly supported: say 'large environments' instead of inventing server counts"
+  ],
+  "claims_to_avoid": [
+    "Claiming Go experience unless explicitly stated in source material\u2014focus on Python and emphasize 'ready to expand to Go'",
+    "Asserting direct Elasticsearch/VictoriaMetrics tuning experience\u2014instead say 'experience optimizing log/metric pipelines for scale' and link to security analytics work",
+    "Using Adyen-specific buzzwords like 'payment infrastructure' unless tied to concrete technical overlap",
+    "Overstating leadership: say 'established internal best practices' not 'led observability strategy'"
+  ]
+}

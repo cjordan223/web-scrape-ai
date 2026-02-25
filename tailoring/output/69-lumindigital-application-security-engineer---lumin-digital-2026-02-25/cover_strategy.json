@@ -1,0 +1,20 @@
+{
+  "opening_angle": "Connect LuminDigital's focus on secure, reliable software delivery with my strength in building production-grade ASPM systems that reduce manual effort and improve remediation velocity",
+  "paragraph_focus": [
+    "Core engineering identity: security-focused builder-operator who ships reliable automation for messy operational problems",
+    "Current UC role delivering ASPM systems, CI/CD integrations, and runbook-driven remediation at scale",
+    "Earlier automation work and phishing detection project demonstrating pragmatic engineering with measurable outcomes",
+    "Explicit alignment with Lumin's values: curiosity (threat briefings), trust (auditability), respect (cross-functional enablement), boldness (owned end-to-end delivery)"
+  ],
+  "voice_controls": [
+    "Use active verbs: built, integrated, delivered, automated, established",
+    "Replace adjectives like 'robust' or 'scalable' with concrete traits: containerized, documented, repeatable, maintainable",
+    "Avoid phrases like 'leveraged' or 'spearheaded'; use 'I built', 'I integrated', 'I created'"
+  ],
+  "claims_to_avoid": [
+    "No vague claims like 'industry-leading' or 'best-in-class'",
+    "No invented metrics (e.g., 'reduced MTTR by 70%') without source support",
+    "No hypothetical tooling\u2014only reference tools explicitly named in evidence (e.g., Rapid7 InsightVM, Veracode, Qualys)",
+    "No theoretical security concepts without operational context"
+  ]
+}

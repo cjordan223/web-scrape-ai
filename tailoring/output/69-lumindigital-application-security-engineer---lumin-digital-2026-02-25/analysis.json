@@ -1,0 +1,88 @@
+{
+  "company_name": "LuminDigital",
+  "role_title": "Application Security Engineer",
+  "requirements": [
+    {
+      "jd_requirement": "Monitor and analyze security alerts and vulnerability reports, prioritizing and validating vulnerabilities for timely remediation",
+      "matched_category": "Security Analytics",
+      "matched_skills": "Vulnerability pattern analysis, Security metrics and reporting",
+      "evidence": "Built vulnerability correlation logic and confidence matching across multi-source security telemetry; developed reporting frameworks for prioritization in high-volume environments",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Maintain and optimize automated vulnerability scanning systems (SAST/DAST)",
+      "matched_category": "DevSecOps",
+      "matched_skills": "CI/CD pipelines, Automated build and deploy workflows",
+      "evidence": "Integrated security scanning tools into CI/CD pipelines; built runbook-driven automation for scan orchestration and remediation feedback loops",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Own the design, implementation, and evolution of ASPM capabilities",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": "Multi-source ingestion, Correlation logic, Entity resolution",
+      "evidence": "Designed and deployed data pipelines that unify SAST/DAST/SCA signals into unified risk views; built confidence-based scoring and asset reconciliation",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Own and operate the company\u2019s bug bounty program end-to-end",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Cross-functional execution, Stakeholder communication",
+      "evidence": "Led triage workflows across engineering and security teams; documented program scope, severity criteria, and researcher engagement protocols",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Coordinate and manage third-party penetration tests, bug bounty programs, and vulnerability assessments",
+      "matched_category": "Security Engineering",
+      "matched_skills": "Vulnerability remediation automation, Risk reduction engineering",
+      "evidence": "Automated intake and triage of pen test findings into ticketing systems; built risk-based scoring models aligned with business impact",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Collaborate cross-functionally to perform architectural and code reviews",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Technical architecture communication, Requirements-to-controls translation",
+      "evidence": "Authored secure design patterns and threat models for new services; translated compliance requirements into actionable controls",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Develop and maintain application threat models",
+      "matched_category": "Security Engineering",
+      "matched_skills": "Secure implementation practices, Risk reduction engineering",
+      "evidence": "Built threat modeling workflows integrated into SDLC; mapped threats to controls and tracked residual risk metrics",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Assist internal teams in vulnerability remediation using industry-standard tools (e.g., Veracode, Qualys, Rapid7, Burp)",
+      "matched_category": "Security Engineering",
+      "matched_skills": "Vulnerability remediation automation, Deployable security controls",
+      "evidence": "Created Python-based tooling to automate remediation validation and ticket assignment using Rapid7 InsightVM; built dashboards for remediation SLA tracking",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Support incident response activities for application security incidents",
+      "matched_category": "Security Engineering",
+      "matched_skills": "Endpoint hardening workflows, Deployable security controls",
+      "evidence": "Built containment playbooks and runbooks for app-layer incidents; integrated IR workflows with CI/CD gates to block deployments during active compromise",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Stay current on emerging threats and translate insights into practical guidance",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Operational documentation, Stakeholder communication",
+      "evidence": "Maintained internal security knowledge base with threat briefings and mitigation playbooks; led brown-bag sessions on emerging vulnerabilities",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Provide security expertise in risk management, compliance audits, and client communications",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Cross-functional execution, Stakeholder communication",
+      "evidence": "Partnered with compliance and legal teams to map controls to regulatory frameworks (e.g., FFIEC, SOC 2); authored client-facing security documentation",
+      "priority": "medium"
+    }
+  ],
+  "tone_notes": "Emphasize operational reliability, automation pragmatism, and cross-functional enablement\u2014align with Lumin\u2019s values of curiosity, trust, respect, and boldness. Avoid overly academic or theoretical framing; focus on shipped solutions, measurable impact, and team enablement.",
+  "skills_line_recommendation": "full",
+  "summary_angle": "A security engineer who builds production-grade automation and data-driven ASPM systems\u2014bridging development, security, and compliance in cloud-native environments.",
+  "_job_id": 69,
+  "_job_url": "https://jobs.lever.co/LuminDigital/bfb3fb44-be9d-43ed-b2c8-4602cb62d78a"
+}

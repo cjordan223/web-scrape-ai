@@ -1,0 +1,21 @@
+{
+  "opening_angle": "Connect BlackCloak's mission of protecting high-value individuals to Conner\u2019s pattern of building secure, reliable cloud infrastructure that security teams can actually operate\u2014positioning him as a builder-operator who bridges DevOps and security to deliver production-grade systems",
+  "paragraph_focus": [
+    "Direct alignment with BlackCloak\u2019s mission and the Senior Cloud Engineer role\u2019s operational demands",
+    "Concrete evidence from UCOP role matching GCP, IaC, observability, and CI/CD requirements",
+    "Demonstration of Python/Bash automation, containerized services, and IAM/secrets practices from prior roles",
+    "Emphasis on cross-functional collaboration, operational reliability, and shipped systems with measurable impact"
+  ],
+  "voice_controls": [
+    "Use active verbs like built, deployed, integrated, standardized\u2014avoid 'helped', 'assisted', or vague claims",
+    "Replace generic phrases like 'strong communication skills' with specific actions: 'translated security requirements into deployable controls', 'coordinated across teams to align access policies'",
+    "Avoid adjectives like 'expert' or 'seasoned'; use evidence-based phrasing: 'delivered containerized services', 'established internal best practices'",
+    "Keep metrics qualitative unless explicitly provided; say 'reduced manual effort' instead of inventing percentages or time savings"
+  ],
+  "claims_to_avoid": [
+    "No claims about managing teams, budgets, or direct reports unless stated",
+    "No invented project scale (e.g., 'enterprise-wide' without support)",
+    "No hypothetical outcomes like 'improved MTTR by X%'\u2014stick to documented impact: 'enabled faster remediation', 'reduced configuration drift'",
+    "Avoid theoretical security concepts without operational context (e.g., 'leveraged zero-trust principles' unless tied to a shipped implementation)"
+  ]
+}

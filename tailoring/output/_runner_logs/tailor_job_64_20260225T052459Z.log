@@ -1,0 +1,62 @@
+
+Tailoring for: Senior Cloud Engineer - BlackCloak
+Company: BlackCloak
+URL: https://jobs.lever.co/BlackCloak/afab4049-7a6c-4920-85cc-ab4ed46ad454
+Output: /Users/conner/Documents/SearXNG/tailoring/output/64-blackcloak-senior-cloud-engineer---blackcloak-2026-02-24
+
+→ Analyzing JD against skills inventory...
+21:24:59 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+21:25:24 INFO     tailor.ollama — LLM call complete (4351 chars returned)
+21:25:24 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/64-blackcloak-senior-cloud-engineer---blackcloak-2026-02-24/analysis.json (10 requirements mapped)
+  Mapped 10 requirements
+  Company: BlackCloak
+  Role: Senior Cloud Engineer
+
+→ Generating Resume...
+21:25:24 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+21:25:41 INFO     tailor.ollama — LLM call complete (1482 chars returned)
+21:25:41 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+21:26:27 INFO     tailor.ollama — LLM call complete (7851 chars returned)
+21:26:27 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+21:27:14 INFO     tailor.ollama — LLM call complete (7637 chars returned)
+21:27:14 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/64-blackcloak-senior-cloud-engineer---blackcloak-2026-02-24/Conner_Jordan_Resume.tex (7625 chars)
+  Validating (attempt 1/3)...
+21:27:15 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/64-blackcloak-senior-cloud-engineer---blackcloak-2026-02-24/Conner_Jordan_Resume.pdf
+  ✗ Resume failed: FAIL — char count ratio 0.83 (±0.08 allowed)
+  Regenerating with feedback...
+21:27:15 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+21:27:34 INFO     tailor.ollama — LLM call complete (1652 chars returned)
+21:27:34 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+21:28:20 INFO     tailor.ollama — LLM call complete (7836 chars returned)
+21:28:20 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+21:29:06 INFO     tailor.ollama — LLM call complete (7567 chars returned)
+21:29:06 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/64-blackcloak-senior-cloud-engineer---blackcloak-2026-02-24/Conner_Jordan_Resume.tex (7555 chars)
+  Validating (attempt 2/3)...
+21:29:07 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/64-blackcloak-senior-cloud-engineer---blackcloak-2026-02-24/Conner_Jordan_Resume.pdf
+  ✗ Resume failed: FAIL — char count ratio 0.83 (±0.08 allowed)
+  Regenerating with feedback...
+21:29:07 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+21:29:23 INFO     tailor.ollama — LLM call complete (1371 chars returned)
+21:29:23 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+21:30:07 INFO     tailor.ollama — LLM call complete (7211 chars returned)
+21:30:07 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+21:30:51 INFO     tailor.ollama — LLM call complete (7166 chars returned)
+21:30:51 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/64-blackcloak-senior-cloud-engineer---blackcloak-2026-02-24/Conner_Jordan_Resume.tex (7154 chars)
+  Validating (attempt 3/3)...
+21:30:52 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/64-blackcloak-senior-cloud-engineer---blackcloak-2026-02-24/Conner_Jordan_Resume.pdf
+  ✗ Resume failed: FAIL — bullet count 12, expected 14; char count ratio 0.83 (±0.08 allowed)
+
+→ Generating Cover Letter...
+21:30:52 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+21:31:07 INFO     tailor.ollama — LLM call complete (1828 chars returned)
+21:31:07 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+21:31:35 INFO     tailor.ollama — LLM call complete (4479 chars returned)
+21:31:35 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+21:32:04 INFO     tailor.ollama — LLM call complete (4333 chars returned)
+21:32:04 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/64-blackcloak-senior-cloud-engineer---blackcloak-2026-02-24/Conner_Jordan_Cover_Letter.tex (4320 chars)
+  Validating (attempt 1/3)...
+21:32:05 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/64-blackcloak-senior-cloud-engineer---blackcloak-2026-02-24/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/64-blackcloak-senior-cloud-engineer---blackcloak-2026-02-24
+Run failed quality gates for: Resume

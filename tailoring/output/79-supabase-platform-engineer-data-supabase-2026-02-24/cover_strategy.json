@@ -1,0 +1,19 @@
+{
+  "opening_angle": "Connect role to candidate's strength in building secure, scalable data pipelines and platform tooling\u2014positioning security as an enabler of developer velocity rather than a constraint",
+  "paragraph_focus": [
+    "Direct alignment with Platform Engineer: Data role\u2014focus on distributed services, APIs, and data pipelines",
+    "Concrete examples from UC OP: multi-source ingestion, normalization, correlation, and operational reliability",
+    "Highlight shipping culture\u2014production-grade tooling, CI/CD, SLIs/SLOs, and documentation-first approach",
+    "Close with Supabase-specific resonance: open-source mindset, reliability, and enabling developer velocity through secure infrastructure"
+  ],
+  "voice_controls": [
+    "Use active verbs: built, designed, operated, shipped, standardized",
+    "Replace 'security' with 'secure infrastructure', 'reliable systems', or 'operational guardrails' where possible",
+    "Avoid phrases like 'defensive posture' or 'threat mitigation'; instead say 'reducing operational friction', 'improving system trustworthiness', or 'enabling safe automation'"
+  ],
+  "claims_to_avoid": [
+    "No mention of 'best-in-class', 'world-class', or unverifiable superlatives",
+    "No invented metrics (e.g., 'reduced MTTR by 40%') unless explicitly in source",
+    "No assumption of specific tools beyond those confirmed (e.g., do not claim Pulumi experience\u2014only Terraform/Ansible)"
+  ]
+}

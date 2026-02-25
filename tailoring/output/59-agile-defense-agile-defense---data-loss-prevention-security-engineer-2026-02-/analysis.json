@@ -1,0 +1,60 @@
+{
+  "company_name": "Agile Defense",
+  "role_title": "Security Engineer \u2013 Data Loss Prevention (DLP)",
+  "requirements": [
+    {
+      "jd_requirement": "Implement and maintain Microsoft Purview Information Protection/DLP, compliance policies",
+      "matched_category": "Cloud Security",
+      "matched_skills": "Secure cloud operations, Service hardening",
+      "evidence": "Experience with AWS ECS deployments and IAM implementation demonstrates ability to harden cloud-native services\u2014skills directly transferable to securing and operating Microsoft Purview in enterprise environments.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Develop and tune DLP rules for endpoints to manage data flow between approved boundaries",
+      "matched_category": "Endpoint Operations and Remediation",
+      "matched_skills": "Windows fleet operations, BitLocker enforcement automation",
+      "evidence": "Deep experience with Windows/macOS fleet operations and endpoint agent orchestration shows proven ability to enforce data boundary controls at scale.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Manage sensitivity labels, mandatory encryption, and content marking across M365",
+      "matched_category": "Identity and Access",
+      "matched_skills": "Access control implementation, Cross-team IAM coordination",
+      "evidence": "Designed and deployed identity portal security architecture with access control logic\u2014directly applicable to configuring sensitivity labels and enforcing encryption policies across M365 services.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Investigate and respond to DLP incidents using Defender XDR/Sentinel",
+      "matched_category": "Security Analytics",
+      "matched_skills": "Anomaly-oriented analysis, Security metrics and reporting",
+      "evidence": "Built anomaly detection workflows using Pandas/NumPy and developed security metrics dashboards\u2014proven ability to translate event correlation into actionable incident response.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Experience with KQL queries, Sentinel, SOAR/ticketing (e.g., Jira)",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": "Multi-source ingestion, Correlation logic, Asset reconciliation",
+      "evidence": "Designed data normalization and entity resolution pipelines across heterogeneous security telemetry sources\u2014skills directly applicable to KQL-driven correlation in Sentinel.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Collaborate with IT and departments to align DLP policy with compliance frameworks (NIST 800-171, CMMC, etc.)",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Requirements-to-controls translation, Operational documentation",
+      "evidence": "Delivered cross-functional execution by translating regulatory requirements into deployable controls and documented runbooks\u2014critical for mapping DLP policies to compliance frameworks.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Familiarity with Zscaler and Qualys (preferred)",
+      "matched_category": "Security Tools Exposure",
+      "matched_skills": "Defender XDR, Rapid7 InsightVM",
+      "evidence": "Operational experience with Defender XDR and vulnerability scanning tools (Rapid7 InsightVM) provides foundational understanding of integrated security platform ecosystems like Zscaler/Qualys.",
+      "priority": "low"
+    }
+  ],
+  "tone_notes": "Emphasize operational reliability, documentation-first mindset, and cross-functional execution\u2014aligning with Agile Defense\u2019s 6H values (especially Helpful, Honest, and Hustle). Avoid overly academic or theoretical language; focus on shipped solutions, measurable impact, and team enablement.",
+  "skills_line_recommendation": "full",
+  "summary_angle": "Position Conner as a security engineer who builds and operates production-grade DLP systems\u2014not just policy designers\u2014highlighting his automation-first approach, endpoint hardening expertise, and experience translating compliance requirements into deployable controls.",
+  "_job_id": 59,
+  "_job_url": "https://jobs.lever.co/agile-defense/e9e93c69-0af4-4f12-984e-64e0392c2d58"
+}

@@ -1,0 +1,61 @@
+{
+  "company_name": "fastino.ai",
+  "role_title": "AI Platform Engineer",
+  "requirements": [
+    {
+      "jd_requirement": "Architect distributed fine-tuning pipelines for small encoder and decoder models",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": [
+        "Multi-source ingestion",
+        "Data normalization"
+      ],
+      "evidence": "Candidate has extensive experience building scalable data ingestion pipelines and normalizing multi-source data, which translates to architecting structured data workflows for model training.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Implement LoRA, adapters, distillation, and compression workflows",
+      "matched_category": "AI for SecOps",
+      "matched_skills": [
+        "RAG pipelines",
+        "LangChain"
+      ],
+      "evidence": "Candidate has built AI-assisted tooling with LangChain and RAG components, demonstrating ability to implement complex ML workflows and model integration patterns.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Design experiment tracking, reproducibility, and dataset versioning systems",
+      "matched_category": "DevSecOps",
+      "matched_skills": [
+        "CI/CD pipelines",
+        "Infrastructure as Code"
+      ],
+      "evidence": "Candidate's background in CI/CD and IaC demonstrates strong capability in building reproducible, version-controlled workflows for production systems.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Optimize training efficiency (GPU utilization, memory, throughput, cost)",
+      "matched_category": "Cloud Security",
+      "matched_skills": [
+        "AWS ECS deployments",
+        "Service hardening"
+      ],
+      "evidence": "Candidate has experience optimizing cloud services and containerized workloads for performance and reliability in production environments.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Design scalable RL training workflows (policy optimization, reward modeling)",
+      "matched_category": "Security Analytics",
+      "matched_skills": [
+        "Pandas",
+        "NumPy"
+      ],
+      "evidence": "Candidate's strong data analysis skills with Pandas/NumPy provide foundation for implementing complex workflow logic and evaluation loops.",
+      "priority": "low"
+    }
+  ],
+  "tone_notes": "Technical and precise; emphasize innovation in AI infrastructure and security integration. Use action verbs aligned with engineering rigor.",
+  "skills_line_recommendation": "5",
+  "summary_angle": "Position as an engineer who bridges AI model optimization with secure, scalable deployment practices.",
+  "_job_id": 82,
+  "_job_url": "https://jobs.ashbyhq.com/fastino-ai/e98b22d5-caa2-4225-86e5-8bdc229aeed0"
+}

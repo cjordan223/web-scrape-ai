@@ -1,0 +1,345 @@
+{
+    "schema_version": "1.0",
+    "candidate_profile": {
+        "name": "Conner Jordan",
+        "target_roles": [
+            "Security Engineer",
+            "DevSecOps Engineer",
+            "Security Automation Engineer",
+            "Cloud Security Engineer"
+        ],
+        "positioning_summary": "Security engineer with strong experience in production security tooling, endpoint and vulnerability remediation automation, cloud/container deployments, security data correlation, and AI-assisted SecOps workflows."
+    },
+    "skills_inventory": {
+        "core_skills": [
+            {
+                "name": "Security Engineering",
+                "priority": "high",
+                "skills": [
+                    "Vulnerability remediation automation",
+                    "Endpoint hardening workflows",
+                    "Patch orchestration",
+                    "Deployable security controls",
+                    "Secure implementation practices",
+                    "Risk reduction engineering"
+                ]
+            },
+            {
+                "name": "Security Automation",
+                "priority": "very_high",
+                "skills": [
+                    "Python automation",
+                    "PowerShell automation",
+                    "Remediation scripting",
+                    "API-driven security workflows",
+                    "Administrative tooling",
+                    "Runbook-driven automation"
+                ]
+            },
+            {
+                "name": "Cloud Security",
+                "priority": "high",
+                "skills": [
+                    "AWS ECS deployments",
+                    "IAM implementation",
+                    "Secrets management",
+                    "Containerized security services",
+                    "Service hardening",
+                    "Secure cloud operations"
+                ]
+            },
+            {
+                "name": "DevSecOps",
+                "priority": "high",
+                "skills": [
+                    "CI/CD pipelines",
+                    "Automated build and deploy workflows",
+                    "Release automation",
+                    "Infrastructure as Code",
+                    "Configuration management",
+                    "Operational reliability practices"
+                ]
+            },
+            {
+                "name": "Identity and Access",
+                "priority": "high",
+                "skills": [
+                    "MFA integrations",
+                    "Identity portal security architecture",
+                    "Access control implementation",
+                    "Cross-team IAM coordination",
+                    "Authentication provider integration"
+                ]
+            },
+            {
+                "name": "Security Data Engineering",
+                "priority": "very_high",
+                "skills": [
+                    "Multi-source ingestion",
+                    "Data normalization",
+                    "Correlation logic",
+                    "Entity resolution",
+                    "Confidence matching",
+                    "Asset reconciliation",
+                    "Inventory drift resolution"
+                ]
+            },
+            {
+                "name": "Security Analytics",
+                "priority": "very_high",
+                "skills": [
+                    "Pandas",
+                    "NumPy",
+                    "Log analysis",
+                    "Anomaly-oriented analysis",
+                    "Vulnerability pattern analysis",
+                    "Security metrics and reporting"
+                ]
+            },
+            {
+                "name": "AI for SecOps",
+                "priority": "very_high",
+                "skills": [
+                    "RAG pipelines",
+                    "LangChain",
+                    "Vector databases",
+                    "Embeddings-based retrieval",
+                    "NLP for security context",
+                    "Retrieval tuning",
+                    "AI governance and auditability"
+                ]
+            },
+            {
+                "name": "API and Integrations",
+                "priority": "very_high",
+                "skills": [
+                    "API-driven workflows",
+                    "Integration scripting",
+                    "Microsoft Graph API automation",
+                    "System-to-system workflow automation",
+                    "Multi-platform integrations"
+                ]
+            },
+            {
+                "name": "Endpoint Operations and Remediation",
+                "priority": "very_high",
+                "skills": [
+                    "macOS fleet operations",
+                    "Windows fleet operations",
+                    "Endpoint agent update orchestration",
+                    "Patch deployment workflows",
+                    "BitLocker enforcement automation",
+                    "Remote remediation"
+                ]
+            },
+            {
+                "name": "Web and Internal Security Tooling",
+                "priority": "high",
+                "skills": [
+                    "Flask",
+                    "React.js",
+                    "FastAPI",
+                    "Python backend APIs",
+                    "Internal security tool development",
+                    "Authentication and authorization patterns"
+                ]
+            },
+            {
+                "name": "Testing and Quality Automation",
+                "priority": "medium_high",
+                "skills": [
+                    "Selenium automation",
+                    "Accessibility testing (WCAG/ADA)",
+                    "Cross-browser testing",
+                    "Cross-device test automation",
+                    "Automated validation workflows"
+                ]
+            },
+            {
+                "name": "Technical Communication and Delivery",
+                "priority": "high",
+                "skills": [
+                    "Cross-functional execution",
+                    "Technical architecture communication",
+                    "Operational documentation",
+                    "Runbooks",
+                    "Requirements-to-controls translation",
+                    "Stakeholder communication"
+                ]
+            }
+        ],
+        "tools_and_platforms": {
+            "cloud_platforms": [
+                "AWS",
+                "GCP",
+                "Azure"
+            ],
+            "cloud_services": [
+                "AWS ECS",
+                "IAM",
+                "Secrets management"
+            ],
+            "containers_and_orchestration": [
+                "Docker",
+                "Container orchestration"
+            ],
+            "devops_and_iac": [
+                "GitHub Actions",
+                "GitLab CI",
+                "Terraform",
+                "Ansible"
+            ],
+            "security_tools": [
+                "CrowdStrike Falcon",
+                "CrowdStrike RTR",
+                "Defender XDR",
+                "Carbon Black",
+                "Trellix EDR",
+                "Rapid7 InsightVM",
+                "Zeek",
+                "Grafana",
+                "Prometheus"
+            ],
+            "data_and_ai_tools": [
+                "Pandas",
+                "NumPy",
+                "LangChain",
+                "Vector databases"
+            ],
+            "api_and_enterprise_platforms": [
+                "Microsoft Graph API"
+            ]
+        },
+        "programming_languages": [
+            "Python",
+            "PowerShell",
+            "JavaScript",
+            "TypeScript"
+        ],
+        "frameworks_and_libraries": {
+            "backend": [
+                "Flask",
+                "FastAPI",
+                "Django"
+            ],
+            "frontend": [
+                "React.js",
+                "Next.js",
+                "Node.js"
+            ],
+            "automation_testing": [
+                "Selenium"
+            ],
+            "ai_ml": [
+                "LangChain",
+                "NLP tooling",
+                "RAG pipeline components"
+            ]
+        }
+    },
+    "resume_ready_outputs": {
+        "technical_skills_lines_full": [
+            "Security Engineering: Vulnerability remediation automation, endpoint hardening workflows, patch orchestration, deployable security controls, secure implementation practices",
+            "Cloud Security & Platform: AWS ECS, IAM, secrets management, containerized security services, secure cloud deployments, service hardening",
+            "Containers & Infrastructure: Docker, Dockerized application delivery, infrastructure as code, configuration management, container orchestration",
+            "DevSecOps & CI/CD: CI/CD pipelines, automated build/deploy workflows, release automation, runbook-driven operations, production support",
+            "Security Automation: Python automation, PowerShell automation, remediation scripting, API-driven security workflows, administrative tooling",
+            "Identity & Access: MFA integrations, identity portal security architecture, access control implementation, cross-team IAM coordination",
+            "Security Data Engineering: Multi-source ingestion, data normalization, correlation logic, confidence matching, asset reconciliation, inventory drift resolution",
+            "Security Analytics: Pandas, NumPy, log analysis frameworks, anomaly detection, vulnerability pattern analysis, reporting/visualization",
+            "AI for SecOps: RAG pipelines, LangChain, vector databases, NLP, retrieval evaluation and tuning, AI governance",
+            "API & Integrations: Microsoft Graph API automation, CrowdStrike RTR workflows, integration scripting, multi-system workflow automation",
+            "Web & Internal Tooling: Flask, React.js, FastAPI, Python backend APIs, internal security tools",
+            "Testing & Quality Automation: Selenium automation, WCAG/ADA accessibility checks, cross-browser and cross-device testing",
+            "Technical Communication: Cross-functional execution, technical architecture communication, operational documentation, runbooks"
+        ],
+        "technical_skills_lines_condensed_5": [
+            "Security Engineering: Vulnerability remediation automation, endpoint hardening, patch orchestration, deployable controls",
+            "Cloud & DevSecOps: AWS ECS, Docker, CI/CD automation, IaC/configuration management, secrets management",
+            "Security Data & AI: Asset correlation, Pandas/NumPy analytics, RAG (LangChain + vector DBs), retrieval tuning, AI governance",
+            "API & Platform Automation: Microsoft Graph API, CrowdStrike RTR, Python/PowerShell automation, multi-source integrations",
+            "Identity & Delivery: MFA integrations, IAM coordination, technical documentation, cross-functional execution"
+        ],
+        "technical_skills_lines_condensed_3": [
+            "Security Engineering & Automation: Vulnerability remediation automation, endpoint hardening, patch orchestration, Python/PowerShell workflows",
+            "Cloud, Platform & Integrations: AWS ECS, Docker, IAM/secrets management, CI/CD, Microsoft Graph API, CrowdStrike RTR",
+            "Security Data, Analytics & AI: Asset correlation, Pandas/NumPy log analytics, RAG (LangChain + vector DBs), retrieval tuning, AI governance"
+        ]
+    },
+    "job_targeting": {
+        "high_signal_keywords": [
+            "Security Automation",
+            "Vulnerability Remediation",
+            "Endpoint Hardening",
+            "AWS ECS",
+            "Docker",
+            "IAM",
+            "Secrets Management",
+            "CI/CD",
+            "Infrastructure as Code",
+            "Microsoft Graph API",
+            "CrowdStrike RTR",
+            "Pandas",
+            "NumPy",
+            "RAG",
+            "LangChain",
+            "Vector Databases",
+            "MFA"
+        ],
+        "by_role": {
+            "security_engineer": [
+                "Vulnerability remediation automation",
+                "Endpoint hardening workflows",
+                "Patch orchestration",
+                "IAM and MFA integrations",
+                "Security analytics",
+                "Cross-functional security delivery"
+            ],
+            "devsecops_engineer": [
+                "AWS ECS",
+                "Docker",
+                "CI/CD pipelines",
+                "Infrastructure as Code",
+                "Secrets management",
+                "Release automation"
+            ],
+            "security_automation_engineer": [
+                "Python automation",
+                "PowerShell automation",
+                "API-driven workflows",
+                "CrowdStrike RTR",
+                "Microsoft Graph API",
+                "Runbook-driven tooling"
+            ],
+            "cloud_security_engineer": [
+                "Cloud security architecture",
+                "AWS ECS deployments",
+                "IAM",
+                "Secrets management",
+                "Containerized services",
+                "Service hardening"
+            ],
+            "ai_security_engineer": [
+                "RAG pipelines",
+                "LangChain",
+                "Vector databases",
+                "Retrieval tuning",
+                "NLP for security context",
+                "AI governance and auditability"
+            ]
+        }
+    },
+    "normalization_notes": {
+        "style_guidance": [
+            "Use category labels followed by comma-separated items for resume consistency.",
+            "Prioritize platform-specific terms only when they are directly supported (e.g., AWS ECS, Microsoft Graph API, CrowdStrike RTR).",
+            "Avoid claiming ownership of tools or frameworks unless explicitly used in projects or roles.",
+            "Lead with impact-oriented security automation and cloud/container work for current market relevance."
+        ],
+        "deduplication_suggestions": [
+            "Do not repeat Docker under both 'Cloud' and 'Containers' if space is limited.",
+            "Do not repeat Microsoft Graph API under both 'API' and 'Microsoft Ecosystem' unless tailoring for a Microsoft-heavy role.",
+            "Combine 'Security Data Engineering' and 'Security Analytics' into one line for shorter resumes."
+        ]
+    }
+}

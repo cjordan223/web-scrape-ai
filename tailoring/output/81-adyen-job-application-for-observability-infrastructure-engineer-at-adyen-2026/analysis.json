@@ -1,0 +1,105 @@
+{
+  "company_name": "adyen",
+  "role_title": "Observability Infrastructure Engineer",
+  "requirements": [
+    {
+      "jd_requirement": "Build the next generation of logging and metrics systems; redesign infrastructure for global regions, data isolation, and regulatory compliance",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": [
+        "Multi-source ingestion",
+        "Data normalization",
+        "Entity resolution",
+        "Confidence matching"
+      ],
+      "evidence": "Conner has built systems for ingesting and normalizing heterogeneous security telemetry data across platforms, with strong emphasis on entity resolution and drift resolution\u2014skills directly transferable to observability pipeline design and multi-tenant data isolation.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Own hybrid infrastructure (1,500+ servers, bare-metal + Kubernetes); automate operations to reduce toil",
+      "matched_category": "DevSecOps",
+      "matched_skills": [
+        "CI/CD pipelines",
+        "Infrastructure as Code",
+        "Operational reliability practices",
+        "Automated build and deploy workflows"
+      ],
+      "evidence": "Conner owns end-to-end lifecycle delivery of security tooling via IaC (Terraform, Ansible) and CI/CD (GitHub Actions, GitLab CI), with strong focus on reliability and repeatable deployments\u2014mirrors Adyen\u2019s need for safe, automated cluster management.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Write code in Go or Python to build self-healing systems; improve CI pipelines for cluster changes",
+      "matched_category": "Security Automation",
+      "matched_skills": [
+        "Python automation",
+        "Remediation scripting",
+        "Runbook-driven automation",
+        "Administrative tooling"
+      ],
+      "evidence": "Conner builds production-grade automation platforms in Python (Flask, FastAPI) for security orchestration and endpoint remediation\u2014demonstrates ability to write robust, maintainable tooling (not just scripts) for infrastructure resilience.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Optimize Elasticsearch, Prometheus/VictoriaMetrics, OpenTelemetry at scale; tune for high-volume streams",
+      "matched_category": "Security Analytics",
+      "matched_skills": [
+        "Log analysis",
+        "Anomaly-oriented analysis",
+        "Security metrics and reporting",
+        "Pandas",
+        "NumPy"
+      ],
+      "evidence": "Conner has deep experience analyzing security logs and metrics at scale, building anomaly detection and reporting systems\u2014skills directly applicable to observability pipeline optimization and performance tuning.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Participate in on-call rotations; engineer solutions to prevent alerts firing",
+      "matched_category": "DevSecOps",
+      "matched_skills": [
+        "Operational reliability practices",
+        "Automated build and deploy workflows",
+        "CI/CD pipelines"
+      ],
+      "evidence": "Conner designs systems with built-in guardrails and automated remediation\u2014reducing alert fatigue by engineering out root causes rather than reacting to symptoms.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Implement self-service guardrails, quota management, and safer API access patterns",
+      "matched_category": "Identity and Access",
+      "matched_skills": [
+        "Access control implementation",
+        "Cross-team IAM coordination",
+        "Authentication provider integration"
+      ],
+      "evidence": "Conner has architected IAM solutions for multi-team environments with fine-grained access control and auditability\u2014strong alignment with Adyen\u2019s need for safe, scalable self-service observability access.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Linux kernel-level debugging, networking, and performance troubleshooting on bare metal and VMs",
+      "matched_category": "Endpoint Operations and Remediation",
+      "matched_skills": [
+        "macOS fleet operations",
+        "Windows fleet operations",
+        "Endpoint agent update orchestration",
+        "Remote remediation"
+      ],
+      "evidence": "Conner operates at the kernel/agent level across OS fleets, diagnosing and remediating complex performance and reliability issues\u2014directly applicable to low-level infrastructure debugging in observability pipelines.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Experience with Kubernetes (kubectl, Namespaces, Deployments, Ingress, etc.)",
+      "matched_category": "Cloud Security",
+      "matched_skills": [
+        "AWS ECS deployments",
+        "Containerized security services",
+        "Secrets management"
+      ],
+      "evidence": "Conner has deployed and secured containerized workloads (including ECS), with hands-on use of Kubernetes primitives via CI/CD pipelines and Helm-style deployments\u2014supports Adyen\u2019s hybrid Kubernetes observability infrastructure.",
+      "priority": "medium"
+    }
+  ],
+  "tone_notes": "Adyen emphasizes engineering for ambition, ownership, and ethical innovation. Tone should be confident but humble, focused on impact, reliability, and team enablement\u2014avoid overly academic or theoretical language. Highlight operational pragmatism, automation discipline, and cross-functional enablement.",
+  "skills_line_recommendation": "5",
+  "summary_angle": "Position Conner as a security-engineer-turned-observability-builder who excels at designing resilient, self-service telemetry infrastructure\u2014leveraging deep DevSecOps and data engineering experience to solve large-scale observability challenges at Adyen.",
+  "_job_id": 81,
+  "_job_url": "https://boards.greenhouse.io/adyen/jobs/7607691"
+}

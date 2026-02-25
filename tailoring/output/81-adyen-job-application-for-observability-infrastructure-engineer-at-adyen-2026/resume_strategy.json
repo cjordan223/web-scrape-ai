@@ -1,0 +1,32 @@
+{
+  "summary_strategy": "Reframe Conner's security engineering background as foundational expertise in building resilient, self-service telemetry infrastructure\u2014emphasizing operational pragmatism, automation discipline, and cross-functional enablement aligned with Adyen's engineering values.",
+  "skills_strategy": "Use the 5-line condensed format, prioritizing Security Data Engineering, DevSecOps, and AI for SecOps; reorder to highlight observability-relevant skills first (data pipelines, analytics, automation), then platform/infrastructure, then IAM and delivery practices.",
+  "experience_focus": [
+    {
+      "company": "University of California|Great Wolf Resorts|Simple.biz",
+      "must_highlight": [
+        "multi-source data ingestion and normalization",
+        "automated remediation at scale",
+        "operational reliability through guardrails and runbooks"
+      ],
+      "safe_metrics_to_keep": [
+        "7,000+ endpoints",
+        "10,000+ devices",
+        "2,900-user identity portal",
+        "200 hours annually",
+        "500 hours annually",
+        "25 percent compliance improvement",
+        "30 percent reduction in user-reported issues"
+      ],
+      "claims_to_avoid": [
+        "no mention of Kubernetes-specific tools like kubectl or Helm despite adjacency; avoid implying direct Adyen stack experience; no fabricated metrics beyond source-provided numbers"
+      ]
+    }
+  ],
+  "risk_controls": [
+    "Replace all instances of 'engineered' or 'architected' with 'built', 'developed', or 'implemented' unless directly supported by source; avoid 'pioneered', 'led', or 'drove' unless explicitly stated",
+    "Never invent tools, frameworks, or integrations beyond those listed in Skills Inventory (e.g., no Terraform/Ansible unless cited in baseline resume\u2014baseline says 'IaC' but not specific tools)",
+    "Do not add metrics beyond those explicitly provided (e.g., no 'X% latency reduction' or 'Y% uptime improvement')",
+    "Avoid corporate buzzwords like 'synergy', 'holistic', 'end-to-end', 'future-proof'\u2014use concrete verbs: 'built', 'integrated', 'automated', 'reduced', 'enabled'"
+  ]
+}

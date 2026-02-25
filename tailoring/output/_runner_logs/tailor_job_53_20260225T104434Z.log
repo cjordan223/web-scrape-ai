@@ -1,0 +1,62 @@
+
+Tailoring for: Software Engineer • United States • Full time • Remote
+Company: wraithwatch
+URL: https://jobs.ashbyhq.com/wraithwatch/b05f8e8c-4781-4dd7-88c0-aa5b17d022d3
+Output: /Users/conner/Documents/SearXNG/tailoring/output/53-wraithwatch-software-engineer-united-states-full-time-remote-2026-02-25
+
+→ Analyzing JD against skills inventory...
+02:44:34 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+02:44:57 INFO     tailor.ollama — LLM call complete (3877 chars returned)
+02:44:57 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/53-wraithwatch-software-engineer-united-states-full-time-remote-2026-02-25/analysis.json (6 requirements mapped)
+  Mapped 6 requirements
+  Company: wraithwatch
+  Role: Software Engineer
+
+→ Generating Resume...
+02:44:57 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+02:45:14 INFO     tailor.ollama — LLM call complete (1629 chars returned)
+02:45:14 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+02:45:59 INFO     tailor.ollama — LLM call complete (7527 chars returned)
+02:45:59 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+02:46:44 INFO     tailor.ollama — LLM call complete (7500 chars returned)
+02:46:44 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/53-wraithwatch-software-engineer-united-states-full-time-remote-2026-02-25/Conner_Jordan_Resume.tex (7488 chars)
+  Validating (attempt 1/3)...
+02:46:45 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/53-wraithwatch-software-engineer-united-states-full-time-remote-2026-02-25/Conner_Jordan_Resume.pdf
+  ✗ Resume failed: FAIL — char count ratio 0.89 (±0.08 allowed)
+  Regenerating with feedback...
+02:46:45 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+02:47:03 INFO     tailor.ollama — LLM call complete (1771 chars returned)
+02:47:03 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+02:47:49 INFO     tailor.ollama — LLM call complete (7767 chars returned)
+02:47:49 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+02:48:36 INFO     tailor.ollama — LLM call complete (7720 chars returned)
+02:48:36 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/53-wraithwatch-software-engineer-united-states-full-time-remote-2026-02-25/Conner_Jordan_Resume.tex (7708 chars)
+  Validating (attempt 2/3)...
+02:48:37 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/53-wraithwatch-software-engineer-united-states-full-time-remote-2026-02-25/Conner_Jordan_Resume.pdf
+  ✗ Resume failed: FAIL — char count ratio 0.90 (±0.08 allowed)
+  Regenerating with feedback...
+02:48:37 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+02:48:55 INFO     tailor.ollama — LLM call complete (1626 chars returned)
+02:48:55 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+02:49:40 INFO     tailor.ollama — LLM call complete (7560 chars returned)
+02:49:40 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+02:50:26 INFO     tailor.ollama — LLM call complete (7530 chars returned)
+02:50:26 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/53-wraithwatch-software-engineer-united-states-full-time-remote-2026-02-25/Conner_Jordan_Resume.tex (7518 chars)
+  Validating (attempt 3/3)...
+02:50:27 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/53-wraithwatch-software-engineer-united-states-full-time-remote-2026-02-25/Conner_Jordan_Resume.pdf
+  ✗ Resume failed: FAIL — char count ratio 0.86 (±0.08 allowed)
+
+→ Generating Cover Letter...
+02:50:27 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+02:50:40 INFO     tailor.ollama — LLM call complete (1383 chars returned)
+02:50:40 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+02:51:07 INFO     tailor.ollama — LLM call complete (4519 chars returned)
+02:51:07 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+02:51:36 INFO     tailor.ollama — LLM call complete (4334 chars returned)
+02:51:36 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/53-wraithwatch-software-engineer-united-states-full-time-remote-2026-02-25/Conner_Jordan_Cover_Letter.tex (4321 chars)
+  Validating (attempt 1/3)...
+02:51:37 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/53-wraithwatch-software-engineer-united-states-full-time-remote-2026-02-25/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/53-wraithwatch-software-engineer-united-states-full-time-remote-2026-02-25
+Run failed quality gates for: Resume

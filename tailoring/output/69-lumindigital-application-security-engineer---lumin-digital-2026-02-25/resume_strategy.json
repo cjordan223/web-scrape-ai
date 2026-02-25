@@ -1,0 +1,16 @@
+{
+  "summary_strategy": "Position Conner as a pragmatic builder of production-grade ASPM systems\u2014emphasizing shipped automation, data unification, and cross-functional enablement aligned with Lumin's values of curiosity, trust, respect, and boldness",
+  "skills_strategy": "Use the condensed 3-line format to maximize relevance: lead with Security Engineering & Automation (vulnerability remediation, endpoint hardening), then Cloud/Platform Integrations (AWS ECS, Docker, CrowdStrike RTR, Graph API), and finally Security Data & AI (correlation logic, Pandas/NumPy, RAG) to mirror Lumin's technical priorities",
+  "experience_focus": [
+    {
+      "company": "University of California|Great Wolf Resorts|Simple.biz",
+      "must_highlight": "vulnerability remediation automation, multi-source asset correlation and confidence matching, API-driven security tooling",
+      "safe_metrics_to_keep": "10,000+ devices managed, 200 hours saved annually, 500 hours reduced workload, 30% fewer user-reported issues, 25 percent compliance improvement",
+      "claims_to_avoid": "invented metrics like 'reduced MTTR by X%', speculative ownership of bug bounty programs, or unverified tool adoption claims"
+    }
+  ],
+  "risk_controls": [
+    "Never invent specific tools (e.g., 'built integration with Veracode' unless explicitly stated), never assign ownership of bug bounty or pen test programs without direct evidence, avoid vague terms like 'spearheaded'\u2014use 'built', 'developed', or 'engineered'",
+    "Do not add metrics beyond those explicitly provided in the baseline resume (e.g., no 'X% faster remediation' unless sourced), and never imply responsibility for systems not mentioned (e.g., no 'owned CI/CD pipelines' unless tied to a specific tool or outcome in the original text)"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "summary_strategy": "Reframe summary around building and operating secure, production-grade platform systems with measurable operational reliability\u2014emphasizing cross-functional ownership, deployable controls, and AI-augmented tooling aligned with OpenAI\u2019s FDE mission",
+  "skills_strategy": "Use condensed 3-line format to prioritize high-priority skills most relevant to platform engineering: Security Engineering & Automation, Cloud/Platform & Integrations, and Security Data/AI\u2014grouping tools under clear functional themes without listing every tool",
+  "experience_focus": [
+    {
+      "company": "University of California|Great Wolf Resorts|Simple.biz",
+      "must_highlight": "deployable controls with operational reliability, cross-team IAM/security automation, asset reconciliation and API-driven integrations",
+      "safe_metrics_to_keep": "25 percent compliance improvement, 200 hours saved annually, 30 percent reduction in user-reported issues",
+      "claims_to_avoid": "no invented metrics, no speculative ownership scale (e.g., avoid 'enterprise-scale' without source), no unverified tool claims beyond listed evidence"
+    }
+  ],
+  "risk_controls": [
+    "Replace all 'built X to do Y' with 'delivered X with operational reliability for Y', "
+  ]
+}

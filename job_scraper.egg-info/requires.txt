@@ -1,6 +1,0 @@
-requests
-pydantic>=2.0
-pyyaml
-rich
-typer
-crawl4ai

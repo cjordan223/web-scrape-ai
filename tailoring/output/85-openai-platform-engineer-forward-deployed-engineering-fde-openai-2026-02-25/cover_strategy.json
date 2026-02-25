@@ -1,0 +1,21 @@
+{
+  "opening_angle": "Connect role to Conner's pattern of building and operating production-grade security automation for complex environments\u2014emphasizing how his hands-on experience with CI/CD, cloud services, and cross-functional tooling aligns directly with FDE\u2019s mission to ship deployable controls at scale",
+  "paragraph_focus": [
+    "Direct alignment of operational security automation experience with FDE\u2019s core mandate",
+    "Concrete examples of building and operating secure cloud services and integrations across heterogeneous platforms",
+    "Demonstration of AI-augmented tooling with guardrails\u2014tying LangChain work to operational relevance, not just novelty",
+    "Emphasis on end-to-end ownership, documentation, and team enablement as core engineering practices"
+  ],
+  "voice_controls": [
+    "Use active verbs like built, operated, integrated, reconciled, shipped\u2014avoid 'helped', 'supported', or vague claims",
+    "Replace adjectives like 'robust' or 'scalable' with specific operational traits: containerized, CI/CD-integrated, runbook-backed, audit-trail enabled",
+    "Avoid phrases like 'passionate about security'\u2014replace with 'built X to solve Y problem in production'",
+    "Use OpenAI\u2019s preferred framing: 'deployable controls', 'operational reliability', 'team enablement'"
+  ],
+  "claims_to_avoid": [
+    "No claims about 'revolutionizing' or 'transforming' security\u2014focus on incremental, maintainable improvements",
+    "No inflated metrics (e.g., 'reduced time by 90%') without explicit support\u2014use 'reduced manual effort' or 'standardized workflows across teams'",
+    "No generic statements like 'expert in security'\u2014use 'security-focused engineer with hands-on experience in...' instead",
+    "Avoid academic or theoretical language (e.g., 'leveraging machine learning paradigms')\u2014stick to applied terms like 'built RAG pipelines for incident response context'"
+  ]
+}
