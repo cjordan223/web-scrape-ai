@@ -1,6 +1,6 @@
 # Dashboard Refactor Status
 
-_Last updated: February 27, 2026_
+_Last updated: February 27, 2026 (pipeline trace view added)_
 
 Refactor is complete.
 
@@ -30,6 +30,7 @@ Refactor is complete.
 
 - SQL Console now includes optional DB admin actions (feature-flagged)
 - DB Explorer column filters fixed server-side (actual query filtering now applied)
+- Tailoring trace inspector replaced flat filter+list UI with structured pipeline stage view (Analysis → Attempt groups → Strategy/Draft/QA/Validate rows, detail pane on click)
 
 ## Remaining Work
 

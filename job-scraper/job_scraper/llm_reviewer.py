@@ -89,6 +89,12 @@ def llm_review(
                     raise TimeoutError("LLM lock timeout")
                 time.sleep(2)
         try:
+            logger.info(
+                "LLM Review Call for '%s'\nModel: %s\n"
+                "System Prompt:\n%s\n"
+                "User Prompt:\n%s",
+                title, model_id, _SYSTEM_PROMPT, user_content
+            )
             resp = requests.post(
                 config.url,
                 json={
@@ -107,7 +113,7 @@ def llm_review(
             fd.close()
         resp.raise_for_status()
         content = resp.json()["choices"][0]["message"]["content"]
-        logger.debug("LLM raw response for '%s': %s", title, content[:300])
+        logger.info("LLM Raw Response for '%s':\n%s", title, content)
         passed, reason = _parse_response(content)
         return FilterVerdict(stage="llm_review", passed=passed, reason=reason)
 

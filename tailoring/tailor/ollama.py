@@ -199,22 +199,78 @@ def strip_think_tags(text: str) -> str:
     return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
 
-def extract_json(text: str) -> dict:
-    """Extract the first JSON object from LLM output (after stripping think tags)."""
-    text = strip_think_tags(text)
-    # Find outermost braces
-    start = text.find("{")
-    if start == -1:
-        raise ValueError(f"No JSON object found in response: {text[:200]}")
+def _sanitize_json_text(text: str) -> str:
+    """Normalize common model artifacts that break JSON parsing."""
+    cleaned = strip_think_tags(text)
+    # Remove OpenAI/chat-style control tokens that sometimes leak into content.
+    cleaned = re.sub(r"<\|[^|>\n]{1,100}\|>", "", cleaned)
+    # Remove trailing partial control tokens (e.g. "<|message|>..." cut mid-stream).
+    cleaned = re.sub(r"<\|[^\n]*$", "", cleaned)
+    # Unwrap fenced json blocks if present.
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned.strip(), flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*```$", "", cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()
+
+
+def _append_missing_braces(candidate: str) -> str:
+    """Best-effort fix for truncated objects by balancing braces outside strings."""
     depth = 0
-    for i, ch in enumerate(text[start:], start):
-        if ch == "{":
+    in_string = False
+    escape = False
+    for ch in candidate:
+        if in_string:
+            if escape:
+                escape = False
+                continue
+            if ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == "{":
             depth += 1
         elif ch == "}":
             depth -= 1
-            if depth == 0:
-                return json.loads(text[start : i + 1])
-    raise ValueError(f"Unclosed JSON object in response: {text[:200]}")
+    if depth > 0:
+        return candidate + ("}" * depth)
+    return candidate
+
+
+def extract_json(text: str) -> dict:
+    """Extract the first JSON object from model output with tolerant recovery."""
+    text = _sanitize_json_text(text)
+    if not text:
+        raise ValueError("Empty response while expecting JSON")
+
+    decoder = json.JSONDecoder()
+    starts = [i for i, ch in enumerate(text) if ch == "{"]
+    if not starts:
+        raise ValueError(f"No JSON object found in response: {text[:200]}")
+
+    first_error: Exception | None = None
+    for start in starts:
+        candidate = text[start:]
+        try:
+            obj, _ = decoder.raw_decode(candidate)
+            if isinstance(obj, dict):
+                return obj
+        except Exception as e:  # noqa: BLE001
+            if first_error is None:
+                first_error = e
+            # Common truncation case: attempt brace balancing once.
+            try:
+                obj = json.loads(_append_missing_braces(candidate))
+                if isinstance(obj, dict):
+                    return obj
+            except Exception:  # noqa: BLE001
+                pass
+
+    raise ValueError(
+        f"Could not parse JSON object in response: {text[:200]}"
+        + (f" ({first_error})" if first_error else "")
+    )
 
 
 def extract_latex(text: str) -> str:
@@ -273,4 +329,27 @@ def chat_expect_json(
             trace=repair_trace,
             trace_recorder=trace_recorder,
         )
-        return extract_json(repaired)
+        try:
+            return extract_json(repaired)
+        except Exception:
+            # Final fallback: regenerate a fresh JSON answer from the original task.
+            regen_trace = dict(trace or {})
+            regen_trace["phase"] = f"{regen_trace.get('phase', 'unknown')}_json_regen"
+            regen_prompt = (
+                "Return one complete, valid JSON object only. "
+                "No prose, no markdown fences, no comments.\n\n"
+                "Follow this target schema and constraints exactly:\n"
+                f"{system_prompt[:3000]}\n\n"
+                "Now solve the original task again and emit valid JSON.\n\n"
+                f"{user_prompt[:12000]}"
+            )
+            regenerated = chat(
+                system_prompt="You are a strict JSON generator.",
+                user_prompt=regen_prompt,
+                max_tokens=max_tokens,
+                temperature=0.0,
+                json_mode=True,
+                trace=regen_trace,
+                trace_recorder=trace_recorder,
+            )
+            return extract_json(regenerated)

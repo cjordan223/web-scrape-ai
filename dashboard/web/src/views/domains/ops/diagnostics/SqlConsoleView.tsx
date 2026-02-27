@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../../../api';
 import { PageHeader, PagePrimary, PageView } from '../../../../components/workflow/PageLayout';
 import { WorkflowPanel } from '../../../../components/workflow/Panel';
@@ -6,6 +6,16 @@ import { EmptyState } from '../../../../components/workflow/States';
 import { ActionBar } from '../../../../components/workflow/ActionBar';
 
 export default function SqlConsoleView() {
+    const defaultPresets: Array<{ label: string; query: string }> = [
+        { label: 'Count everything', query: 'SELECT count(*) FROM results;' },
+        { label: 'Grouping by board', query: 'SELECT board, count(*) as count FROM results GROUP BY board ORDER BY count DESC;' },
+        { label: 'Recent jobs with salary', query: 'SELECT id, title, salary_k, url FROM results WHERE salary_k IS NOT NULL ORDER BY id DESC LIMIT 20;' },
+        { label: 'Common rejection reasons', query: 'SELECT rejection_reason, count(*) as c FROM rejected WHERE rejection_reason IS NOT NULL GROUP BY rejection_reason ORDER BY c DESC LIMIT 10;' },
+        { label: 'Errors grouping', query: 'SELECT status, error_count, errors FROM runs WHERE error_count > 0 ORDER BY started_at DESC LIMIT 10;' },
+        { label: 'Recent runs', query: 'SELECT * FROM runs ORDER BY started_at DESC LIMIT 20;' },
+        { label: 'Top domains', query: "SELECT substr(url, instr(url, '://') + 3, instr(substr(url, instr(url, '://') + 3), '/') - 1) as domain, count(*) as count FROM results GROUP BY domain ORDER BY count DESC LIMIT 20;" },
+    ];
+
     const [query, setQuery] = useState('');
     const [result, setResult] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
@@ -19,6 +29,7 @@ export default function SqlConsoleView() {
     const [adminAction, setAdminAction] = useState('truncate_all');
     const [confirmText, setConfirmText] = useState('');
     const [selectedTables, setSelectedTables] = useState<Record<string, boolean>>({});
+    const [schemaTables, setSchemaTables] = useState<Array<{ name: string; columns: Array<{ name: string }> }>>([]);
 
     const editorRef = useRef<HTMLTextAreaElement>(null);
 
@@ -47,6 +58,12 @@ export default function SqlConsoleView() {
 
     useEffect(() => {
         loadAdminStatus();
+    }, []);
+
+    useEffect(() => {
+        api.dbSchema()
+            .then((tables: any[]) => setSchemaTables(tables || []))
+            .catch(() => setSchemaTables([]));
     }, []);
 
     const saveHistory = (q: string) => {
@@ -82,15 +99,54 @@ export default function SqlConsoleView() {
         }
     };
 
-    const presets = [
-        { label: "Count everything", query: "SELECT count(*) FROM results;" },
-        { label: "Grouping by board", query: "SELECT board, count(*) as count FROM results GROUP BY board ORDER BY count DESC;" },
-        { label: "Recent jobs with salary", query: "SELECT id, title, salary_k, url FROM results WHERE salary_k IS NOT NULL ORDER BY created_at DESC LIMIT 20;" },
-        { label: "Common rejection reasons", query: "SELECT rejection_reason, count(*) as c FROM seen_urls WHERE rejection_reason IS NOT NULL GROUP BY rejection_reason ORDER BY c DESC LIMIT 10;" },
-        { label: "Errors grouping", query: "SELECT status, error_count, errors FROM runs WHERE error_count > 0 ORDER BY started_at DESC LIMIT 10;" },
-        { label: "Recent runs", query: "SELECT * FROM runs ORDER BY started_at DESC LIMIT 20;" },
-        { label: "Top domains", query: "SELECT substr(url, instr(url, '://') + 3, instr(substr(url, instr(url, '://') + 3), '/') - 1) as domain, count(*) as count FROM results GROUP BY domain ORDER BY count DESC LIMIT 20;" }
-    ];
+    const presets = useMemo(() => {
+        if (!schemaTables || schemaTables.length === 0) {
+            return defaultPresets;
+        }
+
+        const colMap = new Map<string, Set<string>>();
+        for (const t of schemaTables) {
+            colMap.set(t.name, new Set((t.columns || []).map((c: any) => c.name)));
+        }
+
+        const has = (table: string, ...cols: string[]) => {
+            const set = colMap.get(table);
+            if (!set) return false;
+            return cols.every((c) => set.has(c));
+        };
+
+        const items: Array<{ label: string; query: string }> = [];
+
+        if (has('results')) {
+            items.push({ label: 'Count everything', query: 'SELECT count(*) FROM results;' });
+        }
+        if (has('results', 'board')) {
+            items.push({ label: 'Grouping by board', query: 'SELECT board, count(*) as count FROM results GROUP BY board ORDER BY count DESC;' });
+        }
+        if (has('results', 'id', 'title', 'salary_k', 'url', 'created_at')) {
+            items.push({ label: 'Recent jobs with salary', query: 'SELECT id, title, salary_k, url FROM results WHERE salary_k IS NOT NULL ORDER BY created_at DESC LIMIT 20;' });
+        }
+        if (has('rejected', 'rejection_reason')) {
+            items.push({ label: 'Common rejection reasons', query: 'SELECT rejection_reason, count(*) as c FROM rejected WHERE rejection_reason IS NOT NULL GROUP BY rejection_reason ORDER BY c DESC LIMIT 10;' });
+        }
+        if (has('runs', 'status', 'error_count', 'errors', 'started_at')) {
+            items.push({ label: 'Errors grouping', query: 'SELECT status, error_count, errors FROM runs WHERE error_count > 0 ORDER BY started_at DESC LIMIT 10;' });
+        }
+        if (has('runs', 'started_at')) {
+            items.push({ label: 'Recent runs', query: 'SELECT * FROM runs ORDER BY started_at DESC LIMIT 20;' });
+        }
+        if (has('results', 'url')) {
+            items.push({ label: 'Top domains', query: "SELECT substr(url, instr(url, '://') + 3, instr(substr(url, instr(url, '://') + 3), '/') - 1) as domain, count(*) as count FROM results GROUP BY domain ORDER BY count DESC LIMIT 20;" });
+        }
+
+        if (items.length === 0) {
+            for (const t of schemaTables.slice(0, 6)) {
+                items.push({ label: `Preview ${t.name}`, query: `SELECT * FROM [${t.name}] LIMIT 20;` });
+            }
+        }
+
+        return items.length > 0 ? items : defaultPresets;
+    }, [schemaTables]);
 
     const runAdminAction = async () => {
         setAdminNotice('');

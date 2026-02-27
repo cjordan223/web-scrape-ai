@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 
 ROUTES: list[tuple[str, str, str]] = [
+    ("GET", "/api/db/schema", "db_schema"),
     ("GET", "/api/db/tables", "db_tables"),
     ("GET", "/api/db/table/{name}", "db_table_browse"),
     ("GET", "/api/db/query", "db_query"),

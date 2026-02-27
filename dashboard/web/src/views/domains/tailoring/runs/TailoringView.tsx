@@ -7,7 +7,6 @@ import { PageHeader, PagePrimary, PageSecondary, PageView } from '../../../../co
 import { WorkflowPanel } from '../../../../components/workflow/Panel';
 import { EmptyState, LoadingState } from '../../../../components/workflow/States';
 import { ActionBar } from '../../../../components/workflow/ActionBar';
-import { FilterToolbar } from '../../../../components/workflow/FilterToolbar';
 import { LogPanel } from '../../../../components/workflow/LogPanel';
 
 export default function TailoringView() {
@@ -17,13 +16,9 @@ export default function TailoringView() {
 
     const [activeSlug, setActiveSlug] = useState<string | null>(null);
     const [activeTrace, setActiveTrace] = useState<any>(null);
-    // Trace filters
-    const [filterDocType, setFilterDocType] = useState('');
-    const [filterPhase, setFilterPhase] = useState('');
-    const [filterAttempt, setFilterAttempt] = useState('');
-
-    // Trace event detail
-    const [selectedEventIdx, setSelectedEventIdx] = useState(-1);
+    // Pipeline trace state
+    const [selectedDocTab, setSelectedDocTab] = useState<'analysis' | 'resume' | 'cover'>('analysis');
+    const [selectedEvent, setSelectedEvent] = useState<any>(null);
     const [traceTab, setTraceTab] = useState<'system' | 'user' | 'response' | 'meta'>('meta');
 
     // New state for Manual Tailoring Header
@@ -179,15 +174,109 @@ export default function TailoringView() {
 
     const traces = activeTrace?.events || [];
 
-    // Filter events by doc_type, phase, attempt
-    const filteredTraces = traces.filter((e: any) => {
-        if (filterDocType && e.doc_type !== filterDocType) return false;
-        if (filterPhase && e.phase !== filterPhase) return false;
-        if (filterAttempt !== '' && e.attempt != null && String(e.attempt) !== filterAttempt) return false;
-        return true;
-    });
+    // Group trace events into pipeline structure
+    const groupTraceEvents = (events: any[]) => {
+        const analysis: any = { llm: null };
+        const resume: Record<number, any> = {};
+        const cover: Record<number, any> = {};
 
-    const selectedEvent = selectedEventIdx >= 0 && selectedEventIdx < filteredTraces.length ? filteredTraces[selectedEventIdx] : null;
+        for (const ev of events) {
+            const attempt = ev.attempt ?? 1;
+            const isLlm = ev.event_type === 'llm_call_success' || ev.event_type === 'llm_call_error';
+            const isVal = ev.event_type === 'validation_result';
+
+            if (ev.doc_type === 'analysis') {
+                if (isLlm && (!analysis.llm || ev.event_type === 'llm_call_success')) {
+                    analysis.llm = ev;
+                }
+            } else if (ev.doc_type === 'resume') {
+                if (!resume[attempt]) resume[attempt] = { strategy: null, draft: null, qa: null, validation: null };
+                if (isVal) { resume[attempt].validation = ev; }
+                else if (isLlm) {
+                    const slot = ev.phase as 'strategy' | 'draft' | 'qa';
+                    if (slot && (!resume[attempt][slot] || ev.event_type === 'llm_call_success')) {
+                        resume[attempt][slot] = ev;
+                    }
+                }
+            } else if (ev.doc_type === 'cover') {
+                if (!cover[attempt]) cover[attempt] = { strategy: null, draft: null, qa: null, validation: null };
+                if (isVal) { cover[attempt].validation = ev; }
+                else if (isLlm) {
+                    const slot = ev.phase as 'strategy' | 'draft' | 'qa';
+                    if (slot && (!cover[attempt][slot] || ev.event_type === 'llm_call_success')) {
+                        cover[attempt][slot] = ev;
+                    }
+                }
+            }
+        }
+
+        return { analysis, resume, cover };
+    };
+
+    const grouped = groupTraceEvents(traces);
+
+    const fmtDuration = (ms: number | null | undefined) => {
+        if (ms == null) return '';
+        return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
+    };
+
+    const StageRow = ({ label, ev, isValidation }: { label: string; ev: any; isValidation?: boolean }) => {
+        if (!ev) {
+            return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 8px', color: 'var(--text-secondary)', fontSize: '.85rem' }}>
+                    <span style={{ minWidth: '80px', color: 'var(--text-secondary)' }}>{label}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>·</span>
+                    <span style={{ fontSize: '.8rem', color: 'var(--text-secondary)' }}>—</span>
+                </div>
+            );
+        }
+        const success = isValidation
+            ? ev.passed !== false
+            : ev.event_type === 'llm_call_success';
+        const statusColor = success ? '#22c55e' : '#ef4444';
+        const statusIcon = success ? '✓' : '✗';
+        const failures = !isValidation ? null : (ev.failures || []);
+
+        return (
+            <div
+                className={selectedEvent === ev ? 'trace-item active' : 'trace-item'}
+                style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 8px', cursor: isValidation ? 'default' : 'pointer', borderRadius: '4px' }}
+                onClick={isValidation ? undefined : () => { setSelectedEvent(ev); }}
+            >
+                <span style={{ minWidth: '80px', fontSize: '.85rem', fontWeight: 500 }}>{label}</span>
+                <span style={{ color: statusColor, fontWeight: 700, fontSize: '1rem', lineHeight: 1 }}>{statusIcon}</span>
+                {!isValidation && ev.duration_ms != null && (
+                    <span style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>{fmtDuration(ev.duration_ms)}</span>
+                )}
+                {failures && failures.length > 0 && (
+                    <span style={{ fontSize: '.78rem', color: '#ef4444' }}>{failures.join(', ')}</span>
+                )}
+                {!isValidation && (
+                    <button
+                        className="btn btn-ghost btn-sm"
+                        style={{ marginLeft: 'auto', fontSize: '.75rem', padding: '2px 8px' }}
+                        onClick={(e) => { e.stopPropagation(); setSelectedEvent(ev); }}
+                    >
+                        view
+                    </button>
+                )}
+            </div>
+        );
+    };
+
+    const AttemptGroup = ({ attempt, slots, isRetry }: { attempt: number; slots: any; isRetry: boolean }) => (
+        <div style={{ border: '1px solid var(--border)', borderRadius: '6px', marginBottom: '10px' }}>
+            <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: '.8rem', fontWeight: 600, color: 'var(--text-secondary)', background: 'var(--surface-2)', borderRadius: '6px 6px 0 0' }}>
+                Attempt {attempt}{isRetry ? ' (retry)' : ''}
+            </div>
+            <div style={{ padding: '4px 4px' }}>
+                <StageRow label="Strategy" ev={slots.strategy} />
+                <StageRow label="Draft" ev={slots.draft} />
+                <StageRow label="QA" ev={slots.qa} />
+                <StageRow label="Validate" ev={slots.validation} isValidation />
+            </div>
+        </div>
+    );
 
     const copyTracePane = () => {
         let text = '';
@@ -355,35 +444,47 @@ export default function TailoringView() {
                             <span><strong>{activeTrace.doc_status?.cover ?? 'pending'}</strong> cover</span>
                             <span><strong>{traces.length}</strong> trace events</span>
                         </div>
-                        <FilterToolbar>
-                            <select value={filterDocType} onChange={(e) => { setFilterDocType(e.target.value); setSelectedEventIdx(-1); }}>
-                                <option value="">All docs</option>
-                                <option value="analysis">analysis</option>
-                                <option value="resume">resume</option>
-                                <option value="cover">cover</option>
-                            </select>
-                            <select value={filterPhase} onChange={(e) => { setFilterPhase(e.target.value); setSelectedEventIdx(-1); }}>
-                                <option value="">All phases</option>
-                                <option value="analysis">analysis</option>
-                                <option value="strategy">strategy</option>
-                                <option value="draft">draft</option>
-                                <option value="qa">qa</option>
-                            </select>
-                            <input type="number" placeholder="Attempt" min="0" value={filterAttempt} onChange={(e) => { setFilterAttempt(e.target.value); setSelectedEventIdx(-1); }} style={{ width: '80px' }} />
-                        </FilterToolbar>
                     </WorkflowPanel>
 
-                    <div className="trace-grid" style={{ marginTop: '16px' }}>
-                        <div className="trace-list">
-                            {filteredTraces.map((ev: any, idx: number) => (
-                                <div key={idx} className={`trace-item ${selectedEventIdx === idx ? 'active' : ''}`} onClick={() => setSelectedEventIdx(idx)}>
-                                    <div className="trace-title">{ev.event_type}</div>
-                                    <div className="trace-meta">{(ev.doc_type || '—') + ' · ' + (ev.phase || '—') + ' · attempt ' + (ev.attempt ?? '—')}</div>
-                                    <div className="trace-meta">{timeAgo(ev.timestamp || ev.ended_at || ev.started_at)}</div>
-                                </div>
+                    {/* Pipeline Inspector */}
+                    <div style={{ marginTop: '16px' }}>
+                        {/* Analysis row */}
+                        <div style={{ border: '1px solid var(--border)', borderRadius: '6px', marginBottom: '12px' }}>
+                            <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: '.8rem', fontWeight: 600, color: 'var(--text-secondary)', background: 'var(--surface-2)', borderRadius: '6px 6px 0 0' }}>
+                                Analysis
+                            </div>
+                            <div style={{ padding: '4px 4px' }}>
+                                <StageRow label="LLM Call" ev={grouped.analysis.llm} />
+                            </div>
+                        </div>
+
+                        {/* Doc tabs */}
+                        <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
+                            {(['resume', 'cover'] as const).map(doc => (
+                                <button
+                                    key={doc}
+                                    className={`btn btn-sm ${selectedDocTab === doc ? 'btn-primary' : 'btn-ghost'}`}
+                                    onClick={() => setSelectedDocTab(doc)}
+                                >
+                                    {doc === 'resume' ? 'Resume' : 'Cover Letter'}
+                                </button>
                             ))}
                         </div>
-                        <div className="trace-pane">
+
+                        {/* Attempt groups for selected doc */}
+                        {(() => {
+                            const docAttempts = selectedDocTab === 'resume' ? grouped.resume : grouped.cover;
+                            const attemptNums = Object.keys(docAttempts).map(Number).sort((a, b) => a - b);
+                            if (attemptNums.length === 0) {
+                                return <div style={{ color: 'var(--text-secondary)', fontSize: '.85rem', padding: '12px 4px' }}>No {selectedDocTab} trace events found.</div>;
+                            }
+                            return attemptNums.map((n, i) => (
+                                <AttemptGroup key={n} attempt={n} slots={docAttempts[n]} isRetry={i > 0} />
+                            ));
+                        })()}
+
+                        {/* Detail pane */}
+                        <div style={{ marginTop: '8px' }}>
                             <div className="trace-tabs">
                                 <button className={`btn ${traceTab === 'system' ? 'btn-primary' : 'btn-ghost'} btn-sm`} onClick={() => setTraceTab('system')}>System Prompt</button>
                                 <button className={`btn ${traceTab === 'user' ? 'btn-primary' : 'btn-ghost'} btn-sm`} onClick={() => setTraceTab('user')}>User Prompt</button>
@@ -393,7 +494,7 @@ export default function TailoringView() {
                             </div>
                             <div className="trace-content">
                                 {!selectedEvent ? (
-                                    <div style={{ padding: '20px', color: 'var(--text-secondary)', textAlign: 'center' }}>Select a trace event from the list.</div>
+                                    <div style={{ padding: '20px', color: 'var(--text-secondary)', textAlign: 'center' }}>Click a stage row to view its trace event.</div>
                                 ) : (
                                     <>
                                         {traceTab === 'system' && <pre>{selectedEvent.system_prompt || ''}</pre>}

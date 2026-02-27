@@ -177,6 +177,11 @@ export const api = {
         return data;
     },
 
+    dbSchema: async () => {
+        const { data } = await apiClient.get('/db/schema');
+        return data.tables;
+    },
+
     dbTables: async () => {
         const { data } = await apiClient.get('/db/tables');
         return data.tables;

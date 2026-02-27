@@ -11,6 +11,32 @@ globals().update({k: v for k, v in _app.__dict__.items() if not k.startswith("__
 def _sync_app_state() -> None:
     globals().update({k: v for k, v in _app.__dict__.items() if not k.startswith("__")})
 
+
+def db_schema():
+    _sync_app_state()
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        ).fetchall()
+        tables: list[dict] = []
+        for r in rows:
+            name = r["name"]
+            cols = [
+                {
+                    "name": c["name"],
+                    "type": c["type"],
+                    "notnull": bool(c["notnull"]),
+                    "pk": bool(c["pk"]),
+                }
+                for c in conn.execute(f"PRAGMA table_info([{name}])").fetchall()
+            ]
+            tables.append({"name": name, "columns": cols})
+        return {"tables": tables}
+    finally:
+        conn.close()
+
+
 def db_tables():
     _sync_app_state()
     conn = get_db()
@@ -112,10 +138,12 @@ def db_query(sql: str = Query(..., min_length=1)):
     if not re.match(r"^\s*SELECT\b", stripped, re.IGNORECASE):
         return JSONResponse({"error": "Only SELECT queries are allowed"}, 400)
 
-    # Block dangerous keywords
+    # Block dangerous keywords as parsed tokens to avoid false positives on
+    # column names like "created_at".
     upper = stripped.upper()
+    tokens = set(re.findall(r"[A-Z_]+", upper))
     for kw in ("DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE", "ATTACH", "DETACH"):
-        if kw in upper:
+        if kw in tokens:
             return JSONResponse({"error": f"'{kw}' is not allowed in queries"}, 400)
 
     # Enforce LIMIT
@@ -365,4 +393,3 @@ from routers import tailoring as tailoring_routes
 from services import ops as ops_handlers
 from services import scraping as scraping_handlers
 from services import tailoring as tailoring_handlers
-
