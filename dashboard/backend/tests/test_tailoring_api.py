@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import server
+import app as server
 
 
 class TestTailoringAPI(unittest.TestCase):

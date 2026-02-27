@@ -1,4 +1,4 @@
-# soul.md
+# Candidate Persona Reference
 
 ## Identity
 

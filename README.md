@@ -1,89 +1,78 @@
-# SearXNG + Job Scraper
+# SearXNG Workspace
 
-Self-hosted [SearXNG](https://github.com/searxng/searxng) metasearch engine paired with:
-- a policy-driven job scraper (`job-scraper/`)
-- a JD-to-doc tailoring engine (`tailoring/`)
+This repo combines three systems that work together:
 
-## Layout
+- **SearXNG** (`/`) — local metasearch instance
+- **Job Scraper** (`job-scraper/`) — discovery + filtering + SQLite persistence
+- **Tailoring Engine** (`tailoring/`) — JD-to-application package generation
+- **Dashboard** (`dashboard/`) — shared control plane for scraping, tailoring, and ops
 
+## Repo Layout
+
+```text
+/Users/conner/Documents/SearXNG
+├── docker-compose.yml
+├── settings.yml
+├── dashboard/
+│   ├── backend/                 # FastAPI API + static hosting
+│   └── web/                     # React SPA (Vite, build output in dist/)
+├── job-scraper/
+│   ├── job_scraper/             # Scraper package
+│   ├── api/                     # Scraping-domain handlers used by dashboard backend
+│   └── docs/
+├── tailoring/
+│   ├── tailor/                  # Tailoring CLI package
+│   ├── Baseline-Dox/            # Baseline LaTeX templates
+│   ├── output/                  # Generated job packages
+│   └── QUALITY_BAR.md
+└── venv/
 ```
-SearXNG/
-├── docker-compose.yml      # SearXNG container config
-├── settings.yml            # SearXNG engine settings
-├── job-scraper/            # Job scraper project (see job-scraper/README.md)
-│   ├── job_scraper/        # Python package
-│   ├── dashboard/          # FastAPI + Alpine.js SPA (:8899)
-│   └── pyproject.toml
-├── tailoring/              # Tailoring engine (see tailoring/README.md)
-│   ├── tailor/             # CLI package: select/run/validate
-│   ├── Baseline-Dox/       # Baseline LaTeX templates
-│   ├── QUALITY_BAR.md      # Validation gate spec and tuning guide
-│   └── output/             # Generated per-job artifacts
-├── docs/
-│   └── ENGINES.md          # SearXNG engine reference
-└── venv/                   # Python 3.14 virtualenv (shared)
-```
 
-## SearXNG
+## Quick Start
+
+### 1) Start SearXNG
 
 ```bash
-docker compose up -d                                    # start
-docker compose down                                     # stop
-docker compose logs -f searxng                          # logs
-docker compose pull && docker compose up -d             # update
-curl "http://localhost:8888/search?q=test&format=json"  # test
+cd /Users/conner/Documents/SearXNG
+docker compose up -d
+curl "http://localhost:8888/search?q=test&format=json"
 ```
 
-- **Port:** `8888` (host) → `8080` (container)
-- **Settings:** `./settings.yml` mounted into container
-- **Limiter:** disabled (private instance)
-- **JSON API:** enabled (`search.formats: [html, json]`)
-
-### MCP Server
-
-```bash
-source venv/bin/activate
-python -m searXNG --instance-url http://localhost:8888
-```
-
-## Job Scraper
-
-See [`job-scraper/README.md`](job-scraper/README.md) for full documentation.
+### 2) Run scraper once
 
 ```bash
 source venv/bin/activate
 pip install -e ./job-scraper/
-cd job-scraper && python -m job_scraper scrape -v
+cd job-scraper
+python -m job_scraper scrape -v
+python -m job_scraper stats
 ```
 
-Current defaults are strict:
-- remote-only policy (`require_remote: true`)
-- reject internship/new-grad postings
-- reject known LinkedIn shell/login pages
-- canonical URL dedup (tracking params stripped for major boards)
-
-## Tailoring Engine
-
-See [`tailoring/README.md`](tailoring/README.md) for full documentation and tuning guide.
+### 3) Start dashboard
 
 ```bash
+cd /Users/conner/Documents/SearXNG
 source venv/bin/activate
-cd tailoring
-python -m tailor select              # browse recent jobs
-python -m tailor run --job-id <ID>   # full pipeline → .tex + .pdf
-python -m tailor validate output/<slug>/  # test gates on existing output
+python dashboard/backend/server.py
 ```
 
-3-stage LLM pipeline per document: **strategy** (JSON plan) → **draft** (LaTeX) → **QA** (review + structural repair). Validated against hard gates (compilation, char count, bullet count). Retries up to 3x with error feedback.
+Open: `http://localhost:8899`
 
-Requires LM Studio (or any OpenAI-compatible server) on port 1234 and pdflatex.
-
-Every run writes `llm_trace.jsonl` with full prompt/response transparency. The dashboard (`job-scraper/dashboard`) includes a **Tailoring** tab to inspect traces.
-
-## Port Map
+## Service Ports
 
 | Service | Port | Notes |
-|---|---|---|
-| SearXNG | 8888 | Docker, host-mapped from container :8080 |
-| Dashboard | 8899 | Native Python, FastAPI + uvicorn |
-| LLM server (LM Studio API) | 1234 | OpenAI-compatible local endpoint |
+|---|---:|---|
+| SearXNG | 8888 | Docker container, JSON API enabled |
+| Dashboard | 8899 | FastAPI + React static build |
+| LLM server | 1234 | OpenAI-compatible endpoint for tailoring + LLM review |
+
+## Documentation Index
+
+- Scraper: [`job-scraper/README.md`](job-scraper/README.md)
+- Scraper deployment: [`job-scraper/docs/DEPLOYMENT.md`](job-scraper/docs/DEPLOYMENT.md)
+- SearXNG engines: [`job-scraper/docs/ENGINES.md`](job-scraper/docs/ENGINES.md)
+- Dashboard overview: [`dashboard/README.md`](dashboard/README.md)
+- Dashboard frontend: [`dashboard/web/README.md`](dashboard/web/README.md)
+- UI structure notes: [`dashboard/UI_STRUCTURE.md`](dashboard/UI_STRUCTURE.md)
+- Tailoring engine: [`tailoring/README.md`](tailoring/README.md)
+- Tailoring quality gates: [`tailoring/QUALITY_BAR.md`](tailoring/QUALITY_BAR.md)

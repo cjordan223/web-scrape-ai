@@ -1,57 +1,48 @@
 # Quality Bar
 
-Validation gates that every generated document must pass before the pipeline succeeds.
-Gates are enforced by `tailor/validator.py`; thresholds live in `tailor/config.py`.
+Validation gates enforced by `tailor/validator.py`.
+Threshold values live in `tailor/config.py`.
 
 ## Resume Gates
 
-| # | Gate | Config Key | Default | Notes |
-|---|------|-----------|---------|-------|
-| 1 | LaTeX compilation | — | — | pdflatex must exit 0 |
-| 2 | Bullet count | `RESUME_BULLET_COUNT` | 14 | 6 (UCOP) + 5 (GWR) + 3 (Simple.biz). Must match baseline exactly. |
-| 3 | Body char count | `RESUME_CHAR_TOLERANCE` | ±15% | Ratio of generated body text to baseline body text. See "Tuning char tolerance" below. |
-| 4 | No Python literals | — | — | Rejects `['` or `"]` in .tex |
-| 5 | No literal `\n` | — | — | Catches raw `\n` tokens (not LaTeX commands like `\newcommand`) |
-| 6 | Section order | `RESUME_SECTIONS` | 5 sections | Must appear in canonical order: Summary, Skills, Experience, Education, Certs |
+| Gate | Config | Default | Requirement |
+|---|---|---:|---|
+| LaTeX compiles | — | — | `pdflatex` exit code must be `0` |
+| Bullet count | `RESUME_BULLET_COUNT` | 14 | Must match baseline count exactly |
+| Body char ratio | `RESUME_CHAR_TOLERANCE` | ±15% | Generated/body text must stay within tolerance |
+| No Python literals | — | — | Rejects `['` / `"]` artifacts |
+| No literal `\\n` | — | — | Rejects escaped newline tokens |
+| Section order | `RESUME_SECTIONS` | canonical | Required section order must match |
 
 ## Cover Letter Gates
 
-| # | Gate | Config Key | Default | Notes |
-|---|------|-----------|---------|-------|
-| 1 | LaTeX compilation | — | — | pdflatex must exit 0 |
-| 2 | Body char count | `COVER_CHAR_TOLERANCE` | ±10% | Same ratio logic as resume |
-| 3 | No Python literals | — | — | Same as resume |
-| 4 | No literal `\n` | — | — | Same as resume |
+| Gate | Config | Default | Requirement |
+|---|---|---:|---|
+| LaTeX compiles | — | — | `pdflatex` exit code must be `0` |
+| Body char ratio | `COVER_CHAR_TOLERANCE` | ±10% | Generated/body text within tolerance |
+| No Python literals | — | — | Same as resume |
+| No literal `\\n` | — | — | Same as resume |
 
 ## Retry Behavior
 
-- `MAX_RETRIES` (default 3): each retry reruns the full 3-stage pipeline (strategy, draft, QA)
-- Validation failure messages are passed back to the next attempt via `previous_errors`
-- Error messages include concrete char counts and targets so the LLM can self-correct
+- `MAX_RETRIES` controls attempts per document.
+- Validation failures are fed back to subsequent attempts.
+- Error feedback includes concrete counts/targets to help recovery.
 
-## Tuning Char Tolerance
+## Tuning Guidance
 
-The char tolerance is the most common failure point. It controls how close the generated
-document's body text must be to the baseline template's body text length.
+Most common tuning is char tolerance.
 
-**How body text is measured:** `validator._extract_body_text()` strips LaTeX commands and
-preamble, keeping only visible content. This is an approximation — it includes header text
-(name, contact info) which doesn't change between runs.
+- If local models produce too-short drafts, increase tolerance slightly.
+- If content quality degrades due to over-expansion, decrease tolerance.
+- Validate existing outputs without regenerating:
 
-**Why ±15% for resumes:** Local models (tested with Qwen3-coder) consistently produce
-resumes 8-15% shorter than baseline. At ±8%, every run failed. At ±15%, first-attempt
-pass rate is ~100%. If you switch to a stronger model (GPT-4, Claude), you can safely
-tighten to ±8-10%.
+```bash
+python -m tailor validate output/<slug>
+```
 
-**To tune:** Edit `RESUME_CHAR_TOLERANCE` or `COVER_CHAR_TOLERANCE` in `tailor/config.py`.
-Run `python -m tailor validate <output_dir>` on existing outputs to test new thresholds
-without regenerating.
+## QA Structural Awareness
 
-## QA Stage Length Awareness
+QA prompts include structural checks (char ratios, bullet counts) so repair can happen before final validation.
 
-The QA (third LLM call) receives computed structural metrics in its prompt:
-- Exact char count of draft vs baseline, with ratio
-- Bullet count check (pass/fail with counts)
-- If the draft is too short, the QA prompt explicitly instructs the model to expand content
-
-This is built in `writer.py` — search for `STRUCTURAL CHECKS` to see the injection point.
+Inspect prompt logic in `tailor/writer.py` (`STRUCTURAL CHECKS` section).
