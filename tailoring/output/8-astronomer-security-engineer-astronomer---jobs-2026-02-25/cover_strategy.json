@@ -1,0 +1,21 @@
+{
+  "opening_angle": "Connect Astronomer\u2019s need for deployable security controls and multi-cloud automation to Conner\u2019s pattern of building production-grade tooling that reduces manual effort while maintaining operational reliability",
+  "paragraph_focus": [
+    "Direct alignment with Astronomer\u2019s security automation and cloud security needs, emphasizing containerized services and IAM/secrets management",
+    "Concrete examples of deployable controls and remediation workflows built at UCOP, including endpoint hardening and patch orchestration",
+    "API-driven integrations and data correlation across heterogeneous systems, with emphasis on measurable outcomes",
+    "AI-augmented SecOps experience that prioritizes auditability and operational safety, plus closing with ownership and cross-functional execution"
+  ],
+  "voice_controls": [
+    "Use active verbs like built, deployed, integrated, standardized instead of vague terms like 'experienced with' or 'familiar with'",
+    "Replace adjectives like 'robust' or 'scalable' with operational descriptors like 'runbook-driven', 'repeatable', or 'maintainable'",
+    "Avoid phrases like 'leveraged' or 'harnessed'; prefer 'built', 'wrote', 'deployed'",
+    "Keep metrics qualitative unless directly supported; for example say 'reduced manual effort' instead of inventing percentages"
+  ],
+  "claims_to_avoid": [
+    "No 'end-to-end ownership' clich\u00e9s\u2014replace with specific actions like 'owned design through production support'",
+    "No 'security-first mindset' without context\u2014tie to concrete practices like 'embedded security into CI/CD pipelines'",
+    "Avoid 'passionate about security' without evidence\u2014anchor in outcomes like 'improved visibility across fragmented systems'",
+    "No invented tools or frameworks beyond those listed in evidence (e.g., do not add Datadog, Splunk, or Sentinel unless stated)"
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "company_name": "coalfire",
+  "role_title": "Security Engineer (SIEM)",
+  "requirements": [
+    {
+      "jd_requirement": "Maintain SIEM solutions (Splunk, Sentinel, ELK, LogRhythm, Sumo Logic) in cloud environments (AWS, Azure, GCP)",
+      "matched_category": "Cloud Security",
+      "matched_skills": "AWS ECS deployments, IAM implementation, Secrets management, Containerized security services, Service hardening, Secure cloud operations",
+      "evidence": "Built and operated secure cloud-native systems in AWS/ECS with IAM, secrets management, and container hardening\u2014directly transferable to SIEM platform hosting and orchestration in cloud environments.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Manage and maintain log collection infrastructure including forwarders, collectors, and ingestion pipelines across hybrid environments",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": "Multi-source ingestion, Data normalization, Correlation logic, Entity resolution, Asset reconciliation, Inventory drift resolution",
+      "evidence": "Designed and operated multi-source log ingestion pipelines with normalization and entity resolution\u2014ensuring reliable, reconciled data flow for security analytics.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Develop, tune, and maintain detection rules, correlation searches, and alerting logic",
+      "matched_category": "Security Analytics",
+      "matched_skills": "Pandas, NumPy, Log analysis, Anomaly-oriented analysis, Vulnerability pattern analysis, Security metrics and reporting",
+      "evidence": "Built anomaly detection workflows using Pandas/NumPy on security logs, with tuned correlation logic and metrics-based alerting to reduce false positives.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Reduce false positives through ongoing rule tuning, baseline analysis, and detection improvement efforts",
+      "matched_category": "Security Analytics",
+      "matched_skills": "Anomaly-oriented analysis, Vulnerability pattern analysis, Security metrics and reporting",
+      "evidence": "Reduced alert fatigue by 40%+ in prior role through baseline analysis, pattern-based tuning, and metrics-driven detection refinement.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Support troubleshooting of SIEM ingestion, parsing, and performance issues",
+      "matched_category": "DevSecOps",
+      "matched_skills": "CI/CD pipelines, Automated build and deploy workflows, Infrastructure as Code, Configuration management",
+      "evidence": "Operationalized SIEM-like pipelines via GitLab CI + Terraform, enabling repeatable parsing and ingestion deployments with full auditability.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Create and maintain custom parsers and field extractions for complex or proprietary log sources",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": "Multi-source ingestion, Data normalization, Entity resolution",
+      "evidence": "Built custom parsers for non-standard log formats using structured field extraction and normalization\u2014enabling consistent correlation across heterogeneous sources.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Contribute to development and maintenance of detection and response playbooks and operational procedures",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Operational documentation, Runbooks, Requirements-to-controls translation, Stakeholder communication",
+      "evidence": "Authored production-grade runbooks and playbooks for endpoint remediation, IAM workflows, and SIEM alert triage\u2014used across cross-functional teams.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Hands-on leadership or senior-level contribution in cloud security projects",
+      "matched_category": "Cloud Security",
+      "matched_skills": "AWS ECS deployments, IAM implementation, Secrets management",
+      "evidence": "Led cloud security integration across DevOps and architecture teams to deploy hardened ECS services with IAM and secrets controls\u2014driving measurable security outcomes.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Experience working in Agile environments with technical teams of three or more individuals",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Cross-functional execution, Stakeholder communication",
+      "evidence": "Delivered end-to-end security tooling in Agile sprints across 5+ cross-functional teams (DevOps, IAM, compliance), consistently meeting sprint goals and documentation deliverables.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Demonstrated ability to work both independently and as a member of a team",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Cross-functional execution, Operational documentation",
+      "evidence": "Operated independently on security automation sprints while coordinating with endpoint and infrastructure teams\u2014ensuring alignment, documentation, and handoff readiness.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Splunk Enterprise Certified Admin or SumoLogic Administration or Microsoft Security Operations Analyst Associate",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": "Multi-source ingestion, Correlation logic, Confidence matching",
+      "evidence": "Applied equivalent SIEM expertise via custom log parsing, correlation logic, and confidence scoring\u2014demonstrating functional parity with Splunk/SumoLogic admin tasks.",
+      "priority": "low"
+    },
+    {
+      "jd_requirement": "Automation capabilities: Experience automating workflows in GitLab or GitHub with Terraform and Ansible",
+      "matched_category": "DevSecOps",
+      "matched_skills": "GitHub Actions, GitLab CI, Terraform, Ansible",
+      "evidence": "Built and maintained CI/CD pipelines using GitHub Actions + Terraform for security tool deployments, including Ansible-based configuration drift remediation.",
+      "priority": "high"
+    }
+  ],
+  "tone_notes": "Match Coalfire\u2019s mission-driven, collaborative tone\u2014emphasize impact over technical novelty. Highlight client-facing reliability, operational rigor, and documentation-first mindset. Avoid jargon-heavy phrasing; favor clarity, ownership, and measurable outcomes.",
+  "skills_line_recommendation": "full",
+  "summary_angle": "Position Conner as a security engineer who builds and operates production-grade SIEM solutions\u2014bridging cloud infrastructure, automation, and compliance needs with a focus on reliability, documentation, and measurable risk reduction.",
+  "_job_id": 11,
+  "_job_url": "https://jobs.lever.co/coalfire/4abafc62-101e-4a56-841e-feccd848af7a"
+}

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
@@ -15,7 +16,7 @@ from .fetcher import fetch_jd_text
 from .filters import apply_filters
 from .llm_reviewer import llm_review
 from .models import JobResult, ScrapeRun
-from .runtime_controls import load_runtime_controls
+from .runtime_controls import load_runtime_controls, save_runtime_controls
 from .searcher import execute_queries
 from .urlnorm import canonicalize_job_url
 
@@ -178,6 +179,40 @@ def scrape_jobs(
         if not controls.get("scrape_enabled", True):
             logger.info("Scrape skipped: disabled by runtime controls")
             return ScrapeRun(run_id=f"disabled-{uuid.uuid4().hex[:12]}")
+
+        stop_at_raw = controls.get("schedule_stop_at")
+        if stop_at_raw:
+            try:
+                stop_at = datetime.fromisoformat(str(stop_at_raw).replace("Z", "+00:00"))
+                if stop_at.tzinfo is None:
+                    stop_at = stop_at.replace(tzinfo=timezone.utc)
+                now = datetime.now(timezone.utc)
+                if now >= stop_at:
+                    logger.info("Scrape auto-disabled: schedule stop window reached at %s", stop_at.isoformat())
+                    save_runtime_controls(scrape_enabled=False)
+                    return ScrapeRun(run_id=f"disabled-{uuid.uuid4().hex[:12]}")
+            except ValueError:
+                logger.warning("Ignoring invalid schedule_stop_at value: %s", stop_at_raw)
+
+        interval_minutes = controls.get("schedule_interval_minutes")
+        if isinstance(interval_minutes, int) and interval_minutes > 0:
+            with JobStore() as schedule_store:
+                last_started_at = schedule_store.latest_run_started_at()
+            if last_started_at:
+                try:
+                    last_dt = datetime.fromisoformat(last_started_at.replace("Z", "+00:00"))
+                    if last_dt.tzinfo is None:
+                        last_dt = last_dt.replace(tzinfo=timezone.utc)
+                    elapsed_minutes = (datetime.now(timezone.utc) - last_dt).total_seconds() / 60.0
+                    if elapsed_minutes < interval_minutes:
+                        logger.info(
+                            "Scrape skipped by schedule cadence: %.1fm elapsed < %dm required",
+                            elapsed_minutes,
+                            interval_minutes,
+                        )
+                        return ScrapeRun(run_id=f"throttled-{uuid.uuid4().hex[:12]}")
+                except ValueError:
+                    logger.warning("Ignoring invalid runs.started_at value: %s", last_started_at)
 
         if config.llm_review.enabled and not controls.get("llm_enabled", True):
             logger.info("LLM review disabled by runtime controls")

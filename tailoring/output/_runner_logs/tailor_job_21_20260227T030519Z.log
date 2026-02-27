@@ -1,0 +1,39 @@
+
+Tailoring for: Trility Consulting - Senior DevSecOps Consultant - GitLab Platform
+Company: trility
+URL: https://jobs.lever.co/trility/587e4885-4539-4cd0-b654-ad2d4e0bea4e
+Output: /Users/conner/Documents/SearXNG/tailoring/output/21-trility-trility-consulting---senior-devsecops-consultant---gitlab-platform-20
+
+→ Analyzing JD against skills inventory...
+19:05:20 INFO     tailor.ollama — LLM call starting (model=openai/gpt-oss-20b, max_tokens=4096)
+19:05:25 INFO     tailor.ollama — LLM call complete (66 chars returned)
+19:05:25 INFO     tailor.ollama — LLM call starting (model=openai/gpt-oss-20b, max_tokens=2200)
+19:05:26 INFO     tailor.ollama — LLM call complete (66 chars returned)
+19:05:26 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/21-trility-trility-consulting---senior-devsecops-consultant---gitlab-platform-20/analysis.json (0 requirements mapped)
+  Mapped 0 requirements
+  Company: ?
+  Role: ?
+
+→ Generating Resume...
+19:05:26 INFO     tailor.ollama — LLM call starting (model=openai/gpt-oss-20b, max_tokens=1800)
+  Error: 400 Bad Request from http://localhost:1234/v1/chat/completions; body={"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}
+19:05:26 INFO     tailor.ollama — LLM call starting (model=openai/gpt-oss-20b, max_tokens=1800)
+  Error: 400 Bad Request from http://localhost:1234/v1/chat/completions; body={"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}
+19:05:26 INFO     tailor.ollama — LLM call starting (model=openai/gpt-oss-20b, max_tokens=1800)
+  Error: 400 Bad Request from http://localhost:1234/v1/chat/completions; body={"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}
+  ✗ Resume failed after 3 attempts
+
+→ Generating Cover Letter...
+19:05:26 INFO     tailor.ollama — LLM call starting (model=openai/gpt-oss-20b, max_tokens=1400)
+19:05:35 INFO     tailor.ollama — LLM call complete (927 chars returned)
+19:05:35 INFO     tailor.ollama — LLM call starting (model=openai/gpt-oss-20b, max_tokens=4096)
+19:05:56 INFO     tailor.ollama — LLM call complete (4269 chars returned)
+19:05:56 INFO     tailor.ollama — LLM call starting (model=openai/gpt-oss-20b, max_tokens=4096)
+19:06:19 INFO     tailor.ollama — LLM call complete (4133 chars returned)
+19:06:19 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/21-trility-trility-consulting---senior-devsecops-consultant---gitlab-platform-20/Conner_Jordan_Cover_Letter.tex (4120 chars)
+  Validating (attempt 1/3)...
+19:06:20 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/21-trility-trility-consulting---senior-devsecops-consultant---gitlab-platform-20/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/21-trility-trility-consulting---senior-devsecops-consultant---gitlab-platform-20
+Run failed quality gates for: Resume

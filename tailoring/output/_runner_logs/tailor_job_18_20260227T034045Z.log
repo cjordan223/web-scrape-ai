@@ -1,0 +1,34 @@
+
+Tailoring for: AI Platform Engineer @ fastino.ai
+Company: fastino-ai
+URL: https://jobs.ashbyhq.com/fastino-ai/e98b22d5-caa2-4225-86e5-8bdc229aeed0
+Output: /Users/conner/Documents/SearXNG/tailoring/output/18-fastino-ai-ai-platform-engineer-fastino-ai-2026-02-26
+
+→ Analyzing JD against skills inventory...
+19:40:45 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+19:41:20 INFO     tailor.ollama — LLM call complete (6619 chars returned)
+19:41:20 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/18-fastino-ai-ai-platform-engineer-fastino-ai-2026-02-26/analysis.json (17 requirements mapped)
+  Mapped 17 requirements
+  Company: fastino-ai
+  Role: AI Platform Engineer
+
+→ Generating Resume...
+19:41:20 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+  Error: 400 Bad Request from http://localhost:1234/v1/chat/completions; body={"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}
+19:41:20 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+  Error: 400 Bad Request from http://localhost:1234/v1/chat/completions; body={"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}
+19:41:20 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+  Error: 400 Bad Request from http://localhost:1234/v1/chat/completions; body={"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}
+  ✗ Resume failed after 3 attempts
+
+→ Generating Cover Letter...
+19:41:20 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+  Error: 400 Bad Request from http://localhost:1234/v1/chat/completions; body={"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}
+19:41:20 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+  Error: 400 Bad Request from http://localhost:1234/v1/chat/completions; body={"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}
+19:41:20 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+  Error: 400 Bad Request from http://localhost:1234/v1/chat/completions; body={"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}
+  ✗ Cover Letter failed after 3 attempts
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/18-fastino-ai-ai-platform-engineer-fastino-ai-2026-02-26
+Run failed quality gates for: Resume, Cover Letter

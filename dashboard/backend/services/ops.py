@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi import Request
 
 # Reuse shared backend state/helpers from app module.
@@ -367,8 +369,42 @@ def update_runtime_controls(payload: dict = Body(default={})):
     _sync_app_state()
     if not isinstance(payload, dict):
         return JSONResponse({"error": "Invalid payload"}, 400)
-    allowed = {"scrape_enabled", "llm_enabled"}
-    updates = {k: payload[k] for k in allowed if k in payload}
+    updates: dict = {}
+
+    if "scrape_enabled" in payload:
+        updates["scrape_enabled"] = bool(payload["scrape_enabled"])
+    if "llm_enabled" in payload:
+        updates["llm_enabled"] = bool(payload["llm_enabled"])
+
+    if "schedule_interval_minutes" in payload:
+        raw_interval = payload["schedule_interval_minutes"]
+        if raw_interval is None or raw_interval == "":
+            updates["schedule_interval_minutes"] = None
+        else:
+            try:
+                interval = int(raw_interval)
+            except (TypeError, ValueError):
+                return JSONResponse({"error": "schedule_interval_minutes must be an integer"}, 400)
+            if interval < 1:
+                return JSONResponse({"error": "schedule_interval_minutes must be >= 1"}, 400)
+            updates["schedule_interval_minutes"] = interval
+
+    # Shutoff window: if provided, compute absolute stop time from now.
+    if "schedule_stop_after_hours" in payload:
+        raw_stop_hours = payload["schedule_stop_after_hours"]
+        started_at = datetime.now(timezone.utc)
+        updates["schedule_started_at"] = started_at.isoformat()
+        if raw_stop_hours is None or raw_stop_hours == "":
+            updates["schedule_stop_at"] = None
+        else:
+            try:
+                stop_hours = int(raw_stop_hours)
+            except (TypeError, ValueError):
+                return JSONResponse({"error": "schedule_stop_after_hours must be an integer"}, 400)
+            if stop_hours < 1:
+                return JSONResponse({"error": "schedule_stop_after_hours must be >= 1"}, 400)
+            updates["schedule_stop_at"] = (started_at + timedelta(hours=stop_hours)).isoformat()
+
     controls = _save_runtime_controls(updates)
     return {"ok": True, "controls": controls}
 

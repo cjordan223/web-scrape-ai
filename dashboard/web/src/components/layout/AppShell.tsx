@@ -102,7 +102,7 @@ const domains: Domain[] = [
       },
       {
         label: 'Diagnostics',
-        items: [{ label: 'SQL Console', to: '/ops/diagnostics/sql', icon: Terminal }],
+        items: [{ label: 'Admin Ops', to: '/ops/diagnostics/sql', icon: Terminal }],
       },
     ],
   },
@@ -126,7 +126,7 @@ const labelBySegment: Record<string, string> = {
   data: 'Data',
   explorer: 'DB Explorer',
   diagnostics: 'Diagnostics',
-  sql: 'SQL Console',
+  sql: 'Admin Ops',
 };
 
 function getActiveDomain(pathname: string): Domain {
@@ -164,37 +164,42 @@ export default function AppShell({ dbSizeLabel }: { dbSizeLabel: string }) {
           <div className="nav-section-label">Domains</div>
           {domains.map((domain) => {
             const Icon = domain.icon;
+            const isActiveDomain = activeDomain.key === domain.key;
+
             return (
-              <NavLink
-                key={domain.key}
-                to={domain.basePath}
-                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-              >
-                <Icon size={18} />
-                <span>{domain.label}</span>
-              </NavLink>
+              <div key={domain.key} className="nav-domain-container">
+                <NavLink
+                  to={domain.basePath}
+                  className={({ isActive }) => `nav-item ${isActive || isActiveDomain ? 'active' : ''}`}
+                >
+                  <Icon size={18} />
+                  <span>{domain.label}</span>
+                </NavLink>
+
+                {isActiveDomain && domain.groups.length > 0 && (
+                  <div className="nav-nested-groups">
+                    {domain.groups.map((group) => (
+                      <div key={group.label} className="nav-group">
+                        {group.items.map((item) => {
+                          const ItemIcon = item.icon;
+                          return (
+                            <NavLink
+                              key={item.to}
+                              to={item.to}
+                              className={({ isActive }) => `nav-item nav-item-nested ${isActive ? 'active' : ''}`}
+                            >
+                              <ItemIcon size={18} />
+                              <span>{item.label}</span>
+                            </NavLink>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             );
           })}
-
-          <div className="nav-section-label nav-section-gap">{activeDomain.label} Workflows</div>
-          {activeDomain.groups.map((group) => (
-            <div key={group.label} className="nav-group">
-              <div className="nav-group-label">{group.label}</div>
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) => `nav-item nav-item-nested ${isActive ? 'active' : ''}`}
-                  >
-                    <Icon size={18} />
-                    <span>{item.label}</span>
-                  </NavLink>
-                );
-              })}
-            </div>
-          ))}
         </nav>
 
         <div className="sidebar-footer">

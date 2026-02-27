@@ -22,6 +22,10 @@ from fastapi import Body, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from dotenv import load_dotenv
+
+# Load environment variables from .env file if present
+load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -34,6 +38,8 @@ PORT = int(os.environ.get("DASHBOARD_PORT", "8899"))
 LAUNCH_AGENTS_DIR = Path.home() / "Library/LaunchAgents"
 
 HERE = Path(__file__).resolve().parent
+# Load environment variables from .env file in project root
+load_dotenv(HERE.parent.parent / ".env")
 TAILORING_OUTPUT_DIR = Path(
     os.environ.get("TAILORING_OUTPUT_DIR", str(HERE.parent.parent / "tailoring" / "output"))
 )
@@ -105,6 +111,9 @@ RUNTIME_CONTROLS_PATH = Path(
 _DEFAULT_RUNTIME_CONTROLS = {
     "scrape_enabled": True,
     "llm_enabled": True,
+    "schedule_interval_minutes": None,
+    "schedule_started_at": None,
+    "schedule_stop_at": None,
 }
 
 app = FastAPI(title="Job Scraper Dashboard")
@@ -132,6 +141,13 @@ def _load_runtime_controls() -> dict:
         raw = json.loads(RUNTIME_CONTROLS_PATH.read_text(encoding="utf-8"))
         controls["scrape_enabled"] = bool(raw.get("scrape_enabled", controls["scrape_enabled"]))
         controls["llm_enabled"] = bool(raw.get("llm_enabled", controls["llm_enabled"]))
+        interval = raw.get("schedule_interval_minutes")
+        if isinstance(interval, int) and interval > 0:
+            controls["schedule_interval_minutes"] = interval
+        else:
+            controls["schedule_interval_minutes"] = None
+        controls["schedule_started_at"] = raw.get("schedule_started_at")
+        controls["schedule_stop_at"] = raw.get("schedule_stop_at")
         controls["updated_at"] = raw.get("updated_at")
     except FileNotFoundError:
         controls["updated_at"] = None
@@ -146,6 +162,17 @@ def _save_runtime_controls(updates: dict) -> dict:
         controls["scrape_enabled"] = bool(updates["scrape_enabled"])
     if "llm_enabled" in updates:
         controls["llm_enabled"] = bool(updates["llm_enabled"])
+    if "schedule_interval_minutes" in updates:
+        interval = updates["schedule_interval_minutes"]
+        if interval is None:
+            controls["schedule_interval_minutes"] = None
+        else:
+            interval = int(interval)
+            controls["schedule_interval_minutes"] = interval if interval > 0 else None
+    if "schedule_started_at" in updates:
+        controls["schedule_started_at"] = updates["schedule_started_at"]
+    if "schedule_stop_at" in updates:
+        controls["schedule_stop_at"] = updates["schedule_stop_at"]
     controls["updated_at"] = datetime.now(timezone.utc).isoformat()
     RUNTIME_CONTROLS_PATH.parent.mkdir(parents=True, exist_ok=True)
     RUNTIME_CONTROLS_PATH.write_text(
@@ -153,6 +180,9 @@ def _save_runtime_controls(updates: dict) -> dict:
             {
                 "scrape_enabled": controls["scrape_enabled"],
                 "llm_enabled": controls["llm_enabled"],
+                "schedule_interval_minutes": controls["schedule_interval_minutes"],
+                "schedule_started_at": controls["schedule_started_at"],
+                "schedule_stop_at": controls["schedule_stop_at"],
                 "updated_at": controls["updated_at"],
             },
             indent=2,

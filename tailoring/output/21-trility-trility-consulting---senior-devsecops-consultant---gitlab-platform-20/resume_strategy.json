@@ -1,0 +1,17 @@
+{
+  "summary_strategy": "Position Conner as a pragmatic DevSecOps engineer who bridges security and platform engineering by shipping production-grade automation on GitLab-like platforms, emphasizing cross-functional delivery and measurable risk reduction",
+  "skills_strategy": "Use condensed 3-line format to group skills around three high-impact themes: automation & delivery, platform security, and data-driven SecOps; emphasize Python/PowerShell, CI/CD, GitLab-native patterns (e.g., pipelines, merge request workflows), and platform hardening without listing every tool",
+  "experience_focus": [
+    {
+      "company": "University of California|Great Wolf Resorts|Simple.biz",
+      "must_highlight": "production deployment ownership, API-driven automation, cross-functional security integration",
+      "safe_metrics_to_keep": "25 percent compliance improvement, 200 hours saved annually, 30 percent reduction in user-reported issues",
+      "claims_to_avoid": "inventing specific GitLab features, assuming CI/CD tooling beyond what's documented (e.g., no 'GitLab Runner' unless stated), or fabricating GitLab-specific contributions"
+    }
+  ],
+  "risk_controls": [
+    "Never assume GitLab usage unless explicitly stated in source \u2014 replace with 'CI/CD pipelines' or 'automated release workflows'",
+    "Do not add metrics beyond those directly quoted in resume (e.g., no '25 percent improvement' unless tied to a specific action like phishing simulation)",
+    "Avoid generic phrases like 'trusted advisor' or 'strategic partner'; use concrete verbs: built, engineered, delivered, integrated"
+  ]
+}

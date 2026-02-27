@@ -27,14 +27,66 @@ ChartJS.register(
     Legend
 );
 
+const SCHEDULE_INTERVAL_OPTIONS = [
+    { value: 15, label: 'Every 15 minutes' },
+    { value: 30, label: 'Every 30 minutes' },
+    { value: 45, label: 'Every 45 minutes' },
+    { value: 60, label: 'Every 1 hour' },
+    { value: 90, label: 'Every 90 minutes' },
+    { value: 120, label: 'Every 2 hours' },
+    { value: 180, label: 'Every 3 hours' },
+    { value: 360, label: 'Every 6 hours' },
+    { value: 720, label: 'Every 12 hours' },
+    { value: 1440, label: 'Every 24 hours' },
+    { value: 2880, label: 'Every 48 hours (2 days)' },
+    { value: 4320, label: 'Every 72 hours (3 days)' },
+    { value: 10080, label: 'Every 7 days' },
+];
+
+const SCHEDULE_STOP_OPTIONS = [
+    { value: '', label: 'No shutoff (run indefinitely)' },
+    { value: 6, label: 'Stop after 6 hours' },
+    { value: 12, label: 'Stop after 12 hours' },
+    { value: 24, label: 'Stop after 1 day' },
+    { value: 48, label: 'Stop after 2 days' },
+    { value: 72, label: 'Stop after 3 days' },
+    { value: 168, label: 'Stop after 7 days' },
+    { value: 336, label: 'Stop after 14 days' },
+];
+
+const formatCadence = (minutes: number | null | undefined) => {
+    if (!minutes || minutes <= 0) return 'Uses launchd trigger cadence';
+    if (minutes % 1440 === 0) {
+        const days = minutes / 1440;
+        return `Every ${days} day${days === 1 ? '' : 's'}`;
+    }
+    if (minutes % 60 === 0) {
+        const hours = minutes / 60;
+        return `Every ${hours} hour${hours === 1 ? '' : 's'}`;
+    }
+    return `Every ${minutes} minutes`;
+};
+
 export default function RunsView() {
     const navigate = useNavigate();
-    const [controls, setControls] = useState<any>({ scrape_enabled: true, llm_enabled: true, updated_at: null });
+    const [controls, setControls] = useState<any>({
+        scrape_enabled: true,
+        llm_enabled: true,
+        schedule_interval_minutes: null,
+        schedule_started_at: null,
+        schedule_stop_at: null,
+        updated_at: null
+    });
     const [runner, setRunner] = useState<any>({ running: false });
     const [loadingControls, setLoadingControls] = useState(false);
+    const [savingSchedule, setSavingSchedule] = useState(false);
     const [loadingRunner, setLoadingRunner] = useState(false);
     const [llmStatus, setLlmStatus] = useState<any>(null);
     const [isActive, setIsActive] = useState(false);
+    const [scheduleIntervalMinutes, setScheduleIntervalMinutes] = useState<number>(1440);
+    const [scheduleStopAfterHours, setScheduleStopAfterHours] = useState<string>('');
+    const [customIntervalMinutes, setCustomIntervalMinutes] = useState<string>('');
+    const [customStopAfterHours, setCustomStopAfterHours] = useState<string>('');
 
     // Runs state
     const [runs, setRuns] = useState<any[]>([]);
@@ -53,6 +105,10 @@ export default function RunsView() {
         try {
             const data = await api.getRunsControls();
             setControls(data);
+            setScheduleIntervalMinutes(data?.schedule_interval_minutes || 1440);
+            setScheduleStopAfterHours('');
+            setCustomIntervalMinutes('');
+            setCustomStopAfterHours('');
         } catch (err) {
             console.error(err);
         }
@@ -155,6 +211,40 @@ export default function RunsView() {
         }
     };
 
+    const handleSaveSchedule = async () => {
+        const intervalToUse = customIntervalMinutes.trim() !== '' ? Number(customIntervalMinutes) : scheduleIntervalMinutes;
+        if (!Number.isInteger(intervalToUse) || intervalToUse < 1) {
+            alert('Run cadence must be a whole number of minutes (>= 1).');
+            return;
+        }
+
+        let stopAfterToUse: number | null = null;
+        if (customStopAfterHours.trim() !== '') {
+            const parsed = Number(customStopAfterHours);
+            if (!Number.isInteger(parsed) || parsed < 1) {
+                alert('Shutoff must be a whole number of hours (>= 1).');
+                return;
+            }
+            stopAfterToUse = parsed;
+        } else if (scheduleStopAfterHours !== '') {
+            stopAfterToUse = Number(scheduleStopAfterHours);
+        }
+
+        setSavingSchedule(true);
+        try {
+            await api.updateRunsControls({
+                schedule_interval_minutes: intervalToUse,
+                schedule_stop_after_hours: stopAfterToUse,
+                scrape_enabled: true,
+            });
+            await fetchControls();
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setSavingSchedule(false);
+        }
+    };
+
     const toggleRunExpand = async (runId: string) => {
         if (expandedRunId === runId) {
             setExpandedRunId(null);
@@ -252,6 +342,15 @@ export default function RunsView() {
         }
     };
 
+    const cadenceLabel = useMemo(
+        () => formatCadence(controls.schedule_interval_minutes),
+        [controls.schedule_interval_minutes]
+    );
+    const stopLabel = useMemo(() => {
+        if (!controls.schedule_stop_at) return 'No auto-shutoff';
+        return `Stops at ${fmtDate(controls.schedule_stop_at)}`;
+    }, [controls.schedule_stop_at]);
+
     return (
         <PageView>
             <PageHeader title="Run History & Controls" />
@@ -269,6 +368,12 @@ export default function RunsView() {
                         <span className={`pill ${llmStatus?.enabled === false ? 'pill-unknown' : (llmStatus?.available ? 'pill-success' : 'pill-fail')}`}
                             title={llmStatus?.enabled === false ? 'LLM checks are disabled by runtime controls' : (llmStatus?.available ? (llmStatus.models || []).join(', ') : `LLM server not reachable at ${llmStatus?.url}`)}>
                             {llmStatus?.enabled === false ? 'LLM review disabled' : (llmStatus?.available ? 'LLM online' : 'LLM offline')}
+                        </span>
+                        <span className="pill pill-unknown" title="Scheduled minimum interval between automatic runs">
+                            {cadenceLabel}
+                        </span>
+                        <span className={`pill ${controls.schedule_stop_at ? 'pill-fail' : 'pill-unknown'}`} title="Auto-shutoff window">
+                            {stopLabel}
                         </span>
                     </div>
                     <div className="control-note">
@@ -298,6 +403,72 @@ export default function RunsView() {
                                 <input type="checkbox" checked={controls.llm_enabled} disabled={loadingControls} onChange={handleToggleLlm} />
                                 <span className="slider"></span>
                             </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="runs-control-block">
+                    <div className="runs-control-title">Schedule Window</div>
+                    <div className="schedule-form">
+                        <label className="schedule-label">
+                            <span>Run cadence</span>
+                            <select
+                                value={scheduleIntervalMinutes}
+                                disabled={savingSchedule || loadingControls}
+                                onChange={(e) => setScheduleIntervalMinutes(Number(e.target.value))}
+                            >
+                                {SCHEDULE_INTERVAL_OPTIONS.map((opt) => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="schedule-label">
+                            <span>Custom cadence (minutes)</span>
+                            <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={customIntervalMinutes}
+                                disabled={savingSchedule || loadingControls}
+                                onChange={(e) => setCustomIntervalMinutes(e.target.value)}
+                                placeholder="Optional override, e.g. 240"
+                            />
+                        </label>
+                        <label className="schedule-label">
+                            <span>Shutoff</span>
+                            <select
+                                value={scheduleStopAfterHours}
+                                disabled={savingSchedule || loadingControls}
+                                onChange={(e) => setScheduleStopAfterHours(e.target.value)}
+                            >
+                                {SCHEDULE_STOP_OPTIONS.map((opt) => (
+                                    <option key={String(opt.value)} value={opt.value}>{opt.label}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="schedule-label">
+                            <span>Custom shutoff (hours)</span>
+                            <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={customStopAfterHours}
+                                disabled={savingSchedule || loadingControls}
+                                onChange={(e) => setCustomStopAfterHours(e.target.value)}
+                                placeholder="Optional override, e.g. 36"
+                            />
+                        </label>
+                        <div className="control-action-row">
+                            <button
+                                className="btn btn-primary"
+                                disabled={savingSchedule || loadingControls}
+                                onClick={handleSaveSchedule}
+                            >
+                                {savingSchedule ? 'Applying...' : 'Apply Schedule'}
+                            </button>
+                        </div>
+                        <div className="control-note">
+                            If custom values are set, they override the dropdowns. Manual pipeline runs still execute immediately.
                         </div>
                     </div>
                 </div>

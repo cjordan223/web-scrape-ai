@@ -1,0 +1,74 @@
+{
+  "company_name": "Agile Defense",
+  "role_title": "Security Engineer \u2013 Data Loss Prevention (DLP)",
+  "requirements": [
+    {
+      "jd_requirement": "Implement, maintain, and tune Microsoft Purview Information Protection/DLP policies",
+      "matched_category": "Security Engineering",
+      "matched_skills": "Secure implementation practices, Deployable security controls",
+      "evidence": "Built and operated production-grade security systems with focus on deployable controls and measurable risk reduction; experienced in secure cloud operations across Azure.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Develop and tune DLP rules for endpoints to manage data flow between approved boundaries",
+      "matched_category": "Endpoint Operations and Remediation",
+      "matched_skills": "Windows fleet operations, Endpoint agent update orchestration, BitLocker enforcement automation",
+      "evidence": "Operated large-scale Windows and macOS fleets with automated patching, encryption enforcement, and endpoint remediation workflows.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Manage sensitivity labels, mandatory encryption, and content marking across M365",
+      "matched_category": "Cloud Security",
+      "matched_skills": "IAM implementation, Secrets management, Secure cloud operations",
+      "evidence": "Designed and implemented IAM workflows across Azure/AWS environments; experienced in secure cloud operations with strong focus on secrets management and access control.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Collaborate with IT and department teams to align DLP policy coverage with compliance frameworks (NIST 800-171, CMMC, etc.)",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Requirements-to-controls translation, Stakeholder communication",
+      "evidence": "Translated complex compliance requirements into operational controls and documented them in runbooks; coordinated across security, IAM, and infrastructure teams.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Investigate DLP incidents using Defender XDR and Sentinel; correlate events and generate insights",
+      "matched_category": "Security Analytics",
+      "matched_skills": "Log analysis, Anomaly-oriented analysis, Security metrics and reporting",
+      "evidence": "Built security analytics pipelines using Pandas/NumPy for log correlation and anomaly detection; developed dashboards to track incident trends and policy effectiveness.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Maintain DLP dashboards and reporting; support audits and risk assessments",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": "Multi-source ingestion, Data normalization, Asset reconciliation",
+      "evidence": "Engineered data pipelines for multi-source security telemetry ingestion and normalization; resolved inventory drift and reconciled asset records across systems.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Serve as technical liaison for Purview, Zscaler, Qualys integrations",
+      "matched_category": "API and Integrations",
+      "matched_skills": "Microsoft Graph API automation, System-to-system workflow automation",
+      "evidence": "Built automated workflows using Microsoft Graph API and multi-platform integrations; designed system-to-system security orchestration for SOAR/ticketing tools.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Document DLP processes, SOPs, and configuration baselines in Jira/Confluence",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Operational documentation, Runbooks",
+      "evidence": "Prioritized documentation-first approach; created runbooks and operational baselines for security controls deployed across enterprise environments.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Provide technical guidance and training on data handling best practices",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Cross-functional execution, Stakeholder communication",
+      "evidence": "Worked across engineering and non-technical teams to deliver security guidance, translate requirements into controls, and train users on secure practices.",
+      "priority": "medium"
+    }
+  ],
+  "tone_notes": "Emphasize operational reliability, automation pragmatism, and mission-driven impact\u2014align with Agile Defense\u2019s 6Hs (especially Helpful, Honest, Hungry, Hustle). Avoid overly academic or theoretical language; focus on shipped solutions, real-world constraints, and cross-team enablement.",
+  "skills_line_recommendation": "full",
+  "summary_angle": "Position Conner as a security engineer who builds and operates production-grade DLP systems\u2014not just policy designers, but operators who ship automation, documentation, and measurable risk reduction across cloud and endpoint environments.",
+  "_job_id": 3,
+  "_job_url": "https://jobs.lever.co/agile-defense/e9e93c69-0af4-4f12-984e-64e0392c2d58"
+}

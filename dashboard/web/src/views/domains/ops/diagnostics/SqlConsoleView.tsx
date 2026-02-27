@@ -1,44 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../../../../api';
 import { PageHeader, PagePrimary, PageView } from '../../../../components/workflow/PageLayout';
 import { WorkflowPanel } from '../../../../components/workflow/Panel';
-import { EmptyState } from '../../../../components/workflow/States';
-import { ActionBar } from '../../../../components/workflow/ActionBar';
+import { Trash2, AlertTriangle, ShieldCheck, ServerCrash } from 'lucide-react';
 
-export default function SqlConsoleView() {
-    const defaultPresets: Array<{ label: string; query: string }> = [
-        { label: 'Count everything', query: 'SELECT count(*) FROM results;' },
-        { label: 'Grouping by board', query: 'SELECT board, count(*) as count FROM results GROUP BY board ORDER BY count DESC;' },
-        { label: 'Recent jobs with salary', query: 'SELECT id, title, salary_k, url FROM results WHERE salary_k IS NOT NULL ORDER BY id DESC LIMIT 20;' },
-        { label: 'Common rejection reasons', query: 'SELECT rejection_reason, count(*) as c FROM rejected WHERE rejection_reason IS NOT NULL GROUP BY rejection_reason ORDER BY c DESC LIMIT 10;' },
-        { label: 'Errors grouping', query: 'SELECT status, error_count, errors FROM runs WHERE error_count > 0 ORDER BY started_at DESC LIMIT 10;' },
-        { label: 'Recent runs', query: 'SELECT * FROM runs ORDER BY started_at DESC LIMIT 20;' },
-        { label: 'Top domains', query: "SELECT substr(url, instr(url, '://') + 3, instr(substr(url, instr(url, '://') + 3), '/') - 1) as domain, count(*) as count FROM results GROUP BY domain ORDER BY count DESC LIMIT 20;" },
-    ];
-
-    const [query, setQuery] = useState('');
-    const [result, setResult] = useState<any>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [history, setHistory] = useState<string[]>([]);
+export default function AdminOpsView() {
     const [adminStatus, setAdminStatus] = useState<any>(null);
     const [adminLoading, setAdminLoading] = useState(true);
     const [adminError, setAdminError] = useState('');
     const [adminBusy, setAdminBusy] = useState(false);
     const [adminNotice, setAdminNotice] = useState('');
-    const [adminAction, setAdminAction] = useState('truncate_all');
     const [confirmText, setConfirmText] = useState('');
-    const [selectedTables, setSelectedTables] = useState<Record<string, boolean>>({});
-    const [schemaTables, setSchemaTables] = useState<Array<{ name: string; columns: Array<{ name: string }> }>>([]);
-
-    const editorRef = useRef<HTMLTextAreaElement>(null);
-
-    useEffect(() => {
-        const saved = localStorage.getItem('sql_history');
-        if (saved) {
-            try { setHistory(JSON.parse(saved)); } catch (e) { }
-        }
-    }, []);
 
     const loadAdminStatus = async () => {
         setAdminLoading(true);
@@ -46,9 +18,6 @@ export default function SqlConsoleView() {
         try {
             const data = await api.dbAdminStatus();
             setAdminStatus(data);
-            const next: Record<string, boolean> = {};
-            (data.tables || []).forEach((t: any) => { next[t.name] = false; });
-            setSelectedTables(next);
         } catch (err: any) {
             setAdminError(err.response?.data?.error || err.message || 'Failed to load DB admin status');
         } finally {
@@ -60,109 +29,20 @@ export default function SqlConsoleView() {
         loadAdminStatus();
     }, []);
 
-    useEffect(() => {
-        api.dbSchema()
-            .then((tables: any[]) => setSchemaTables(tables || []))
-            .catch(() => setSchemaTables([]));
-    }, []);
+    const runAdminAction = async (action: string, tables: string[]) => {
+        if (!adminStatus?.enabled) return;
 
-    const saveHistory = (q: string) => {
-        const newHist = [q, ...history.filter(h => h !== q)].slice(0, 10);
-        setHistory(newHist);
-        localStorage.setItem('sql_history', JSON.stringify(newHist));
-    };
-
-    const runQuery = async (q: string = query) => {
-        if (!q.trim()) return;
-        setLoading(true);
-        setError(null);
-        setResult(null);
-        try {
-            const res = await api.dbQuery(q);
-            if (res.error) {
-                setError(res.error);
-            } else {
-                setResult(res);
-                saveHistory(q);
-            }
-        } catch (err: any) {
-            setError(err.response?.data?.error || err.message || 'Network error');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-            e.preventDefault();
-            runQuery();
-        }
-    };
-
-    const presets = useMemo(() => {
-        if (!schemaTables || schemaTables.length === 0) {
-            return defaultPresets;
-        }
-
-        const colMap = new Map<string, Set<string>>();
-        for (const t of schemaTables) {
-            colMap.set(t.name, new Set((t.columns || []).map((c: any) => c.name)));
-        }
-
-        const has = (table: string, ...cols: string[]) => {
-            const set = colMap.get(table);
-            if (!set) return false;
-            return cols.every((c) => set.has(c));
-        };
-
-        const items: Array<{ label: string; query: string }> = [];
-
-        if (has('results')) {
-            items.push({ label: 'Count everything', query: 'SELECT count(*) FROM results;' });
-        }
-        if (has('results', 'board')) {
-            items.push({ label: 'Grouping by board', query: 'SELECT board, count(*) as count FROM results GROUP BY board ORDER BY count DESC;' });
-        }
-        if (has('results', 'id', 'title', 'salary_k', 'url', 'created_at')) {
-            items.push({ label: 'Recent jobs with salary', query: 'SELECT id, title, salary_k, url FROM results WHERE salary_k IS NOT NULL ORDER BY created_at DESC LIMIT 20;' });
-        }
-        if (has('rejected', 'rejection_reason')) {
-            items.push({ label: 'Common rejection reasons', query: 'SELECT rejection_reason, count(*) as c FROM rejected WHERE rejection_reason IS NOT NULL GROUP BY rejection_reason ORDER BY c DESC LIMIT 10;' });
-        }
-        if (has('runs', 'status', 'error_count', 'errors', 'started_at')) {
-            items.push({ label: 'Errors grouping', query: 'SELECT status, error_count, errors FROM runs WHERE error_count > 0 ORDER BY started_at DESC LIMIT 10;' });
-        }
-        if (has('runs', 'started_at')) {
-            items.push({ label: 'Recent runs', query: 'SELECT * FROM runs ORDER BY started_at DESC LIMIT 20;' });
-        }
-        if (has('results', 'url')) {
-            items.push({ label: 'Top domains', query: "SELECT substr(url, instr(url, '://') + 3, instr(substr(url, instr(url, '://') + 3), '/') - 1) as domain, count(*) as count FROM results GROUP BY domain ORDER BY count DESC LIMIT 20;" });
-        }
-
-        if (items.length === 0) {
-            for (const t of schemaTables.slice(0, 6)) {
-                items.push({ label: `Preview ${t.name}`, query: `SELECT * FROM [${t.name}] LIMIT 20;` });
-            }
-        }
-
-        return items.length > 0 ? items : defaultPresets;
-    }, [schemaTables]);
-
-    const runAdminAction = async () => {
         setAdminNotice('');
         setAdminError('');
         setAdminBusy(true);
         try {
-            const tables = Object.entries(selectedTables)
-                .filter(([, checked]) => checked)
-                .map(([name]) => name);
-            const res = await api.dbAdminAction(adminAction, tables, confirmText);
+            const res = await api.dbAdminAction(action, tables, confirmText);
             if (res.error) {
                 setAdminError(res.error);
             } else {
                 const affected = (res.affected_tables || []).length;
-                setAdminNotice(`Completed ${res.action}. Affected tables: ${affected}`);
-                setConfirmText('');
+                setAdminNotice(`Completed action. Affected tables: ${affected}`);
+                setConfirmText(''); // require re-entry for safety
                 await loadAdminStatus();
             }
         } catch (err: any) {
@@ -172,151 +52,158 @@ export default function SqlConsoleView() {
         }
     };
 
+    const isUnlocked = confirmText === adminStatus?.confirm_phrase;
+
     return (
         <PageView>
-            <PageHeader title="SQL Console" subtitle="READ-ONLY · SELECT only · LIMIT 1000" />
+            <PageHeader title="Admin Operations" subtitle="DANGEROUS OPERATIONS · DATA DELETION" />
             <PagePrimary>
-            <div className="preset-queries">
-                {presets.map(p => (
-                    <div key={p.label} className="preset-btn" onClick={() => { setQuery(p.query); runQuery(p.query); }}>
-                        {p.label}
-                    </div>
-                ))}
-            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: '20px' }}>
-                <div>
-                    <textarea
-                        ref={editorRef}
-                        className="sql-editor"
-                        placeholder="Type your SELECT query here... (Cmd+Enter to run)"
-                        value={query}
-                        onChange={e => setQuery(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                    ></textarea>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', marginBottom: '24px' }}>
-                        <div className="query-meta">Read-only connection &middot; Limits automatically applied to large sets</div>
-                        <button className="btn btn-primary" disabled={loading} onClick={() => runQuery()}>
-                            {loading ? 'Running...' : 'Run Query ⌘↵'}
+                <WorkflowPanel
+                    title={
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '.95rem', color: adminStatus?.enabled ? 'var(--text)' : '#dc2626' }}>
+                            <ShieldCheck size={18} />
+                            Admin Authorization
+                        </span>
+                    }
+                    headerStyle={{ padding: '16px 20px', backgroundColor: adminStatus?.enabled ? 'var(--surface-2)' : '#fef2f2' }}
+                    style={{ marginBottom: '24px', borderColor: adminStatus?.enabled ? 'var(--border)' : '#fecaca' }}
+                >
+                    <div style={{ padding: '20px' }}>
+                        {adminLoading ? (
+                            <div style={{ color: 'var(--text-secondary)' }}>Checking authorization...</div>
+                        ) : (
+                            <>
+                                {!adminStatus?.enabled ? (
+                                    <div style={{ color: '#b45309', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                                        <AlertTriangle size={24} style={{ flexShrink: 0, marginTop: '2px' }} />
+                                        <div>
+                                            <div style={{ fontWeight: 600, marginBottom: '6px', fontSize: '1.05rem' }}>Admin Operations Disabled</div>
+                                            <div>Set <code>DASHBOARD_ENABLE_DB_ADMIN=1</code> in your backend environment to enable destructive operations.</div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div style={{ maxWidth: '400px' }}>
+                                        <div style={{ fontSize: '.85rem', color: 'var(--text)', marginBottom: '10px' }}>
+                                            Type <strong>{adminStatus?.confirm_phrase}</strong> below to unlock destructive actions.
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={confirmText}
+                                            onChange={(e) => setConfirmText(e.target.value)}
+                                            placeholder={adminStatus?.confirm_phrase}
+                                            style={{
+                                                width: '100%',
+                                                padding: '10px 14px',
+                                                fontSize: '.95rem',
+                                                fontFamily: 'var(--font-mono)',
+                                                border: isUnlocked ? '1px solid var(--green)' : '1px solid var(--border-bright)',
+                                                borderRadius: 'var(--radius)',
+                                                backgroundColor: 'var(--surface-3)',
+                                                color: 'var(--text)',
+                                                outline: 'none',
+                                                transition: 'border-color 0.2s',
+                                                boxShadow: isUnlocked ? '0 0 0 1px var(--green)' : 'none'
+                                            }}
+                                        />
+                                        {isUnlocked && <div style={{ marginTop: '8px', color: 'var(--green)', fontSize: '.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}><ShieldCheck size={14} /> Actions unlocked</div>}
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {adminError && <div style={{ marginTop: '16px', padding: '12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '4px', color: '#dc2626', fontSize: '.85rem' }}>{adminError}</div>}
+                        {!adminError && adminNotice && <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(60,179,113,.1)', border: '1px solid rgba(60,179,113,.3)', borderRadius: '4px', color: 'var(--green)', fontSize: '.85rem' }}>{adminNotice}</div>}
+                    </div>
+                </WorkflowPanel>
+
+                <div style={{ opacity: (!adminStatus?.enabled || !isUnlocked || adminBusy) ? 0.5 : 1, pointerEvents: (!adminStatus?.enabled || !isUnlocked || adminBusy) ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 500, marginBottom: '16px', color: 'var(--text)' }}>Quick Actions</h3>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+
+                        {/* Clear Scrapes */}
+                        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                                <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(75, 142, 240, 0.1)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <ServerCrash size={20} />
+                                </div>
+                                <div>
+                                    <div style={{ fontWeight: 600, fontSize: '.95rem', color: 'var(--text)' }}>Clear Scrapes</div>
+                                    <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Truncate runs table</div>
+                                </div>
+                            </div>
+                            <div style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: '20px', flex: 1 }}>
+                                Deletes all scraping run histories and execution logs. Does not delete actual scraped jobs.
+                            </div>
+                            <button className="btn" style={{ width: '100%', background: 'var(--surface-3)', border: '1px solid var(--border-bright)', color: 'var(--text)' }} onClick={() => runAdminAction('truncate_tables', ['runs'])}>
+                                Delete Scrape Logs
+                            </button>
+                        </div>
+
+                        {/* Clear Jobs */}
+                        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                                <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(60, 179, 113, 0.1)', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Trash2 size={20} />
+                                </div>
+                                <div>
+                                    <div style={{ fontWeight: 600, fontSize: '.95rem', color: 'var(--text)' }}>Clear Parsed Jobs</div>
+                                    <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Truncate results table</div>
+                                </div>
+                            </div>
+                            <div style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: '20px', flex: 1 }}>
+                                Deletes all successfully parsed jobs and pending approvals. Will be repopulated on next scrape.
+                            </div>
+                            <button className="btn" style={{ width: '100%', background: 'var(--surface-3)', border: '1px solid var(--border-bright)', color: 'var(--text)' }} onClick={() => runAdminAction('truncate_tables', ['results'])}>
+                                Delete Jobs
+                            </button>
+                        </div>
+
+                        {/* Clear Rejections */}
+                        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                                <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(217, 79, 79, 0.1)', color: 'var(--red)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Trash2 size={20} />
+                                </div>
+                                <div>
+                                    <div style={{ fontWeight: 600, fontSize: '.95rem', color: 'var(--text)' }}>Clear Rejections</div>
+                                    <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Truncate rejected table</div>
+                                </div>
+                            </div>
+                            <div style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: '20px', flex: 1 }}>
+                                Deletes all records of rejected jobs. Note: Dedup functions might re-process these if scraped again.
+                            </div>
+                            <button className="btn" style={{ width: '100%', background: 'var(--surface-3)', border: '1px solid var(--border-bright)', color: 'var(--text)' }} onClick={() => runAdminAction('truncate_tables', ['rejected'])}>
+                                Delete Rejections
+                            </button>
+                        </div>
+
+                    </div>
+
+                    <div style={{ marginTop: '24px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius)', padding: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                            <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(220, 38, 38, 0.1)', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <AlertTriangle size={20} />
+                            </div>
+                            <div>
+                                <div style={{ fontWeight: 600, fontSize: '.95rem', color: '#991b1b' }}>Nuke Everything</div>
+                                <div style={{ fontSize: '.75rem', color: '#b91c1c' }}>Truncate all tables</div>
+                            </div>
+                        </div>
+                        <div style={{ fontSize: '.85rem', color: '#991b1b', marginBottom: '16px' }}>
+                            Warning: This will execute <code>truncate_all</code>, permanently deleting all jobs, scrapes, logs, schedules, and data from every table in the database. This action is irreversible.
+                        </div>
+                        <button
+                            className="btn"
+                            style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '8px 16px', fontWeight: 600 }}
+                            onClick={() => runAdminAction('truncate_all', [])}
+                        >
+                            Delete All Data
                         </button>
                     </div>
 
-                    {error && (
-                        <WorkflowPanel style={{ background: '#fef2f2', borderColor: '#fecaca' }}>
-                            <div style={{ padding: '16px', color: '#991b1b', fontFamily: 'monospace', fontSize: '.9rem' }}>
-                                {error}
-                            </div>
-                        </WorkflowPanel>
-                    )}
-
-                    {result && !error && (
-                        <WorkflowPanel
-                            title={<span style={{ fontWeight: 600, fontSize: '.9rem' }}>Results</span>}
-                            right={<div style={{ fontSize: '.8rem', color: 'var(--text-secondary)' }}>{result.row_count} rows &middot; {result.elapsed_ms.toFixed(1)}ms</div>}
-                            headerStyle={{ padding: '12px 20px' }}
-                        >
-                            <div style={{ overflowX: 'auto', maxHeight: '500px' }}>
-                                {result.rows.length === 0 ? (
-                                    <EmptyState text="Query returned 0 rows." style={{ padding: '24px' }} />
-                                ) : (
-                                    <table style={{ margin: 0, minWidth: '100%' }}>
-                                        <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
-                                            <tr>
-                                                {result.columns.map((col: string, i: number) => (
-                                                    <th key={i}>{col}</th>
-                                                ))}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {result.rows.map((row: any, i: number) => (
-                                                <tr key={i}>
-                                                    {result.columns.map((col: string, j: number) => (
-                                                        <td key={j} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxWidth: '300px' }}>
-                                                            {row[col] === null ? <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>NULL</span> : String(row[col])}
-                                                        </td>
-                                                    ))}
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                )}
-                            </div>
-                        </WorkflowPanel>
-                    )}
                 </div>
-
-                <div>
-                    <WorkflowPanel title={<span style={{ fontWeight: 600, fontSize: '.85rem' }}>Query History</span>} headerStyle={{ padding: '12px' }}>
-                        <div>
-                            {history.length === 0 ? (
-                                <div style={{ padding: '16px', fontSize: '.8rem', color: 'var(--text-secondary)' }}>No history</div>
-                            ) : (
-                                history.map((h, i) => (
-                                    <div key={i} className="query-history-item" onClick={() => { setQuery(h); runQuery(h); }}>
-                                        {h.slice(0, 60)}{h.length > 60 ? '...' : ''}
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </WorkflowPanel>
-
-                    <WorkflowPanel title={<span style={{ fontWeight: 600, fontSize: '.85rem' }}>DB Admin</span>} headerStyle={{ padding: '12px' }} style={{ marginTop: '12px' }}>
-                        {adminLoading ? (
-                            <div style={{ padding: '12px', fontSize: '.82rem', color: 'var(--text-secondary)' }}>Loading admin status...</div>
-                        ) : (
-                            <div style={{ padding: '12px' }}>
-                                {!adminStatus?.enabled && (
-                                    <div style={{ fontSize: '.8rem', color: '#b45309', marginBottom: '10px' }}>
-                                        Disabled: set <code>DASHBOARD_ENABLE_DB_ADMIN=1</code> on backend to enable.
-                                    </div>
-                                )}
-                                <div style={{ fontSize: '.8rem', marginBottom: '8px' }}>Action</div>
-                                <select value={adminAction} onChange={(e) => setAdminAction(e.target.value)} style={{ width: '100%', marginBottom: '10px' }}>
-                                    <option value="truncate_all">Delete all rows (all tables)</option>
-                                    <option value="truncate_tables">Delete rows (selected tables)</option>
-                                    <option value="drop_tables">Drop selected tables</option>
-                                </select>
-
-                                {adminAction !== 'truncate_all' && (
-                                    <div style={{ marginBottom: '10px', maxHeight: '140px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '6px', padding: '8px' }}>
-                                        {(adminStatus?.tables || []).map((t: any) => (
-                                            <label key={t.name} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', fontSize: '.8rem' }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={!!selectedTables[t.name]}
-                                                    onChange={(e) => setSelectedTables(prev => ({ ...prev, [t.name]: e.target.checked }))}
-                                                />
-                                                <span>{t.name} ({t.row_count})</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                )}
-
-                                <div style={{ fontSize: '.78rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                                    Type <strong>{adminStatus?.confirm_phrase || 'DROP ALL DATA'}</strong> to confirm
-                                </div>
-                                <input
-                                    type="text"
-                                    value={confirmText}
-                                    onChange={(e) => setConfirmText(e.target.value)}
-                                    placeholder={adminStatus?.confirm_phrase || 'DROP ALL DATA'}
-                                    style={{ width: '100%', marginBottom: '10px' }}
-                                />
-
-                                <ActionBar style={{ justifyContent: 'space-between' }}>
-                                    <button className="btn btn-ghost btn-sm" onClick={loadAdminStatus}>Refresh</button>
-                                    <button className="btn btn-primary btn-sm" disabled={!adminStatus?.enabled || adminBusy} onClick={runAdminAction}>
-                                        {adminBusy ? 'Running...' : 'Execute Admin Action'}
-                                    </button>
-                                </ActionBar>
-
-                                {adminError && <div style={{ marginTop: '8px', color: '#dc2626', fontSize: '.8rem' }}>{adminError}</div>}
-                                {!adminError && adminNotice && <div style={{ marginTop: '8px', color: '#065f46', fontSize: '.8rem' }}>{adminNotice}</div>}
-                            </div>
-                        )}
-                    </WorkflowPanel>
-                </div>
-            </div>
             </PagePrimary>
         </PageView>
     );

@@ -1,0 +1,18 @@
+{
+  "summary_strategy": "Reframe summary to emphasize platform engineering ownership, operational reliability, and AI-augmented security delivery\u2014mirroring OpenAI\u2019s FDE tone of pragmatic builders who ship secure systems at scale",
+  "skills_strategy": "Use condensed 5-line format to maximize relevance; lead with Security Engineering & Automation, Cloud & DevSecOps, and Security Data & AI to align with JD priorities; merge overlapping categories (e.g., API integrations into platform automation) and drop testing/quality automation to reduce noise",
+  "experience_focus": [
+    {
+      "company": "University of California|Great Wolf Resorts|Simple.biz",
+      "must_highlight": "operational reliability ownership, cross-functional IAM/security automation, AI-augmented security tooling",
+      "safe_metrics_to_keep": "10,000+ devices, 25 percent compliance improvement, 200 hours saved annually, 30 percent reduction in user-reported issues",
+      "claims_to_avoid": "no invented metrics, no speculative ownership (e.g., 'led' only where evidence confirms leadership), no unverified tool names beyond those in source (e.g., avoid 'Terraform' unless implied by IaC)"
+    }
+  ],
+  "risk_controls": [
+    "Replace all 'led', 'pioneered', 'engineered' with 'built', 'developed', or 'delivered' unless evidence confirms leadership; avoid 'architected' unless explicitly stated",
+    "Never add metrics beyond those in source\u2014e.g., keep '25 percent' only if tied to KnowBe4 analysis, do not generalize",
+    "Remove all corporate filler like 'end-to-end', 'holistic', or 'synergy'; prefer concrete verbs: built, integrated, automated, documented",
+    "Do not invent tools (e.g., no 'Terraform' unless implied by IaC), frameworks, or responsibilities beyond resume text"
+  ]
+}

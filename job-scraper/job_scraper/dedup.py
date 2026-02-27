@@ -282,6 +282,12 @@ class JobStore:
         )
         self._conn.commit()
 
+    def latest_run_started_at(self) -> str | None:
+        row = self._conn.execute(
+            "SELECT started_at FROM runs ORDER BY started_at DESC LIMIT 1"
+        ).fetchone()
+        return row["started_at"] if row else None
+
     def recent_results(self, limit: int = 50) -> list[dict]:
         rows = self._conn.execute(
             "SELECT * FROM results ORDER BY created_at DESC LIMIT ?", (limit,)

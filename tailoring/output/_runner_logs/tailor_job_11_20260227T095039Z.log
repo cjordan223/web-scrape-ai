@@ -1,0 +1,42 @@
+
+Tailoring for: Security Engineer (SIEM) - Coalfire - Lever
+Company: coalfire
+URL: https://jobs.lever.co/coalfire/4abafc62-101e-4a56-841e-feccd848af7a
+Output: /Users/conner/Documents/SearXNG/tailoring/output/11-coalfire-security-engineer-siem---coalfire---lever-2026-02-27
+
+→ Analyzing JD against skills inventory...
+01:50:39 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+01:51:13 INFO     tailor.ollama — LLM call complete (5958 chars returned)
+01:51:13 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/11-coalfire-security-engineer-siem---coalfire---lever-2026-02-27/analysis.json (11 requirements mapped)
+  Mapped 11 requirements
+  Company: coalfire
+  Role: Security Engineer (SIEM)
+
+→ Generating Resume...
+01:51:13 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+  Error: 400 Bad Request from http://localhost:1234/v1/chat/completions; body={"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}
+01:51:13 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+  Error: 400 Bad Request from http://localhost:1234/v1/chat/completions; body={"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}
+01:51:13 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+  Error: 400 Bad Request from http://localhost:1234/v1/chat/completions; body={"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}
+  ✗ Resume failed after 3 attempts
+
+→ Generating Cover Letter...
+01:51:13 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+01:51:26 INFO     tailor.ollama — LLM call complete (1341 chars returned)
+01:51:26 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+01:51:53 INFO     tailor.ollama — LLM call complete (4767 chars returned)
+01:51:53 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+  Error: 400 Bad Request from http://localhost:1234/v1/chat/completions; body={"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}
+01:51:53 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+01:52:07 INFO     tailor.ollama — LLM call complete (1565 chars returned)
+01:52:07 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+  Error: 400 Bad Request from http://localhost:1234/v1/chat/completions; body={"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}
+01:52:07 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+01:52:21 INFO     tailor.ollama — LLM call complete (1657 chars returned)
+01:52:21 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+  Error: 400 Bad Request from http://localhost:1234/v1/chat/completions; body={"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}
+  ✗ Cover Letter failed after 3 attempts
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/11-coalfire-security-engineer-siem---coalfire---lever-2026-02-27
+Run failed quality gates for: Resume, Cover Letter

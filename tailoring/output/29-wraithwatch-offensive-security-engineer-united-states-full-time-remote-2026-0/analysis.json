@@ -1,0 +1,60 @@
+{
+  "company_name": "wraithwatch",
+  "role_title": "Offensive Security Engineer",
+  "requirements": [
+    {
+      "jd_requirement": "5+ years professional experience conducting complex penetration testing assessments in commercial or government environments.",
+      "matched_category": "Security Engineering",
+      "matched_skills": "Vulnerability remediation automation, Endpoint hardening workflows",
+      "evidence": "Conner has deep operational experience building deployable security controls and hardening workflows across endpoints, cloud, and enterprise environments\u2014evidenced by his focus on remediation automation, patch orchestration, and secure implementation practices.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Deep, hands-on understanding of the current landscape of offensive cyber tradecraft (in memory, fileless attacks, beacon object files, malleable C2, modern initial access vectors, emerging EDR bypasses, etc).",
+      "matched_category": "Security Engineering",
+      "matched_skills": "Endpoint hardening workflows, Deployable security controls",
+      "evidence": "Conner\u2019s experience with endpoint agent orchestration (BitLocker, patch deployment), EDR tools (CrowdStrike Falcon, Defender XDR, Carbon Black), and remediation automation demonstrates hands-on familiarity with modern attack vectors and their mitigation\u2014critical for understanding offensive tradecraft to harden systems against it.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Experience implementing or assisting with the implementation of enterprise / corporate security controls such as anti-malware policies, identity and access controls, detection engineering, device management, or similar.",
+      "matched_category": "Identity and Access",
+      "matched_skills": "Access control implementation, Cross-team IAM coordination",
+      "evidence": "Conner has implemented identity portal security architecture and authentication provider integrations across teams, aligning with enterprise IAM controls\u2014plus his work in endpoint hardening and device management workflows shows operational experience deploying security policies at scale.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Interest in adapting AI to red teaming / penetration testing use cases. This is a hard requirement.",
+      "matched_category": "AI for SecOps",
+      "matched_skills": "RAG pipelines, LangChain, Embeddings-based retrieval, NLP for security context",
+      "evidence": "Conner has built RAG pipelines using LangChain and vector databases, with explicit focus on AI governance and auditability\u2014directly aligning with the need to adapt generative AI for red teaming use cases while ensuring safety and reliability.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Interest in modern machine learning or artificial intelligence capabilities, especially emerging subsets of Generative AI such as agentic behavior, tool calling, knowledge graph integration, retrieval augmented generation, etc.",
+      "matched_category": "AI for SecOps",
+      "matched_skills": "LangChain, RAG pipelines, Retrieval tuning",
+      "evidence": "Conner\u2019s work on NLP for security context and retrieval-augmented workflows demonstrates strong familiarity with agentic AI patterns (e.g., tool calling via LLMs), knowledge grounding, and dynamic retrieval\u2014key for teaching AI agents offensive tradecraft.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Ability to deal with ambiguity and learn new technologies quickly.",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Cross-functional execution, Requirements-to-controls translation",
+      "evidence": "Conner\u2019s persona explicitly highlights turning ambiguity into systems, defining operational success criteria, and translating requirements to deployable controls\u2014proven in his end-to-end ownership of security tooling across teams.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Willingness to work extended hours and weekends as needed.",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Operational documentation, Runbooks",
+      "evidence": "Conner\u2019s operational reliability focus and documentation-first approach\u2014especially in high-stakes, time-sensitive environments\u2014indicates readiness for mission-critical schedules and extended operational demands.",
+      "priority": "low"
+    }
+  ],
+  "tone_notes": "Tone should emphasize pragmatism, operational reliability, and mission-driven execution\u2014mirroring wraithwatch\u2019s SpaceX/Palantir/Anduril roots. Avoid academic or purely research-oriented framing; highlight shipping, hardening, and real-world impact. Use language like 'deployable', 'production-grade', 'operational fit', and 'mission-critical resilience'.",
+  "skills_line_recommendation": "full",
+  "summary_angle": "Position Conner as a builder-operator who bridges offensive tradecraft and AI-powered defense\u2014emphasizing his ability to harden systems *and* teach offensive patterns to autonomous AI agents, grounded in production-grade security automation.",
+  "_job_id": 29,
+  "_job_url": "https://jobs.ashbyhq.com/wraithwatch/92d9853b-c8df-45dd-871e-9a6eb11a9fd5"
+}

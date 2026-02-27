@@ -1,0 +1,18 @@
+{
+  "summary_strategy": "Position Conner as a builder-operator who scales secure cloud platforms from zero-to-scale, emphasizing shipped production systems, compliance-as-automation (HIPAA/SOC 2/HITRUST), and operational reliability in high-stakes environments",
+  "skills_strategy": "Use condensed 3-line format to maximize relevance; lead with Security Engineering & Automation, then Cloud/Platform/Integrations (highlighting Azure-adjacent experience via AWS/GCP + Microsoft Graph), and finally Security Data/Analytics/AI to mirror JD\u2019s emphasis on CSPM/SIEM and AI governance",
+  "experience_focus": [
+    {
+      "company": "University of California|Great Wolf Resorts|Simple.biz",
+      "must_highlight": "HIPAA-aligned guardrails, Azure-adjacent cloud operations (Microsoft Graph API), CI/CD automation with secure-by-default patterns",
+      "safe_metrics_to_keep": "10,000+ devices, 25 percent compliance improvement, 200 hours saved annually, 30 percent reduction in user-reported issues",
+      "claims_to_avoid": "Any mention of 'HIPAA' as a direct responsibility unless explicitly stated in source; avoid claiming ownership of audit outcomes or certification attainment without evidence"
+    }
+  ],
+  "risk_controls": [
+    "Replace all 'HIPAA-aligned' with 'compliance-driven' or 'audit-ready' unless source explicitly states HIPAA; never invent compliance frameworks beyond those cited in resume",
+    "Never state 'built X for Y compliance'\u2014instead say 'translated compliance requirements into deployable controls'",
+    "Avoid passive phrases like 'helped support' or 'contributed to'; use active verbs: 'built', 'engineered', 'architected', 'implemented'",
+    "Remove all speculative metrics unless directly quoted in source (e.g., keep '200 hours saved' only if tied to specific tooling at Great Wolf)"
+  ]
+}

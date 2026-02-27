@@ -1,0 +1,18 @@
+{
+  "summary_strategy": "Position Conner as a hands-on security engineer who ships production DLP systems\u2014emphasizing automation, operational reliability, and measurable risk reduction aligned with Agile Defense\u2019s 6Hs (Helpful, Honest, Hungry, Hustle)",
+  "skills_strategy": "Use condensed 3-line format to prioritize high-priority skills for DLP relevance: Security Engineering & Automation first, then Cloud/Platform integrations (especially Microsoft ecosystem), and finally Security Data/AI with explicit mention of RAG, retrieval tuning, and AI governance\u2014avoiding academic phrasing in favor of shipped tooling and operational outcomes",
+  "experience_focus": [
+    {
+      "company": "University of California|Great Wolf Resorts|Simple.biz",
+      "must_highlight": "DLP-relevant automation (endpoint remediation, API-driven workflows), operational documentation (runbooks/SOPs), and cross-functional delivery of deployable controls",
+      "safe_metrics_to_keep": "10,000+ devices managed; 200 hours saved annually; 500 hours reduced workload; 25% compliance improvement; 30% fewer user-reported issues",
+      "claims_to_avoid": "No invented policy design scope, no fabricated compliance certifications (e.g., CMMC/NIST 800-171 implementation), no assumed ownership of Purview/Zscaler/Qualys deployments unless explicitly stated in source"
+    }
+  ],
+  "risk_controls": [
+    "Never assume DLP-specific tools like Purview were used\u2014replace with generic terms like 'data protection policies' or omit unless source confirms",
+    "Avoid phrases like 'designed DLP strategy'\u2014use 'built automation to enforce data boundaries' or 'operationalized compliance controls'",
+    "Never invent metrics beyond those explicitly listed; if uncertain, drop numbers and keep qualitative impact (e.g., 'reduced manual effort significantly' instead of 'saved X hours')",
+    "Do not claim direct experience with Purview, Zscaler, or Qualys unless documented in source\u2014focus instead on adjacent skills: Microsoft Graph API, endpoint orchestration, log correlation, and secure configuration management"
+  ]
+}

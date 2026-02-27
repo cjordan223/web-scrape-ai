@@ -1,0 +1,39 @@
+
+Tailoring for: Platform Engineer, Forward Deployed Engineering (FDE) - NYC @ OpenAI
+Company: openai
+URL: https://jobs.ashbyhq.com/openai/45ab8896-06bd-4c8e-bb76-914483d5d180
+Output: /Users/conner/Documents/SearXNG/tailoring/output/12-openai-platform-engineer-forward-deployed-engineering-fde---nyc-openai-2026-0
+
+→ Analyzing JD against skills inventory...
+00:28:53 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+00:29:11 INFO     tailor.ollama — LLM call complete (3113 chars returned)
+00:29:11 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/12-openai-platform-engineer-forward-deployed-engineering-fde---nyc-openai-2026-0/analysis.json (6 requirements mapped)
+  Mapped 6 requirements
+  Company: openai
+  Role: Platform Engineer, Forward Deployed Engineering (FDE)
+
+→ Generating Resume...
+00:29:11 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+00:29:29 INFO     tailor.ollama — LLM call complete (1716 chars returned)
+00:29:29 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+00:30:16 INFO     tailor.ollama — LLM call complete (7928 chars returned)
+00:30:16 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+00:31:02 INFO     tailor.ollama — LLM call complete (7924 chars returned)
+00:31:02 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/12-openai-platform-engineer-forward-deployed-engineering-fde---nyc-openai-2026-0/Conner_Jordan_Resume.tex (7912 chars)
+  Validating (attempt 1/3)...
+00:31:03 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/12-openai-platform-engineer-forward-deployed-engineering-fde---nyc-openai-2026-0/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+00:31:03 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+00:31:17 INFO     tailor.ollama — LLM call complete (1782 chars returned)
+00:31:17 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+00:31:43 INFO     tailor.ollama — LLM call complete (4255 chars returned)
+00:31:43 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+00:32:12 INFO     tailor.ollama — LLM call complete (4273 chars returned)
+00:32:12 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/12-openai-platform-engineer-forward-deployed-engineering-fde---nyc-openai-2026-0/Conner_Jordan_Cover_Letter.tex (4260 chars)
+  Validating (attempt 1/3)...
+00:32:13 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/12-openai-platform-engineer-forward-deployed-engineering-fde---nyc-openai-2026-0/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/12-openai-platform-engineer-forward-deployed-engineering-fde---nyc-openai-2026-0

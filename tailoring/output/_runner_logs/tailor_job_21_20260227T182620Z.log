@@ -1,0 +1,37 @@
+
+Tailoring for: Trility Consulting - Senior DevSecOps Consultant - GitLab Platform
+Company: trility
+URL: https://jobs.lever.co/trility/587e4885-4539-4cd0-b654-ad2d4e0bea4e
+Output: /Users/conner/Documents/SearXNG/tailoring/output/21-trility-trility-consulting---senior-devsecops-consultant---gitlab-platform-20
+
+→ Analyzing JD against skills inventory...
+10:26:20 INFO     tailor.analyzer — Using cached analysis from /Users/conner/Documents/SearXNG/tailoring/output/21-trility-trility-consulting---senior-devsecops-consultant---gitlab-platform-20/analysis.json
+  Mapped 0 requirements
+  Company: ?
+  Role: ?
+
+→ Generating Resume...
+10:26:20 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+10:26:35 INFO     tailor.ollama — LLM call complete (1550 chars returned)
+10:26:35 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+10:27:17 INFO     tailor.ollama — LLM call complete (7908 chars returned)
+10:27:17 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+10:28:01 INFO     tailor.ollama — LLM call complete (7894 chars returned)
+10:28:01 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/21-trility-trility-consulting---senior-devsecops-consultant---gitlab-platform-20/Conner_Jordan_Resume.tex (7882 chars)
+  Validating (attempt 1/3)...
+10:28:02 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/21-trility-trility-consulting---senior-devsecops-consultant---gitlab-platform-20/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+10:28:02 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+10:28:12 INFO     tailor.ollama — LLM call complete (1376 chars returned)
+10:28:12 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+10:28:37 INFO     tailor.ollama — LLM call complete (4558 chars returned)
+10:28:37 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+10:29:04 INFO     tailor.ollama — LLM call complete (4410 chars returned)
+10:29:04 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/21-trility-trility-consulting---senior-devsecops-consultant---gitlab-platform-20/Conner_Jordan_Cover_Letter.tex (4397 chars)
+  Validating (attempt 1/3)...
+10:29:05 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/21-trility-trility-consulting---senior-devsecops-consultant---gitlab-platform-20/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/21-trility-trility-consulting---senior-devsecops-consultant---gitlab-platform-20

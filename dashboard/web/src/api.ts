@@ -59,14 +59,17 @@ export const api = {
         return data;
     },
 
-    setScrapeEnabled: async (enabled: boolean) => {
-        const { data } = await apiClient.post('/runtime-controls', { scrape_enabled: enabled });
+    updateRunsControls: async (payload: Record<string, any>) => {
+        const { data } = await apiClient.post('/runtime-controls', payload);
         return data;
     },
 
+    setScrapeEnabled: async (enabled: boolean) => {
+        return api.updateRunsControls({ scrape_enabled: enabled });
+    },
+
     setLlmEnabled: async (enabled: boolean) => {
-        const { data } = await apiClient.post('/runtime-controls', { llm_enabled: enabled });
-        return data;
+        return api.updateRunsControls({ llm_enabled: enabled });
     },
 
     runScrapeNow: async (llm_enabled: boolean) => {
