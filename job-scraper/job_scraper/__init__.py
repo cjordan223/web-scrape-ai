@@ -266,7 +266,7 @@ def scrape_jobs(
                 if canonical in in_run_urls:
                     continue
                 in_run_urls.add(canonical)
-                if not store.is_seen(canonical):
+                if not store.is_seen(canonical, ttl_days=config.filter.seen_ttl_days):
                     unseen.append(r)
 
             run.dedup_count = len(unseen)

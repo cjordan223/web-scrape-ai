@@ -418,12 +418,6 @@ def _score_job(
         score += 1
         signals.append("jd_quality:+1")
 
-    # Safety rail: never auto-accept when title has no obvious job-role word.
-    # This keeps "security news/article" pages out while still allowing review.
-    if not title_role_ok and score >= config.score_accept_threshold:
-        signals.append("accept_downgrade:no_role_word")
-        return score, "review", signals
-
     if score >= config.score_accept_threshold:
         return score, "accept", signals
     if score <= config.score_reject_threshold:

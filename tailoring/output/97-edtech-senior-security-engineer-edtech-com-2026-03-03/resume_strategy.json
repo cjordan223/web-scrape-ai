@@ -1,0 +1,38 @@
+{
+  "summary_strategy": "Position Conner as a builder-first security engineer who delivers auditable, production-grade controls\u2014emphasizing operational reliability, cross-functional enablement, and measurable risk reduction aligned with Coursera\u2019s DevSecOps maturity and compliance needs",
+  "skills_tailoring": {
+    "Languages": "Reorder to prioritize Python, PowerShell, Bash, and Go first (most relevant for automation and cloud tooling), followed by Java, SQL, TypeScript, C/C++, Swift, Rust\u2014keeping all 11 items unchanged",
+    "Security Tooling": "Reorder to lead with vulnerability management, SIEM, EDR/XDR, SOAR; add CrowdStrike Falcon, Defender XDR, Rapid7 InsightVM from inventory (no hallucination\u2014already referenced in resume); keep endpoint management and patch orchestration high-priority",
+    "AI/ML and Research": "Reorder to lead with RAG pipelines, LangChain, vector databases; add embeddings-based retrieval and AI governance from inventory\u2014only where directly supported by PhishFinder/Coraline work; avoid generic AI claims",
+    "Frameworks and Infrastructure": "Reorder to prioritize Flask, FastAPI, Docker, IAM patterns; add MCP/FastMCP before Django/Node.js to reflect Coraline\u2019s tech stack; keep all 9 items",
+    "DevOps and CI/CD": "Reorder to lead with CI/CD pipelines, Infrastructure as Code, secrets management; add GitHub Actions and Terraform from inventory (implied by IaC work); retain AWS/GCP/Azure but emphasize AWS ECS specifically",
+    "Databases": "Reorder to prioritize PostgreSQL, DynamoDB, Redis, vector databases; keep all 10 items unchanged\u2014no additions beyond baseline"
+  },
+  "experience_focus": [
+    {
+      "company": "University of California, Office of the President",
+      "must_highlight": "vulnerability remediation automation at scale, secure AWS ECS deployments with IAM/secrets hardening, AI/ML tooling grounded in auditable runbooks",
+      "safe_metrics_to_keep": "7,000+ endpoints, 500 drifted assets, 2,900-user identity portal",
+      "claims_to_avoid": "no vague AI claims like 'transformed security posture'\u2014only tie NLP/LLM work to PhishFinder/Coraline\u2019s concrete outputs and compliance outcomes"
+    },
+    {
+      "company": "Great Wolf Resorts",
+      "must_highlight": "endpoint automation at scale (10,000+ devices), PowerShell/Python tooling for BitLocker/certificate remediation, phishing simulation analytics with measurable compliance lift",
+      "safe_metrics_to_keep": "10,000+ devices, 200 hours saved annually, 500 hours reduced workload, 25 percent compliance improvement",
+      "claims_to_avoid": "no attribution of business outcomes beyond security metrics (e.g., avoid linking to revenue or customer NPS)"
+    },
+    {
+      "company": "Simple.biz",
+      "must_highlight": "CI/CD security embedding, automated accessibility testing (WCAG/ADA), cross-browser validation workflows",
+      "safe_metrics_to_keep": "30 percent reduction in user-reported issues",
+      "claims_to_avoid": "no inflated client count or revenue impact\u2014keep focus on technical execution and quality outcomes"
+    }
+  ],
+  "risk_controls": [
+    "Never invent metrics\u2014only reuse numbers explicitly stated in baseline resume",
+    "Do not add certifications beyond AWS Cloud Practitioner unless explicitly provided",
+    "Avoid phrases like 'enterprise-grade', 'best-in-class', or 'cutting-edge'\u2014use 'production-ready', 'operationalized', 'auditable'",
+    "Do not conflate PhishFinder (capstone) with Coraline\u2014keep them distinct in description",
+    "Do not claim CISSP unless stated; current resume says 'Holds CISSP' but baseline does not\u2014remove that line unless verified"
+  ]
+}

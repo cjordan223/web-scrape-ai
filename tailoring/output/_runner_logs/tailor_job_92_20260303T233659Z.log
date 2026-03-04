@@ -1,0 +1,39 @@
+
+Tailoring for: Application Security Engineer - EasyPost
+Company: easypost-2
+URL: https://jobs.lever.co/easypost-2/12a93c1a-2dbb-4d5a-b0c6-38518b05eb90
+Output: /Users/conner/Documents/SearXNG/tailoring/output/92-easypost-2-application-security-engineer---easypost-2026-03-03
+
+→ Analyzing JD against skills inventory...
+15:36:59 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:37:43 INFO     tailor.ollama — LLM call complete (7902 chars returned)
+15:37:43 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/92-easypost-2-application-security-engineer---easypost-2026-03-03/analysis.json (14 requirements mapped)
+  Mapped 14 requirements
+  Company: easypost-2
+  Role: Application Security Engineer III
+
+→ Generating Resume...
+15:37:43 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+15:38:13 INFO     tailor.ollama — LLM call complete (3823 chars returned)
+15:38:13 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+15:39:04 INFO     tailor.ollama — LLM call complete (8417 chars returned)
+15:39:04 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+15:39:52 INFO     tailor.ollama — LLM call complete (8402 chars returned)
+15:39:52 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/92-easypost-2-application-security-engineer---easypost-2026-03-03/Conner_Jordan_Resume.tex (8390 chars)
+  Validating (attempt 1/3)...
+15:39:53 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/92-easypost-2-application-security-engineer---easypost-2026-03-03/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+15:39:53 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+15:40:06 INFO     tailor.ollama — LLM call complete (1297 chars returned)
+15:40:06 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:40:35 INFO     tailor.ollama — LLM call complete (4510 chars returned)
+15:40:35 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:41:00 INFO     tailor.ollama — LLM call complete (4362 chars returned)
+15:41:00 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/92-easypost-2-application-security-engineer---easypost-2026-03-03/Conner_Jordan_Cover_Letter.tex (4349 chars)
+  Validating (attempt 1/3)...
+15:41:00 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/92-easypost-2-application-security-engineer---easypost-2026-03-03/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/92-easypost-2-application-security-engineer---easypost-2026-03-03

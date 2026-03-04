@@ -1,0 +1,39 @@
+
+Tailoring for: Offensive Security Engineer • United States • Full time • Remote
+Company: wraithwatch
+URL: https://jobs.ashbyhq.com/wraithwatch/92d9853b-c8df-45dd-871e-9a6eb11a9fd5
+Output: /Users/conner/Documents/SearXNG/tailoring/output/29-wraithwatch-offensive-security-engineer-united-states-full-time-remote-2026-0-20260228T223632Z
+
+→ Analyzing JD against skills inventory...
+14:36:32 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+14:36:58 INFO     tailor.ollama — LLM call complete (3869 chars returned)
+14:36:58 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/29-wraithwatch-offensive-security-engineer-united-states-full-time-remote-2026-0-20260228T223632Z/analysis.json (6 requirements mapped)
+  Mapped 6 requirements
+  Company: wraithwatch
+  Role: Offensive Security Engineer
+
+→ Generating Resume...
+14:36:58 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+14:37:25 INFO     tailor.ollama — LLM call complete (3574 chars returned)
+14:37:25 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+14:38:14 INFO     tailor.ollama — LLM call complete (8412 chars returned)
+14:38:14 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+14:39:02 INFO     tailor.ollama — LLM call complete (8383 chars returned)
+14:39:02 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/29-wraithwatch-offensive-security-engineer-united-states-full-time-remote-2026-0-20260228T223632Z/Conner_Jordan_Resume.tex (8371 chars)
+  Validating (attempt 1/3)...
+14:39:03 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/29-wraithwatch-offensive-security-engineer-united-states-full-time-remote-2026-0-20260228T223632Z/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+14:39:03 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+14:39:16 INFO     tailor.ollama — LLM call complete (1428 chars returned)
+14:39:16 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+14:39:44 INFO     tailor.ollama — LLM call complete (4465 chars returned)
+14:39:44 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+14:40:10 INFO     tailor.ollama — LLM call complete (4295 chars returned)
+14:40:10 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/29-wraithwatch-offensive-security-engineer-united-states-full-time-remote-2026-0-20260228T223632Z/Conner_Jordan_Cover_Letter.tex (4282 chars)
+  Validating (attempt 1/3)...
+14:40:11 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/29-wraithwatch-offensive-security-engineer-united-states-full-time-remote-2026-0-20260228T223632Z/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/29-wraithwatch-offensive-security-engineer-united-states-full-time-remote-2026-0-20260228T223632Z

@@ -17,7 +17,7 @@ class SearchConfig(BaseModel):
     max_results_per_query: int = 20
     engines: str = "google,startpage"
     fallback_engines: list[str] = Field(default_factory=lambda: ["google", "startpage"])
-    time_range: str = "month"
+    time_range: str = "week"
     fallback_time_ranges: list[str] = Field(default_factory=lambda: ["year"])
     fallback_to_all_engines: bool = True
     request_delay: float = 1.0
@@ -29,10 +29,10 @@ class FilterConfig(BaseModel):
         "vulnerability", "soc", "infosec", "secops",
     ])
     seniority_exclude: list[str] = Field(default_factory=lambda: [
-        "senior", "staff", "principal", "lead", "manager", "director",
+        "staff", "principal", "manager", "director",
     ])
     max_experience_years: int = 6
-    min_salary_k: int = 95
+    min_salary_k: int = 70
     content_blocklist: list[str] = Field(default_factory=lambda: [
         "clearance", "ts/sci", "ts-sci", "polygraph", "top secret",
         "secret clearance",
@@ -50,14 +50,15 @@ class FilterConfig(BaseModel):
     require_remote: bool = True
     require_explicit_remote: bool = False
     require_us_location: bool = True
-    require_known_board: bool = True
+    require_known_board: bool = False
     fetch_jd: bool = True
-    min_jd_chars: int = 120
+    min_jd_chars: int = 50
     jd_max_chars: int = 15000
     score_accept_threshold: int = 0
     score_reject_threshold: int = -3
     target_min_results: int = 5
-    target_max_results: int = 10
+    target_max_results: int = 50
+    seen_ttl_days: int = 14
     promotion_min_score: int = 0
 
 
@@ -75,7 +76,7 @@ class CrawlTarget(BaseModel):
 
 
 class CrawlConfig(BaseModel):
-    enabled: bool = False
+    enabled: bool = True
     targets: list[CrawlTarget] = Field(default_factory=list)
     request_delay: float = 2.0
     max_results_per_target: int = 50
@@ -85,7 +86,7 @@ class LLMReviewConfig(BaseModel):
     enabled: bool = False
     url: str = "http://localhost:1234/v1/chat/completions"
     model: str = "default"
-    fail_open: bool = False
+    fail_open: bool = True
     timeout: int = 30
     jd_max_chars: int = 2000
 

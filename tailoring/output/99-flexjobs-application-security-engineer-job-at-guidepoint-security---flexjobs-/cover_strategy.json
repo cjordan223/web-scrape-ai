@@ -1,0 +1,18 @@
+{
+  "opening_angle": "Connect GuidePoint\u2019s focus on applied security engineering to Conner\u2019s pattern of building and operating production-grade tooling that bridges security, automation, and cloud delivery",
+  "paragraph_focus": [
+    "Direct alignment with GuidePoint\u2019s engineering-first culture \u2014 emphasize operational reliability and deployable controls",
+    "Concrete evidence from UCOP role: production security systems, containerized services, AI-assisted tooling with governance",
+    "Earlier automation work and phishing project as proof of pragmatic, maintainable system-building",
+    "Reinforce cross-functional delivery pattern: ship, document, build guardrails \u2014 no hype, just reliability"
+  ],
+  "voice_controls": [
+    "Use phrases like 'deployable controls', 'hold up in production', 'reduce manual effort' \u2014 avoid 'passion for cybersecurity' or abstract mission statements",
+    "Replace vague claims with specific actions: e.g., 'I built runbooks that standardized remediation' not 'I improved security posture'",
+    "Avoid AI buzzwords; say 'RAG pipelines, LangChain, LLM developer tooling' only where directly supported",
+    "Keep sentences tight; no filler like 'leverage', 'synergy', or 'holistic'"
+  ],
+  "claims_to_avoid": [
+    "I am a security expert"
+  ]
+}

@@ -1,0 +1,39 @@
+
+Tailoring for: Senior Security Engineer @ IntusCare - Jobs
+Company: intus
+URL: https://jobs.ashbyhq.com/intus/01f158f3-0ac5-4ebb-9a92-af057653a599
+Output: /Users/conner/Documents/SearXNG/tailoring/output/26-intus-senior-security-engineer-intuscare---jobs-2026-02-28
+
+→ Analyzing JD against skills inventory...
+14:54:23 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+14:54:28 INFO     tailor.ollama — LLM call complete (4 chars returned)
+14:54:28 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/26-intus-senior-security-engineer-intuscare---jobs-2026-02-28/analysis.json (0 requirements mapped)
+  Mapped 0 requirements
+  Company: ?
+  Role: ?
+
+→ Generating Resume...
+14:54:28 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+14:54:53 INFO     tailor.ollama — LLM call complete (3232 chars returned)
+14:54:53 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+14:55:39 INFO     tailor.ollama — LLM call complete (8271 chars returned)
+14:55:39 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+14:56:26 INFO     tailor.ollama — LLM call complete (8142 chars returned)
+14:56:26 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/26-intus-senior-security-engineer-intuscare---jobs-2026-02-28/Conner_Jordan_Resume.tex (8130 chars)
+  Validating (attempt 1/3)...
+14:56:27 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/26-intus-senior-security-engineer-intuscare---jobs-2026-02-28/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+14:56:27 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+14:56:36 INFO     tailor.ollama — LLM call complete (971 chars returned)
+14:56:36 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+14:57:01 INFO     tailor.ollama — LLM call complete (4449 chars returned)
+14:57:01 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+14:57:26 INFO     tailor.ollama — LLM call complete (4301 chars returned)
+14:57:26 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/26-intus-senior-security-engineer-intuscare---jobs-2026-02-28/Conner_Jordan_Cover_Letter.tex (4288 chars)
+  Validating (attempt 1/3)...
+14:57:26 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/26-intus-senior-security-engineer-intuscare---jobs-2026-02-28/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/26-intus-senior-security-engineer-intuscare---jobs-2026-02-28

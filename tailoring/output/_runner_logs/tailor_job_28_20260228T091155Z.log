@@ -1,0 +1,39 @@
+
+Tailoring for: Jobgether - Software Engineer, Android (Remote from United States)
+Company: jobgether
+URL: https://jobs.lever.co/jobgether/b8454fee-fa18-46ee-a77c-c985b4dc99e7
+Output: /Users/conner/Documents/SearXNG/tailoring/output/28-jobgether-jobgether---software-engineer-android-remote-from-united-states--20
+
+→ Analyzing JD against skills inventory...
+01:11:55 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+01:12:21 INFO     tailor.ollama — LLM call complete (3819 chars returned)
+01:12:21 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/28-jobgether-jobgether---software-engineer-android-remote-from-united-states--20/analysis.json (8 requirements mapped)
+  Mapped 8 requirements
+  Company: jobgether
+  Role: Software Engineer, Android
+
+→ Generating Resume...
+01:12:21 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+01:12:38 INFO     tailor.ollama — LLM call complete (1848 chars returned)
+01:12:38 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+01:13:20 INFO     tailor.ollama — LLM call complete (7981 chars returned)
+01:13:20 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+01:14:03 INFO     tailor.ollama — LLM call complete (7905 chars returned)
+01:14:03 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/28-jobgether-jobgether---software-engineer-android-remote-from-united-states--20/Conner_Jordan_Resume.tex (7893 chars)
+  Validating (attempt 1/3)...
+01:14:04 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/28-jobgether-jobgether---software-engineer-android-remote-from-united-states--20/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+01:14:04 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+01:14:16 INFO     tailor.ollama — LLM call complete (1459 chars returned)
+01:14:16 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+01:14:42 INFO     tailor.ollama — LLM call complete (4401 chars returned)
+01:14:42 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+01:15:07 INFO     tailor.ollama — LLM call complete (4222 chars returned)
+01:15:07 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/28-jobgether-jobgether---software-engineer-android-remote-from-united-states--20/Conner_Jordan_Cover_Letter.tex (4211 chars)
+  Validating (attempt 1/3)...
+01:15:07 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/28-jobgether-jobgether---software-engineer-android-remote-from-united-states--20/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/28-jobgether-jobgether---software-engineer-android-remote-from-united-states--20

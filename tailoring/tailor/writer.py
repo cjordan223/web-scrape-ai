@@ -40,10 +40,29 @@ You are a resume tailoring strategist. Build a precise writing plan for a LaTeX 
 
 {_STYLE_GUARDRAILS}
 
+SKILLS TAILORING RULES:
+- The baseline resume has EXACTLY these 6 skill categories (use these EXACT names, do not rename):
+  1. "Languages" (11 items in baseline — do NOT drop any)
+  2. "Security Tooling"
+  3. "AI/ML and Research" (do NOT rename to "AI for SecOps" or anything else)
+  4. "Frameworks and Infrastructure"
+  5. "DevOps and CI/CD"
+  6. "Databases" (10 items in baseline — do NOT drop any)
+- Your strategy should describe how to REORDER items within each category (JD-relevant first).
+- You may suggest ADDING items from the Skills Inventory, but NEVER removing baseline items.
+- Do NOT rename, delete, merge, or consolidate categories.
+
 Return ONLY JSON:
 {{
   "summary_strategy": "one sentence describing summary angle and tone",
-  "skills_strategy": "how to emphasize relevant skills categories and line format",
+  "skills_tailoring": {{
+    "Languages": "reordering guidance only — all 11 languages must remain",
+    "Security Tooling": "reordering/additions guidance",
+    "AI/ML and Research": "reordering/additions guidance",
+    "Frameworks and Infrastructure": "reordering/additions guidance",
+    "DevOps and CI/CD": "reordering/additions guidance",
+    "Databases": "reordering guidance only — all 10 databases must remain"
+  }},
   "experience_focus": [
     {{
       "company": "University of California|Great Wolf Resorts|Simple.biz",
@@ -80,7 +99,18 @@ Output requirements:
 - Escape LaTeX special characters (for example '&' as '\\&', '_' as '\\_').
 - Do not output literal \\n tokens.
 - Do not output Python list syntax.
-- Keep content factual and grounded in provided source content only."""
+- Keep content factual and grounded in provided source content only.
+- TECHNICAL SKILLS — STRICT RULES:
+  - The baseline has EXACTLY 6 categories. Use these EXACT \\textbf names (do NOT rename):
+    1. Languages (11 items) — reorder only, keep ALL 11
+    2. Security Tooling — reorder, may add from inventory
+    3. AI/ML and Research — reorder, may add. Do NOT rename to "AI for SecOps"
+    4. Frameworks and Infrastructure — reorder, may add
+    5. DevOps and CI/CD — reorder, may add
+    6. Databases (10 items) — reorder only, keep ALL 10
+  - NEVER delete items from Languages or Databases. NEVER drop a category. NEVER merge categories.
+  - Tailoring means moving JD-relevant items to the FRONT of each line, not removing irrelevant ones.
+  - Example: if the JD emphasizes Rust, change Languages to: Rust, Python, C, C++, TypeScript, Java, SQL, PowerShell, Bash, Swift, Go"""
 
 _RESUME_QA_SYSTEM = f"""\
 You are a strict final quality reviewer for LaTeX resumes.
@@ -96,7 +126,13 @@ Task:
   The output body text must be within ±8% of the baseline's character count.
   If the draft is shorter than the baseline, expand bullets with additional grounded technical detail
   until the length matches. Do NOT trim or shorten content. Every bullet should be a substantial
-  sentence comparable in length to its baseline counterpart."""
+  sentence comparable in length to its baseline counterpart.
+- SKILLS CHECK (HARD GATE):
+  - Must have EXACTLY 6 categories with these EXACT \\textbf names: Languages, Security Tooling, AI/ML and Research, Frameworks and Infrastructure, DevOps and CI/CD, Databases.
+  - Languages must have ALL 11 from baseline (Python, C, C++, TypeScript, Java, SQL, PowerShell, Bash, Swift, Rust, Go). Order may change.
+  - Databases must have ALL 10 from baseline (PostgreSQL, MySQL, MongoDB, DynamoDB, SQLite, Redis, Snowflake, ClickHouse, Databricks, vector databases). Order may change.
+  - If any category is renamed (e.g., "AI for SecOps" instead of "AI/ML and Research"), fix the name back.
+  - If any items are missing from Languages or Databases, restore them."""
 
 _COVER_STRATEGY_SYSTEM = f"""\
 You are a cover-letter strategist creating a concise writing plan.
@@ -163,8 +199,8 @@ def _resume_strategy(
     user_prompt = (
         f"## Baseline Resume Template\n```latex\n{baseline}\n```\n\n"
         f"## Analysis Mapping\n{json.dumps(analysis, indent=2)}\n\n"
-        f"## Skills Inventory\n{json.dumps(skills_data['skills_inventory'], indent=2)}\n\n"
-        f"## Resume-Ready Skill Lines\n{json.dumps(skills_data['resume_ready_outputs'], indent=2)}\n\n"
+        f"## Skills Inventory (supplemental — these category names are NOT resume section names)\n"
+        f"{json.dumps(skills_data['skills_inventory'], indent=2)}\n\n"
         f"Target Role: {analysis.get('role_title', job.title)}\n"
         f"Target Company: {analysis.get('company_name', job.company)}\n"
         f"Summary Angle: {analysis.get('summary_angle', 'general security engineering')}\n"
@@ -245,8 +281,10 @@ def write_resume(
         f"## Baseline Resume Template\n```latex\n{baseline}\n```\n\n"
         f"## Analysis Mapping\n{json.dumps(analysis, indent=2)}\n\n"
         f"## Resume Strategy\n{json.dumps(strategy, indent=2)}\n\n"
-        f"## Skills Inventory\n{json.dumps(skills_data['skills_inventory'], indent=2)}\n\n"
-        f"## Resume-Ready Skill Lines\n{json.dumps(skills_data['resume_ready_outputs'], indent=2)}\n\n"
+        f"## Skills Inventory (supplemental context — these category names are NOT resume section names)\n"
+        f"Note: The resume's TECHNICAL SKILLS categories come from the baseline template above, NOT from this inventory.\n"
+        f"This inventory lists additional skills the candidate knows that you may ADD to resume categories if JD-relevant.\n"
+        f"{json.dumps(skills_data['skills_inventory'], indent=2)}\n\n"
         f"Target Role: {analysis.get('role_title', job.title)}\n"
         f"Target Company: {analysis.get('company_name', job.company)}\n"
         f"Summary Angle: {analysis.get('summary_angle', 'general security engineering')}\n"
@@ -292,7 +330,6 @@ def write_resume(
 
     qa_prompt = (
         f"## Baseline Resume Template\n```latex\n{baseline}\n```\n\n"
-        f"## Analysis Mapping\n{json.dumps(analysis, indent=2)}\n\n"
         f"## Resume Strategy\n{json.dumps(strategy, indent=2)}\n\n"
         f"## Draft Resume\n```latex\n{draft_tex}\n```\n\n"
         f"## STRUCTURAL CHECKS (fix these before anything else)\n"
@@ -384,9 +421,7 @@ def write_cover_letter(
 
     qa_prompt = (
         f"## Baseline Cover Template\n```latex\n{baseline}\n```\n\n"
-        f"## Analysis Mapping\n{json.dumps(analysis, indent=2)}\n\n"
         f"## Cover Strategy\n{json.dumps(strategy, indent=2)}\n\n"
-        f"## Candidate Persona\n{soul[:4000]}\n\n"
         f"## Draft Cover Letter\n```latex\n{draft_tex}\n```\n\n"
         f"## Reviewer Focus\n"
         f"- remove em/en dashes\n"

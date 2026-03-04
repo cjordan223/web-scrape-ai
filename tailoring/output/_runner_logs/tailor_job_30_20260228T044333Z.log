@@ -1,0 +1,30 @@
+
+Tailoring for: Infrastructure Security Engineer
+Company: simplyhired
+URL: https://simplyhired.com/job/Q-OrQG9IOwUlLSNaTuzFy3hGjBbKy9ci8Zaf5EDwcOzOgCNOHJncYQ
+Output: /Users/conner/Documents/SearXNG/tailoring/output/30-simplyhired-infrastructure-security-engineer-2026-02-27
+
+→ Analyzing JD against skills inventory...
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /Users/conner/Documents/SearXNG/tailoring/tailor/__main__.py:113 in run      │
+│                                                                              │
+│   110 │   │   │   analysis = analyze_job(job, output_dir, trace_recorder=tra │
+│   111 │   else:                                                              │
+│   112 │   │   typer.echo("→ Analyzing JD against skills inventory...")       │
+│ ❱ 113 │   │   analysis = analyze_job(job, output_dir, trace_recorder=trace_r │
+│   114 │   typer.echo(f"  Mapped {len(analysis.get('requirements', []))} requ │
+│   115 │   typer.echo(f"  Company: {analysis.get('company_name', '?')}")      │
+│   116 │   typer.echo(f"  Role: {analysis.get('role_title', '?')}\n")         │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/tailoring/tailor/analyzer.py:89 in           │
+│ analyze_job                                                                  │
+│                                                                              │
+│    86 │                                                                      │
+│    87 │   jd_text = job.jd_text or job.snippet or ""                         │
+│    88 │   if not jd_text.strip():                                            │
+│ ❱  89 │   │   raise ValueError(f"Job {job.id} has no JD text or snippet to a │
+│    90 │                                                                      │
+│    91 │   user_prompt = (                                                    │
+│    92 │   │   f"## Job Description\n"                                        │
+╰──────────────────────────────────────────────────────────────────────────────╯
+ValueError: Job 30 has no JD text or snippet to analyze

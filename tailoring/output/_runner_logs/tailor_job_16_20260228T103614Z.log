@@ -1,0 +1,50 @@
+
+Tailoring for: Application Security Engineer @ Perplexity
+Company: perplexity
+URL: https://jobs.ashbyhq.com/perplexity/63abf041-c7ba-4bd6-840c-1a4ac7925dee/application
+Output: /Users/conner/Documents/SearXNG/tailoring/output/16-perplexity-application-security-engineer-perplexity-2026-02-28
+
+→ Analyzing JD against skills inventory...
+02:36:14 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+02:36:42 INFO     tailor.ollama — LLM call complete (4789 chars returned)
+02:36:42 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/16-perplexity-application-security-engineer-perplexity-2026-02-28/analysis.json (9 requirements mapped)
+  Mapped 9 requirements
+  Company: perplexity
+  Role: Application Security Engineer
+
+→ Generating Resume...
+02:36:42 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+02:36:59 INFO     tailor.ollama — LLM call complete (1678 chars returned)
+02:36:59 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+02:37:41 INFO     tailor.ollama — LLM call complete (7639 chars returned)
+02:37:41 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+02:38:23 INFO     tailor.ollama — LLM call complete (7653 chars returned)
+02:38:23 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/16-perplexity-application-security-engineer-perplexity-2026-02-28/Conner_Jordan_Resume.tex (7641 chars)
+  Validating (attempt 1/3)...
+02:38:24 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/16-perplexity-application-security-engineer-perplexity-2026-02-28/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+02:38:24 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+02:38:36 INFO     tailor.ollama — LLM call complete (1327 chars returned)
+02:38:36 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+02:39:02 INFO     tailor.ollama — LLM call complete (4197 chars returned)
+02:39:02 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+02:39:27 INFO     tailor.ollama — LLM call complete (4043 chars returned)
+02:39:27 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/16-perplexity-application-security-engineer-perplexity-2026-02-28/Conner_Jordan_Cover_Letter.tex (4030 chars)
+  Validating (attempt 1/3)...
+02:39:28 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/16-perplexity-application-security-engineer-perplexity-2026-02-28/Conner_Jordan_Cover_Letter.pdf
+  ✗ Cover Letter failed: FAIL — char count ratio 0.89 (±0.1 allowed)
+  Regenerating with feedback...
+02:39:28 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+02:39:40 INFO     tailor.ollama — LLM call complete (1262 chars returned)
+02:39:40 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+02:40:08 INFO     tailor.ollama — LLM call complete (4436 chars returned)
+02:40:08 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+02:40:33 INFO     tailor.ollama — LLM call complete (4282 chars returned)
+02:40:33 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/16-perplexity-application-security-engineer-perplexity-2026-02-28/Conner_Jordan_Cover_Letter.tex (4269 chars)
+  Validating (attempt 2/3)...
+02:40:33 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/16-perplexity-application-security-engineer-perplexity-2026-02-28/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/16-perplexity-application-security-engineer-perplexity-2026-02-28

@@ -308,48 +308,23 @@ def chat_expect_json(
     try:
         return extract_json(raw)
     except Exception:
-        repair_trace = dict(trace or {})
-        repair_trace["phase"] = f"{repair_trace.get('phase', 'unknown')}_json_repair"
-        repair_source = raw[:6000]
-        repair_prompt = (
+        regen_trace = dict(trace or {})
+        regen_trace["phase"] = f"{regen_trace.get('phase', 'unknown')}_json_regen"
+        regen_prompt = (
             "Return one complete, valid JSON object only. "
-            "No prose, no markdown fences, no comments. "
-            "If any fields are unknown, use empty strings, empty lists, or null.\n\n"
-            "Target schema and constraints:\n"
+            "No prose, no markdown fences, no comments.\n\n"
+            "Follow this target schema and constraints exactly:\n"
             f"{system_prompt[:3000]}\n\n"
-            "Model output to normalize (may be malformed/truncated):\n"
-            f"{repair_source}"
+            "Now solve the original task again and emit valid JSON.\n\n"
+            f"{user_prompt[:12000]}"
         )
-        repaired = chat(
-            system_prompt="You are a strict JSON formatter.",
-            user_prompt=repair_prompt,
-            max_tokens=min(max_tokens, 2200),
+        regenerated = chat(
+            system_prompt="You are a strict JSON generator.",
+            user_prompt=regen_prompt,
+            max_tokens=max_tokens,
             temperature=0.0,
             json_mode=True,
-            trace=repair_trace,
+            trace=regen_trace,
             trace_recorder=trace_recorder,
         )
-        try:
-            return extract_json(repaired)
-        except Exception:
-            # Final fallback: regenerate a fresh JSON answer from the original task.
-            regen_trace = dict(trace or {})
-            regen_trace["phase"] = f"{regen_trace.get('phase', 'unknown')}_json_regen"
-            regen_prompt = (
-                "Return one complete, valid JSON object only. "
-                "No prose, no markdown fences, no comments.\n\n"
-                "Follow this target schema and constraints exactly:\n"
-                f"{system_prompt[:3000]}\n\n"
-                "Now solve the original task again and emit valid JSON.\n\n"
-                f"{user_prompt[:12000]}"
-            )
-            regenerated = chat(
-                system_prompt="You are a strict JSON generator.",
-                user_prompt=regen_prompt,
-                max_tokens=max_tokens,
-                temperature=0.0,
-                json_mode=True,
-                trace=regen_trace,
-                trace_recorder=trace_recorder,
-            )
-            return extract_json(regenerated)
+        return extract_json(regenerated)

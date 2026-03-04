@@ -1,0 +1,39 @@
+
+Tailoring for: Job Application for Android SDK Engineer at Embrace
+Company: embrace
+URL: https://boards.greenhouse.io/embrace/jobs/5810576004
+Output: /Users/conner/Documents/SearXNG/tailoring/output/24-embrace-job-application-for-android-sdk-engineer-at-embrace-2026-02-28
+
+→ Analyzing JD against skills inventory...
+15:01:06 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:01:28 INFO     tailor.ollama — LLM call complete (3620 chars returned)
+15:01:28 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/24-embrace-job-application-for-android-sdk-engineer-at-embrace-2026-02-28/analysis.json (7 requirements mapped)
+  Mapped 7 requirements
+  Company: embrace
+  Role: Android SDK Engineer
+
+→ Generating Resume...
+15:01:28 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+15:01:54 INFO     tailor.ollama — LLM call complete (3340 chars returned)
+15:01:54 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+15:02:41 INFO     tailor.ollama — LLM call complete (7945 chars returned)
+15:02:41 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+15:03:27 INFO     tailor.ollama — LLM call complete (7955 chars returned)
+15:03:27 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/24-embrace-job-application-for-android-sdk-engineer-at-embrace-2026-02-28/Conner_Jordan_Resume.tex (7943 chars)
+  Validating (attempt 1/3)...
+15:03:28 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/24-embrace-job-application-for-android-sdk-engineer-at-embrace-2026-02-28/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+15:03:28 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+15:03:42 INFO     tailor.ollama — LLM call complete (1838 chars returned)
+15:03:42 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:04:10 INFO     tailor.ollama — LLM call complete (4514 chars returned)
+15:04:10 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:04:35 INFO     tailor.ollama — LLM call complete (4359 chars returned)
+15:04:35 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/24-embrace-job-application-for-android-sdk-engineer-at-embrace-2026-02-28/Conner_Jordan_Cover_Letter.tex (4346 chars)
+  Validating (attempt 1/3)...
+15:04:36 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/24-embrace-job-application-for-android-sdk-engineer-at-embrace-2026-02-28/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/24-embrace-job-application-for-android-sdk-engineer-at-embrace-2026-02-28

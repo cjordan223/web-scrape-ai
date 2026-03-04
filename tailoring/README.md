@@ -58,12 +58,16 @@ Common tuning knobs:
 
 Detailed gate behavior: [`QUALITY_BAR.md`](QUALITY_BAR.md)
 
-## LLM Endpoint Overrides
+## LLM Endpoint
+
+The engine auto-discovers the first loaded model from `/v1/models` at runtime. To pin a specific model:
 
 ```bash
 export TAILOR_LMSTUDIO_URL=http://localhost:1234/v1/chat/completions
-export TAILOR_LMSTUDIO_MODEL=qwen/qwen3-coder-next
+export TAILOR_LMSTUDIO_MODEL=qwen/qwen3-coder-next   # omit to auto-discover
 ```
+
+The dashboard Tailoring view includes a model switcher panel that loads/unloads LM Studio models directly.
 
 ## Key Files
 

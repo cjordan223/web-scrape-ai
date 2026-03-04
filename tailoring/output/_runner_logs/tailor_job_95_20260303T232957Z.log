@@ -1,0 +1,39 @@
+
+Tailoring for: Remote Jobs at OpenAI | Working Nomads
+Company: workingnomads
+URL: https://workingnomads.com/remote-company/openai
+Output: /Users/conner/Documents/SearXNG/tailoring/output/95-workingnomads-remote-jobs-at-openai-working-nomads-2026-03-03
+
+→ Analyzing JD against skills inventory...
+15:29:57 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:30:15 INFO     tailor.ollama — LLM call complete (2739 chars returned)
+15:30:15 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/95-workingnomads-remote-jobs-at-openai-working-nomads-2026-03-03/analysis.json (6 requirements mapped)
+  Mapped 6 requirements
+  Company: OpenAI
+  Role: Security Engineer - Insider Threat Detection & Response
+
+→ Generating Resume...
+15:30:15 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+15:30:38 INFO     tailor.ollama — LLM call complete (2743 chars returned)
+15:30:38 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+15:31:25 INFO     tailor.ollama — LLM call complete (8408 chars returned)
+15:31:25 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+15:32:13 INFO     tailor.ollama — LLM call complete (8281 chars returned)
+15:32:13 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/95-workingnomads-remote-jobs-at-openai-working-nomads-2026-03-03/Conner_Jordan_Resume.tex (8269 chars)
+  Validating (attempt 1/3)...
+15:32:13 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/95-workingnomads-remote-jobs-at-openai-working-nomads-2026-03-03/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+15:32:13 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+15:32:25 INFO     tailor.ollama — LLM call complete (1366 chars returned)
+15:32:25 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:32:52 INFO     tailor.ollama — LLM call complete (4613 chars returned)
+15:32:52 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:33:17 INFO     tailor.ollama — LLM call complete (4450 chars returned)
+15:33:17 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/95-workingnomads-remote-jobs-at-openai-working-nomads-2026-03-03/Conner_Jordan_Cover_Letter.tex (4437 chars)
+  Validating (attempt 1/3)...
+15:33:18 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/95-workingnomads-remote-jobs-at-openai-working-nomads-2026-03-03/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/95-workingnomads-remote-jobs-at-openai-working-nomads-2026-03-03

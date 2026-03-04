@@ -1,0 +1,39 @@
+
+Tailoring for: Customer Reliability EngineerGrowth • AMER • Full time • Remote
+Company: supabase
+URL: https://jobs.ashbyhq.com/supabase/26ad8432-a03e-40f9-a4cc-05344ceedfa3
+Output: /Users/conner/Documents/SearXNG/tailoring/output/84-supabase-customer-reliability-engineergrowth-amer-full-time-remote-2026-03-02
+
+→ Analyzing JD against skills inventory...
+16:43:45 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+16:44:20 INFO     tailor.ollama — LLM call complete (6428 chars returned)
+16:44:20 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/84-supabase-customer-reliability-engineergrowth-amer-full-time-remote-2026-03-02/analysis.json (12 requirements mapped)
+  Mapped 12 requirements
+  Company: supabase
+  Role: Customer Reliability Engineer
+
+→ Generating Resume...
+16:44:20 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+16:44:45 INFO     tailor.ollama — LLM call complete (2922 chars returned)
+16:44:45 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+16:45:32 INFO     tailor.ollama — LLM call complete (7747 chars returned)
+16:45:32 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+16:46:17 INFO     tailor.ollama — LLM call complete (7761 chars returned)
+16:46:17 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/84-supabase-customer-reliability-engineergrowth-amer-full-time-remote-2026-03-02/Conner_Jordan_Resume.tex (7749 chars)
+  Validating (attempt 1/3)...
+16:46:18 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/84-supabase-customer-reliability-engineergrowth-amer-full-time-remote-2026-03-02/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+16:46:18 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+16:46:34 INFO     tailor.ollama — LLM call complete (1883 chars returned)
+16:46:34 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+16:47:02 INFO     tailor.ollama — LLM call complete (4548 chars returned)
+16:47:02 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+16:47:27 INFO     tailor.ollama — LLM call complete (4375 chars returned)
+16:47:27 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/84-supabase-customer-reliability-engineergrowth-amer-full-time-remote-2026-03-02/Conner_Jordan_Cover_Letter.tex (4364 chars)
+  Validating (attempt 1/3)...
+16:47:28 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/84-supabase-customer-reliability-engineergrowth-amer-full-time-remote-2026-03-02/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/84-supabase-customer-reliability-engineergrowth-amer-full-time-remote-2026-03-02

@@ -1,0 +1,39 @@
+
+Tailoring for: Senior Developer, RustTechnology • Remote (United States | Canada) • Full time • Remote
+Company: 1password
+URL: https://jobs.ashbyhq.com/1password/a6b45c96-d055-4dbd-844f-674b4c41298f
+Output: /Users/conner/Documents/SearXNG/tailoring/output/83-1password-senior-developer-rusttechnology-remote-united-states-canada-full-ti
+
+→ Analyzing JD against skills inventory...
+16:47:29 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+16:47:55 INFO     tailor.ollama — LLM call complete (4367 chars returned)
+16:47:55 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/83-1password-senior-developer-rusttechnology-remote-united-states-canada-full-ti/analysis.json (8 requirements mapped)
+  Mapped 8 requirements
+  Company: 1Password
+  Role: Senior Developer, Rust
+
+→ Generating Resume...
+16:47:55 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+16:48:21 INFO     tailor.ollama — LLM call complete (3221 chars returned)
+16:48:21 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+16:49:08 INFO     tailor.ollama — LLM call complete (8330 chars returned)
+16:49:08 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+16:49:55 INFO     tailor.ollama — LLM call complete (8324 chars returned)
+16:49:55 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/83-1password-senior-developer-rusttechnology-remote-united-states-canada-full-ti/Conner_Jordan_Resume.tex (8312 chars)
+  Validating (attempt 1/3)...
+16:49:56 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/83-1password-senior-developer-rusttechnology-remote-united-states-canada-full-ti/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+16:49:56 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+16:50:11 INFO     tailor.ollama — LLM call complete (1815 chars returned)
+16:50:11 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+16:50:39 INFO     tailor.ollama — LLM call complete (4620 chars returned)
+16:50:39 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+16:51:04 INFO     tailor.ollama — LLM call complete (4444 chars returned)
+16:51:04 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/83-1password-senior-developer-rusttechnology-remote-united-states-canada-full-ti/Conner_Jordan_Cover_Letter.tex (4431 chars)
+  Validating (attempt 1/3)...
+16:51:05 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/83-1password-senior-developer-rusttechnology-remote-united-states-canada-full-ti/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/83-1password-senior-developer-rusttechnology-remote-united-states-canada-full-ti

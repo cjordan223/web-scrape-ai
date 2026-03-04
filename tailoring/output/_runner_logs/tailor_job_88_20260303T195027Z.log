@@ -1,0 +1,39 @@
+
+Tailoring for: FinOps Engineer • Remote • Full time
+Company: supabase
+URL: https://jobs.ashbyhq.com/supabase/5342dc96-7ee5-46fe-bb55-1b52bacfd40f
+Output: /Users/conner/Documents/SearXNG/tailoring/output/88-supabase-finops-engineer-remote-full-time-2026-03-03
+
+→ Analyzing JD against skills inventory...
+11:50:27 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+11:50:58 INFO     tailor.ollama — LLM call complete (5233 chars returned)
+11:50:58 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/88-supabase-finops-engineer-remote-full-time-2026-03-03/analysis.json (11 requirements mapped)
+  Mapped 11 requirements
+  Company: supabase
+  Role: FinOps Engineer
+
+→ Generating Resume...
+11:50:58 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+11:51:24 INFO     tailor.ollama — LLM call complete (3130 chars returned)
+11:51:24 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+11:52:12 INFO     tailor.ollama — LLM call complete (8281 chars returned)
+11:52:12 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+11:52:59 INFO     tailor.ollama — LLM call complete (8221 chars returned)
+11:52:59 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/88-supabase-finops-engineer-remote-full-time-2026-03-03/Conner_Jordan_Resume.tex (8209 chars)
+  Validating (attempt 1/3)...
+11:53:00 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/88-supabase-finops-engineer-remote-full-time-2026-03-03/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+11:53:00 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+11:53:14 INFO     tailor.ollama — LLM call complete (1507 chars returned)
+11:53:14 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+11:53:42 INFO     tailor.ollama — LLM call complete (4542 chars returned)
+11:53:42 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+11:54:07 INFO     tailor.ollama — LLM call complete (4400 chars returned)
+11:54:07 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/88-supabase-finops-engineer-remote-full-time-2026-03-03/Conner_Jordan_Cover_Letter.tex (4387 chars)
+  Validating (attempt 1/3)...
+11:54:08 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/88-supabase-finops-engineer-remote-full-time-2026-03-03/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/88-supabase-finops-engineer-remote-full-time-2026-03-03

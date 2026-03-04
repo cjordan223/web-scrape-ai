@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import typer
@@ -27,6 +28,22 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("tailor")
+
+
+def _allocate_output_dir(base_dir: Path) -> Path:
+    """Return a new output directory without clobbering prior runs."""
+    if not base_dir.exists():
+        base_dir.mkdir(parents=True, exist_ok=False)
+        return base_dir
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    candidate = base_dir.parent / f"{base_dir.name}-{stamp}"
+    n = 1
+    while candidate.exists():
+        candidate = base_dir.parent / f"{base_dir.name}-{stamp}-{n}"
+        n += 1
+    candidate.mkdir(parents=True, exist_ok=False)
+    return candidate
 
 
 @app.command()
@@ -63,13 +80,13 @@ def run(
     typer.echo(f"Company: {job.company}")
     typer.echo(f"URL: {job.url}")
 
-    output_dir = cfg.OUTPUT_DIR / job.slug
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = _allocate_output_dir(cfg.OUTPUT_DIR / job.slug)
     typer.echo(f"Output: {output_dir}\n")
     trace_recorder = TraceRecorder(
         output_dir,
         run_context={
-            "run_slug": job.slug,
+            "run_slug": output_dir.name,
+            "job_slug": job.slug,
             "job_id": job.id,
             "job_title": job.title,
         },
@@ -79,6 +96,7 @@ def run(
     meta = {
         "job_id": job.id, "url": job.url, "title": job.title,
         "company": job.company, "board": job.board,
+        "job_slug": job.slug, "run_slug": output_dir.name,
     }
     (output_dir / "meta.json").write_text(json.dumps(meta, indent=2))
 

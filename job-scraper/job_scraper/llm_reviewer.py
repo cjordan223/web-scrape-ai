@@ -115,6 +115,9 @@ def llm_review(
         content = resp.json()["choices"][0]["message"]["content"]
         logger.info("LLM Raw Response for '%s':\n%s", title, content)
         passed, reason = _parse_response(content)
+        if not passed and reason.startswith("unparseable") and config.fail_open:
+            passed = True
+            reason = f"fail_open: {reason}"
         return FilterVerdict(stage="llm_review", passed=passed, reason=reason)
 
     except Exception as exc:

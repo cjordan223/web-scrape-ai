@@ -1,0 +1,39 @@
+
+Tailoring for: Senior Customer Success Engineer, AdvisoryCustomer Success • San Francisco, CA or Remote (USA) • Full time • Remote $135K – $165K • Offers Equity • Offers Bonus
+Company: fieldguide
+URL: https://jobs.ashbyhq.com/fieldguide/8ac047f9-88e7-4c0c-91a2-681202a27ae8
+Output: /Users/conner/Documents/SearXNG/tailoring/output/85-fieldguide-senior-customer-success-engineer-advisorycustomer-success-san-fran
+
+→ Analyzing JD against skills inventory...
+16:40:03 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+16:40:36 INFO     tailor.ollama — LLM call complete (5732 chars returned)
+16:40:36 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/85-fieldguide-senior-customer-success-engineer-advisorycustomer-success-san-fran/analysis.json (11 requirements mapped)
+  Mapped 11 requirements
+  Company: fieldguide
+  Role: Senior Customer Success Engineer, Advisory
+
+→ Generating Resume...
+16:40:36 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+16:41:03 INFO     tailor.ollama — LLM call complete (3383 chars returned)
+16:41:03 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+16:41:50 INFO     tailor.ollama — LLM call complete (8199 chars returned)
+16:41:50 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+16:42:36 INFO     tailor.ollama — LLM call complete (8176 chars returned)
+16:42:36 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/85-fieldguide-senior-customer-success-engineer-advisorycustomer-success-san-fran/Conner_Jordan_Resume.tex (8164 chars)
+  Validating (attempt 1/3)...
+16:42:37 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/85-fieldguide-senior-customer-success-engineer-advisorycustomer-success-san-fran/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+16:42:37 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+16:42:51 INFO     tailor.ollama — LLM call complete (1552 chars returned)
+16:42:51 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+16:43:18 INFO     tailor.ollama — LLM call complete (4791 chars returned)
+16:43:18 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+16:43:44 INFO     tailor.ollama — LLM call complete (4581 chars returned)
+16:43:44 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/85-fieldguide-senior-customer-success-engineer-advisorycustomer-success-san-fran/Conner_Jordan_Cover_Letter.tex (4568 chars)
+  Validating (attempt 1/3)...
+16:43:45 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/85-fieldguide-senior-customer-success-engineer-advisorycustomer-success-san-fran/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/85-fieldguide-senior-customer-success-engineer-advisorycustomer-success-san-fran

@@ -1,0 +1,38 @@
+{
+  "summary_strategy": "Position Conner as a builder-focused Application Security Engineer who ships production-grade security systems by embedding controls into CI/CD, automating remediation at scale, and translating compliance requirements into operational runbooks \u2014 matching EasyPost\u2019s pragmatic, deployable-controls tone.",
+  "skills_tailoring": {
+    "Languages": "Reorder to prioritize Python, Rust, Go (explicitly called out in JD), then keep all 11 languages \u2014 drop C/C++ from top placement but retain them at end since JD emphasizes Python/Rust/Go proficiency",
+    "Security Tooling": "Reorder to highlight vulnerability remediation automation, endpoint management (EDR/XDR), SOAR, and patch orchestration first; add CrowdStrike Falcon/RTR and Defender XDR from Skills Inventory as they\u2019re directly relevant to endpoint hardening workflows",
+    "AI/ML and Research": "Rename section title to 'AI for SecOps' only if allowed \u2014 but per instructions, must keep EXACT name 'AI/ML and Research'; reorder to lead with RAG pipelines, LangChain, vector databases, NLP for security context, and retrieval tuning \u2014 align with JD\u2019s 'Intelligent Notifications' and 'AI governance' requirements",
+    "Frameworks and Infrastructure": "Reorder to prioritize Flask, FastAPI (for API-driven security tooling), then Docker, React.js \u2014 highlight internal tooling use cases matching JD\u2019s 'Product Innovation' and 'Web and Internal Security Tooling'",
+    "DevOps and CI/CD": "Reorder to lead with CI/CD pipelines, Infrastructure as Code, release automation, and container orchestration \u2014 explicitly include GitHub Actions/GitLab CI from Skills Inventory to match 'DevSecOps Adoption' requirement",
+    "Databases": "Reorder PostgreSQL, MySQL, DynamoDB first (common in cloud-native apps), then vector databases and Snowflake \u2014 keep all 10 as required; emphasize data pipelines for security analytics where relevant"
+  },
+  "experience_focus": [
+    {
+      "company": "University of California, Office of the President",
+      "must_highlight": "deployable security controls at scale, API-driven vulnerability response automation, AI/ML-powered SecOps tooling with measurable operational impact",
+      "safe_metrics_to_keep": "7,000+ endpoints, 500 drifted assets, 2,900-user identity portal",
+      "claims_to_avoid": "no vague claims like 'transformed security posture' \u2014 stick to concrete actions: built, architected, engineered, implemented"
+    },
+    {
+      "company": "Great Wolf Resorts",
+      "must_highlight": "cross-platform endpoint automation (macOS/Windows), PowerShell/Python automation at scale, phishing analytics with compliance outcomes",
+      "safe_metrics_to_keep": "10,000+ devices, 200 hours saved annually, 500 hours reduced workload, 25 percent compliance improvement",
+      "claims_to_avoid": "no speculative ownership like 'owned security outcomes' \u2014 use 'developed', 'built', 'engineered'"
+    },
+    {
+      "company": "Simple.biz",
+      "must_highlight": "CI/CD-integrated security gates, automated accessibility testing (WCAG), cross-browser validation \u2014 tie directly to 'DevSecOps Adoption' and 'Product Innovation'",
+      "safe_metrics_to_keep": "30 percent reduction in user-reported issues",
+      "claims_to_avoid": "no inflated scope like 'enterprise-wide tooling' \u2014 keep freelance context accurate"
+    }
+  ],
+  "risk_controls": [
+    "Never invent metrics beyond those explicitly listed in experience (e.g., no 'improved MTTR by X%' unless stated)",
+    "Never use em dashes, en dashes, or ellipses \u2014 replace with commas or parentheses",
+    "Avoid phrases like 'leveraged', 'synergized', 'holistic' \u2014 use active verbs: built, engineered, implemented, architected",
+    "Do not add responsibilities or tools not present in baseline resume or Skills Inventory mapping \u2014 e.g., do not invent Terraform/Ansible unless implied by 'Infrastructure as Code'",
+    "Do not rename sections or categories \u2014 keep 'AI/ML and Research' verbatim"
+  ]
+}

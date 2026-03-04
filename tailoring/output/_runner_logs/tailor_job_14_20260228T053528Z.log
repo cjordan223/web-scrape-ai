@@ -1,0 +1,39 @@
+
+Tailoring for: Job Application for Solutions Engineer, PerfectScale by DoiT at DoiT
+Company: doitintl
+URL: https://boards.greenhouse.io/doitintl/jobs/7643898003
+Output: /Users/conner/Documents/SearXNG/tailoring/output/14-doitintl-job-application-for-solutions-engineer-perfectscale-by-doit-at-doit-
+
+→ Analyzing JD against skills inventory...
+21:35:29 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+21:35:55 INFO     tailor.ollama — LLM call complete (4592 chars returned)
+21:35:55 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/14-doitintl-job-application-for-solutions-engineer-perfectscale-by-doit-at-doit-/analysis.json (8 requirements mapped)
+  Mapped 8 requirements
+  Company: doitintl
+  Role: Solutions Engineer, PerfectScale by DoiT
+
+→ Generating Resume...
+21:35:55 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+21:36:13 INFO     tailor.ollama — LLM call complete (1818 chars returned)
+21:36:13 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+21:36:56 INFO     tailor.ollama — LLM call complete (7913 chars returned)
+21:36:56 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+21:37:40 INFO     tailor.ollama — LLM call complete (7899 chars returned)
+21:37:40 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/14-doitintl-job-application-for-solutions-engineer-perfectscale-by-doit-at-doit-/Conner_Jordan_Resume.tex (7887 chars)
+  Validating (attempt 1/3)...
+21:37:40 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/14-doitintl-job-application-for-solutions-engineer-perfectscale-by-doit-at-doit-/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+21:37:40 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+21:37:57 INFO     tailor.ollama — LLM call complete (1933 chars returned)
+21:37:57 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+21:38:24 INFO     tailor.ollama — LLM call complete (4624 chars returned)
+21:38:24 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+21:38:50 INFO     tailor.ollama — LLM call complete (4448 chars returned)
+21:38:50 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/14-doitintl-job-application-for-solutions-engineer-perfectscale-by-doit-at-doit-/Conner_Jordan_Cover_Letter.tex (4435 chars)
+  Validating (attempt 1/3)...
+21:38:51 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/14-doitintl-job-application-for-solutions-engineer-perfectscale-by-doit-at-doit-/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/14-doitintl-job-application-for-solutions-engineer-perfectscale-by-doit-at-doit-

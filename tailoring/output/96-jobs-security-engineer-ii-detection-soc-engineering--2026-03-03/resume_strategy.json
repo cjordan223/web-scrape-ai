@@ -1,0 +1,37 @@
+{
+  "summary_strategy": "Reframe summary around building deployable detection systems and SOC-enabling automation, emphasizing operational impact (MTTR reduction, false positive reduction) over theoretical security concepts",
+  "skills_tailoring": {
+    "Languages": "Reorder to prioritize Python, PowerShell, Bash, Go, and Rust first (most relevant for SOC automation and tooling), followed by Java, C, C++, TypeScript, SQL (for internal tooling and data pipelines), then Swift (least relevant for this role)",
+    "Security Tooling": "Reorder to highlight CrowdStrike Falcon, Defender XDR, SIEM/EDR/XDR/SOAR first; add 'CrowdStrike RTR' explicitly as a distinct item since it's used in Great Wolf experience; group endpoint management and vulnerability management together under operational tooling",
+    "AI/ML and Research": "Rename to 'Security AI & Analytics' only if absolutely required \u2014 but per instructions, must keep exact name 'AI/ML and Research'; reorder to surface RAG pipelines, LangChain, vector databases first; add 'embeddings-based retrieval' and 'retrieval tuning' as explicit items from inventory",
+    "Frameworks and Infrastructure": "Reorder to prioritize Flask, FastAPI, Docker first (for internal tooling and containerized security services); add 'MCP/FastMCP' explicitly; keep React.js/Next.js but deprioritize behind backend frameworks",
+    "DevOps and CI/CD": "Reorder to emphasize AWS/GCP/Azure, container orchestration (ECS), secrets management first; add 'Terraform', 'Ansible' explicitly from inventory; keep CI/CD pipelines but reorder after cloud-native foundations",
+    "Databases": "Reorder to prioritize PostgreSQL, Snowflake, vector databases first (for log analytics and RAG); keep all 10 items; add 'Databricks' before ClickHouse if vector work is emphasized"
+  },
+  "experience_focus": [
+    {
+      "company": "University of California, Office of the President",
+      "must_highlight": "Coraline multi-source ingestion and confidence-matching (directly maps to SIEM/EDR correlation logic), AI/ML-powered RAG chatbot (for alert enrichment and SOC knowledge retrieval), vulnerability response automation for macOS/Windows fleets",
+      "safe_metrics_to_keep": "7,000+ endpoints, 500 drifted assets, 2,900-user identity portal",
+      "claims_to_avoid": "Do not claim SOC on-call rotation or incident response ownership unless explicitly stated; avoid 'led' for cross-functional work \u2014 use 'collaborated with IAM/Networking teams to implement'"
+    },
+    {
+      "company": "Great Wolf Resorts",
+      "must_highlight": "CrowdStrike RTR PowerShell tooling (endpoint remediation), Microsoft Graph API automation for distribution lists, Pandas/NumPy log analysis in Rapid7 (anomaly detection), KnowBe4 phishing analysis with 25% compliance lift",
+      "safe_metrics_to_keep": "10,000+ devices, 200 hours saved annually, 500 hours reduced workload",
+      "claims_to_avoid": "Do not claim 'SOC escalation point' or 'incident response leadership'; avoid conflating Great Wolf support role with detection engineering responsibilities"
+    },
+    {
+      "company": "Simple.biz",
+      "must_highlight": "CI/CD pipeline security, Selenium accessibility testing (WCAG), cross-browser test automation reducing user-reported issues",
+      "safe_metrics_to_keep": "30 percent reduction in user-reported issues",
+      "claims_to_avoid": "Do not overstate security scope \u2014 frame as 'secure releases' and 'compliance-by-default', not detection engineering"
+    }
+  ],
+  "risk_controls": [
+    "Never invent metrics beyond those explicitly stated (e.g., no 'improved detection accuracy by X%'),",
+    "Never add responsibilities not supported in baseline resume (e.g., no SOC on-call, no people management),",
+    "Replace vague phrases like 'leveraged' or 'synergized' with concrete verbs: built, engineered, automated, integrated, tuned",
+    "Do not rename or merge skill categories \u2014 preserve exact section headers and item counts"
+  ]
+}

@@ -1,0 +1,39 @@
+
+Tailoring for: Product Security Engineer - Myworkdayjobs.com
+Company: inmar
+URL: https://inmar.wd1.myworkdayjobs.com/en-US/inmarcareers/job/Product-Security-Engineer_JY2627039
+Output: /Users/conner/Documents/SearXNG/tailoring/output/27-inmar-product-security-engineer---myworkdayjobs-com-2026-02-28
+
+→ Analyzing JD against skills inventory...
+14:50:37 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+14:51:09 INFO     tailor.ollama — LLM call complete (5965 chars returned)
+14:51:09 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/27-inmar-product-security-engineer---myworkdayjobs-com-2026-02-28/analysis.json (12 requirements mapped)
+  Mapped 12 requirements
+  Company: inmar
+  Role: Product Security Engineer
+
+→ Generating Resume...
+14:51:09 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+14:51:36 INFO     tailor.ollama — LLM call complete (3354 chars returned)
+14:51:36 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+14:52:24 INFO     tailor.ollama — LLM call complete (8144 chars returned)
+14:52:24 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+14:53:12 INFO     tailor.ollama — LLM call complete (8145 chars returned)
+14:53:12 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/27-inmar-product-security-engineer---myworkdayjobs-com-2026-02-28/Conner_Jordan_Resume.tex (8133 chars)
+  Validating (attempt 1/3)...
+14:53:12 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/27-inmar-product-security-engineer---myworkdayjobs-com-2026-02-28/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+14:53:12 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+14:53:27 INFO     tailor.ollama — LLM call complete (1571 chars returned)
+14:53:27 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+14:53:55 INFO     tailor.ollama — LLM call complete (4549 chars returned)
+14:53:55 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+14:54:20 INFO     tailor.ollama — LLM call complete (4394 chars returned)
+14:54:20 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/27-inmar-product-security-engineer---myworkdayjobs-com-2026-02-28/Conner_Jordan_Cover_Letter.tex (4381 chars)
+  Validating (attempt 1/3)...
+14:54:21 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/27-inmar-product-security-engineer---myworkdayjobs-com-2026-02-28/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/27-inmar-product-security-engineer---myworkdayjobs-com-2026-02-28

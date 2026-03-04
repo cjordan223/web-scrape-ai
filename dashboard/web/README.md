@@ -28,7 +28,7 @@ Dev server runs on `:5173` and calls backend API on `:8899`.
 npm run build
 ```
 
-Build output goes to `dist/` and is served by backend static catch-all.
+Build output goes to `dist/` and is served by the backend static catch-all.
 
 ## UI Architecture
 
@@ -59,8 +59,8 @@ Legacy routes are redirected.
 ```text
 src/
 ├── App.tsx                            # Router map, lazy routes, redirects
-├── api.ts                             # API client
-├── utils.ts                           # Shared format helpers
+├── api.ts                             # API client (all backend calls)
+├── utils.ts                           # Shared format helpers (fmt, timeAgo, etc.)
 ├── components/
 │   ├── layout/
 │   │   └── AppShell.tsx               # Domain/workflow navigation + breadcrumbs
@@ -72,7 +72,8 @@ src/
 │   │   ├── FilterToolbar.tsx
 │   │   ├── LogPanel.tsx
 │   │   └── RunTimelineChart.tsx
-│   └── VerdictChips.tsx
+│   ├── Sidebar.tsx                    # Navigation sidebar
+│   └── VerdictChips.tsx               # Filter verdict chip component
 ├── views/domains/
 │   ├── home/
 │   ├── scraping/
@@ -82,22 +83,11 @@ src/
     └── global.css
 ```
 
-## API Groups Used by Web
+## API Groups Used
 
 - Overview: `/api/overview`
-- Scraping: `/api/jobs`, `/api/rejected`, `/api/runs`, `/api/filters/stats`, `/api/dedup/stats`, `/api/growth`
-- Ops: `/api/db/tables`, `/api/db/table/{name}`, `/api/db/query`, `/api/schedules`
-- Optional DB admin: `/api/db/admin/status`, `/api/db/admin/action`
+- Scraping: `/api/jobs`, `/api/rejected`, `/api/runs`, `/api/filters/stats`, `/api/dedup/stats`, `/api/growth`, `/api/scrape/run`, `/api/scrape/runner/status`
 - Tailoring: `/api/tailoring/*`, `/api/packages/*`
+- LLM: `/api/llm/status`, `/api/llm/models`, `/api/llm/models/load`, `/api/llm/models/unload`
+- Ops: `/api/db/tables`, `/api/db/table/{name}`, `/api/db/query`, `/api/schedules`, `/api/ops/status`, `/api/ops/action`
 - Runtime controls: `/api/runtime-controls`
-- LLM status: `/api/llm/status`
-
-## DB Admin Safety
-
-DB admin actions (truncate/drop tables) are hidden/disabled unless backend sets:
-
-```bash
-export DASHBOARD_ENABLE_DB_ADMIN=1
-```
-
-Even when enabled, actions require explicit confirmation phrase entry in UI.

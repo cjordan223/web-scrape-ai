@@ -1,6 +1,6 @@
 FILTER TUNING NOTES
 ===================
-Last updated: 2026-02-27
+Last updated: 2026-03-01
 
 PURPOSE
 -------
@@ -52,9 +52,14 @@ filter.require_remote
 
 filter.require_known_board
   - If true, unknown board domains are rejected.
+  - Default: false (relaxed 2026-02-24).
 
 filter.max_experience_years
   - Tunes experience matching strictness.
+
+filter.seen_ttl_days
+  - URLs older than this in seen_urls are re-eligible for processing.
+  - Default: 14. Set to 0 or omit to disable TTL (permanent dedup).
 
 filter.score_accept_threshold / score_reject_threshold
   - Controls pass/review/reject banding.
@@ -63,7 +68,7 @@ llm_review.enabled
   - Enables/disables LLM review stage.
 
 llm_review.fail_open
-  - If true, LLM outages do not block jobs.
+  - If true, LLM outages AND unparseable responses do not block jobs.
 
 TUNING WORKFLOW
 ---------------

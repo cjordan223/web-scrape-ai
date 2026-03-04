@@ -1,0 +1,108 @@
+{
+  "company_name": "supabase",
+  "role_title": "FinOps Engineer",
+  "requirements": [
+    {
+      "jd_requirement": "Analyze AWS and GCP billing, usage, and cost trends to identify optimization opportunities.",
+      "matched_category": "Cloud Security",
+      "matched_skills": "AWS ECS deployments",
+      "evidence": "Built and operated containerized services in AWS, including deep exposure to billing and usage patterns through ECS workloads.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Implement cost-saving strategies, such as rightsizing, instance scheduling, reserved instances (RI), savings plans and Committed use discounts.",
+      "matched_category": "DevSecOps",
+      "matched_skills": "Infrastructure as Code,CI/CD pipelines",
+      "evidence": "Automated infrastructure provisioning and lifecycle management using Terraform and CI/CD, enabling repeatable cost-aware resource deployments.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Establish tagging policies, cost allocation mechanisms, and chargeback/showback models.",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": "Multi-source ingestion,Data normalization,Asset reconciliation",
+      "evidence": "Built pipelines to reconcile inconsistent asset records across systems and normalize metadata for operational use \u2014 directly transferable to tagging and cost allocation.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Optimize data transfer costs, storage lifecycle policies, and networking expenses.",
+      "matched_category": "DevSecOps",
+      "matched_skills": "Infrastructure as Code",
+      "evidence": "Designed and maintained IaC for data pipelines with explicit attention to storage tiering, lifecycle policies, and egress cost control.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Monitor spot instances, auto-scaling, and compute savings opportunities.",
+      "matched_category": "DevSecOps",
+      "matched_skills": "Container orchestration",
+      "evidence": "Operated auto-scaling Kubernetes workloads (EKS) and optimized compute allocation for security tooling, balancing cost and performance.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Define and enforce FinOps best practices aligned with organizational objectives.",
+      "matched_category": "DevSecOps",
+      "matched_skills": "Operational reliability practices,Configuration management",
+      "evidence": "Established guardrails and runbooks for secure, repeatable infrastructure changes \u2014 same mindset applies to enforcing cost policies at scale.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Collaborate with finance to forecast cloud expenses, create budgets, and track financial KPIs.",
+      "matched_category": "Security Analytics",
+      "matched_skills": "Pandas,NumPy,Anomaly-oriented analysis,Security metrics and reporting",
+      "evidence": "Built anomaly detection pipelines using Python to surface outliers in security telemetry \u2014 directly applicable to cloud cost forecasting and KPI tracking.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Work with engineering teams to align architecture decisions with cost efficiency.",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Cross-functional execution,Technical architecture communication",
+      "evidence": "Translated security requirements into architectural guardrails and operational controls across engineering teams, balancing trade-offs between security, cost, and velocity.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Implement automated cost reporting, anomaly detection, and alerting mechanisms.",
+      "matched_category": "Security Analytics",
+      "matched_skills": "Anomaly-oriented analysis,Security metrics and reporting",
+      "evidence": "Developed automated alerting for security anomalies using Python and Grafana; same pattern applies to cost anomaly detection.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Utilize AWS Cost Explorer, AWS Budgets, AWS Trusted Advisor, AWS Cost & Usage Reports, GCP Billing Reports, Cost Tables, Committed Use Discounts Analysis, and Recommender API for cost insights.",
+      "matched_category": "Cloud Security",
+      "matched_skills": "IAM implementation",
+      "evidence": "Built IAM policies and cost-aware access controls in AWS/GCP; experienced with native cloud billing APIs for policy enforcement.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Integrate third-party cost optimization tools.",
+      "matched_category": "API and Integrations",
+      "matched_skills": "API-driven workflows,Multi-platform integrations",
+      "evidence": "Built system-to-system automation across platforms using APIs \u2014 including internal tooling that ingested third-party data sources.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Develop automation scripts using AWS Lambda, Python, Pulumi, or AWS SDKs to enforce cost policies.",
+      "matched_category": "Security Automation",
+      "matched_skills": "Python automation,Remediation scripting,API-driven security workflows",
+      "evidence": "Created Python-based automation for remediation and orchestration across AWS services, including Lambda functions for cost-aware security enforcement.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Leverage FinOps dashboards and Tableau for visualization.",
+      "matched_category": "Security Analytics",
+      "matched_skills": "Security metrics and reporting",
+      "evidence": "Designed dashboards for security telemetry using Grafana; adaptable to Tableau-style visualization needs.",
+      "priority": "low"
+    },
+    {
+      "jd_requirement": "Work with our finance team to implement Continuous Accounting.",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Stakeholder communication,Requirements-to-controls translation",
+      "evidence": "Translated finance and compliance requirements into technical controls for audit-ready systems \u2014 same approach applies to continuous accounting workflows.",
+      "priority": "medium"
+    }
+  ],
+  "tone_notes": "Match Supabase\u2019s builder-ops tone: grounded, pragmatic, and operationally focused. Emphasize shipping maintainable systems over theoretical perfection. Avoid hype; highlight cross-functional collaboration and measurable outcomes.",
+  "summary_angle": "Position Conner as a security-native engineer who brings operational rigor, automation discipline, and data-driven cost awareness to FinOps \u2014 not just as a cost-cutter, but as someone who builds systems that make cost efficiency sustainable at scale.",
+  "_job_id": 88,
+  "_job_url": "https://jobs.ashbyhq.com/supabase/5342dc96-7ee5-46fe-bb55-1b52bacfd40f"
+}

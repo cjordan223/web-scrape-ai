@@ -68,7 +68,6 @@ Core tables:
 - `seen_urls` — canonical URL dedup history
 - `results` — accepted jobs
 - `rejected` — rejected jobs with stage/reason
-- `quarantine` — review queue (if scoring routes there)
 - `runs` — run metadata and status
 
 ## Config

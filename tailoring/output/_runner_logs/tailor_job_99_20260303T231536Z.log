@@ -1,0 +1,39 @@
+
+Tailoring for: Application Security Engineer Job at GuidePoint Security - FlexJobs
+Company: flexjobs
+URL: https://flexjobs.com/gjw/guidepoint_security/application-security-engineer/publicjobs?id=afb8948d-86dd-4311-802a-82547aa8e54d
+Output: /Users/conner/Documents/SearXNG/tailoring/output/99-flexjobs-application-security-engineer-job-at-guidepoint-security---flexjobs-
+
+→ Analyzing JD against skills inventory...
+15:15:36 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:15:53 INFO     tailor.ollama — LLM call complete (3050 chars returned)
+15:15:53 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/99-flexjobs-application-security-engineer-job-at-guidepoint-security---flexjobs-/analysis.json (7 requirements mapped)
+  Mapped 7 requirements
+  Company: GuidePoint Security
+  Role: Application Security Engineer
+
+→ Generating Resume...
+15:15:53 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+15:16:15 INFO     tailor.ollama — LLM call complete (2714 chars returned)
+15:16:15 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+15:17:01 INFO     tailor.ollama — LLM call complete (8303 chars returned)
+15:17:01 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+15:17:48 INFO     tailor.ollama — LLM call complete (8302 chars returned)
+15:17:48 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/99-flexjobs-application-security-engineer-job-at-guidepoint-security---flexjobs-/Conner_Jordan_Resume.tex (8290 chars)
+  Validating (attempt 1/3)...
+15:17:49 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/99-flexjobs-application-security-engineer-job-at-guidepoint-security---flexjobs-/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+15:17:49 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+15:18:00 INFO     tailor.ollama — LLM call complete (1237 chars returned)
+15:18:00 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:18:26 INFO     tailor.ollama — LLM call complete (4295 chars returned)
+15:18:26 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:18:50 INFO     tailor.ollama — LLM call complete (4150 chars returned)
+15:18:50 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/99-flexjobs-application-security-engineer-job-at-guidepoint-security---flexjobs-/Conner_Jordan_Cover_Letter.tex (4137 chars)
+  Validating (attempt 1/3)...
+15:18:51 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/99-flexjobs-application-security-engineer-job-at-guidepoint-security---flexjobs-/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/99-flexjobs-application-security-engineer-job-at-guidepoint-security---flexjobs-

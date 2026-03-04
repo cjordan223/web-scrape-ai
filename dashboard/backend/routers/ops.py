@@ -12,11 +12,16 @@ ROUTES: list[tuple[str, str, str]] = [
     ("GET", "/api/db/query", "db_query"),
     ("GET", "/api/db/admin/status", "db_admin_status"),
     ("POST", "/api/db/admin/action", "db_admin_action"),
+    ("GET", "/api/ops/status", "ops_status"),
+    ("POST", "/api/ops/action", "ops_action"),
     ("GET", "/api/db/size", "db_size"),
     ("GET", "/api/schedules", "list_schedules"),
     ("GET", "/api/schedules/{label}/log", "get_schedule_log"),
     ("GET", "/api/runtime-controls", "get_runtime_controls"),
     ("POST", "/api/runtime-controls", "update_runtime_controls"),
+    ("POST", "/api/tailoring/archive", "archive_create"),
+    ("GET", "/api/tailoring/archives", "archive_list"),
+    ("GET", "/api/tailoring/archives/{archive_id}", "archive_detail"),
     ("GET", "/{full_path:path}", "catch_all"),
 ]
 

@@ -91,6 +91,7 @@ _TAILORING_RUNNER: dict = {
     "log_path": None,
     "cmd": None,
 }
+_TAILORING_QUEUE: list[dict] = []
 _SCRAPE_RUNNER: dict = {
     "proc": None,
     "log_handle": None,
@@ -334,6 +335,28 @@ def _latest_job(max_age_hours: int | None = None) -> dict | None:
 
 
 def _recent_jobs(limit: int = 25, max_age_hours: int | None = None) -> list[dict]:
+    run_counts_by_job: dict[int, int] = {}
+    latest_status_by_job: dict[int, dict] = {}
+    if TAILORING_OUTPUT_DIR.exists():
+        for d in TAILORING_OUTPUT_DIR.iterdir():
+            if not d.is_dir():
+                continue
+            summary = _tailoring_summary(d)
+            meta = summary.get("meta") or {}
+            raw_job_id = meta.get("job_id")
+            if raw_job_id is None:
+                continue
+            try:
+                job_id = int(raw_job_id)
+            except (TypeError, ValueError):
+                continue
+            run_counts_by_job[job_id] = run_counts_by_job.get(job_id, 0) + 1
+            status = summary.get("status")
+            status_ts = _parse_ts(summary.get("updated_at"))
+            prior = latest_status_by_job.get(job_id)
+            if prior is None or status_ts >= prior["ts"]:
+                latest_status_by_job[job_id] = {"status": status, "ts": status_ts}
+
     conn = get_db()
     try:
         where = ""
@@ -346,7 +369,13 @@ def _recent_jobs(limit: int = 25, max_age_hours: int | None = None) -> list[dict
             f"SELECT id, title, created_at, url FROM results {where} ORDER BY id DESC LIMIT ?",
             tuple(params),
         ).fetchall()
-        return [dict(r) for r in rows]
+        items = [dict(r) for r in rows]
+        for item in items:
+            count = run_counts_by_job.get(int(item["id"]), 0)
+            item["tailoring_run_count"] = count
+            item["has_tailoring_runs"] = count > 0
+            item["tailoring_latest_status"] = (latest_status_by_job.get(int(item["id"])) or {}).get("status")
+        return items
     finally:
         conn.close()
 
@@ -360,6 +389,16 @@ def _read_tail(path: Path, lines: int = 80) -> str:
         return "".join(data[-lines:])
     except Exception:
         return ""
+
+
+def _process_tailoring_queue() -> None:
+    """Auto-start the next queued tailoring job if runner is idle."""
+    if _TAILORING_RUNNER.get("proc") is not None:
+        return
+    if not _TAILORING_QUEUE:
+        return
+    item = _TAILORING_QUEUE.pop(0)
+    _start_tailoring_run(item["job"], skip_analysis=item.get("skip_analysis", False))
 
 
 def _tailoring_runner_snapshot(log_lines: int = 80) -> dict:
@@ -377,6 +416,7 @@ def _tailoring_runner_snapshot(log_lines: int = 80) -> dict:
                     pass
             _TAILORING_RUNNER["log_handle"] = None
             _TAILORING_RUNNER["proc"] = None
+            _process_tailoring_queue()
 
     log_path = Path(_TAILORING_RUNNER["log_path"]) if _TAILORING_RUNNER.get("log_path") else None
     return {
@@ -388,6 +428,7 @@ def _tailoring_runner_snapshot(log_lines: int = 80) -> dict:
         "log_path": str(log_path) if log_path else None,
         "cmd": _TAILORING_RUNNER.get("cmd"),
         "log_tail": _read_tail(log_path, log_lines) if log_path else "",
+        "queue": [{"job": item["job"], "skip_analysis": item.get("skip_analysis", False)} for item in _TAILORING_QUEUE],
     }
 
 
@@ -742,16 +783,19 @@ def _get_launchctl_status(label: str) -> dict:
 from routers import ops as ops_routes
 from routers import scraping as scraping_routes
 from routers import tailoring as tailoring_routes
+from services import archive as archive_handlers
 from services import ops as ops_handlers
 from services import scraping as scraping_handlers
 from services import tailoring as tailoring_handlers
 
 
 def _register_routes() -> None:
+    _archive_names = {"archive_create", "archive_list", "archive_detail"}
     handlers = {
         **{name: getattr(scraping_handlers, name) for _, _, name in scraping_routes.ROUTES},
         **{name: getattr(tailoring_handlers, name) for _, _, name in tailoring_routes.ROUTES},
-        **{name: getattr(ops_handlers, name) for _, _, name in ops_routes.ROUTES},
+        **{name: getattr(ops_handlers, name) for _, _, name in ops_routes.ROUTES if name not in _archive_names},
+        **{name: getattr(archive_handlers, name) for name in _archive_names},
     }
     scraping_routes.register(app, handlers)
     tailoring_routes.register(app, handlers)

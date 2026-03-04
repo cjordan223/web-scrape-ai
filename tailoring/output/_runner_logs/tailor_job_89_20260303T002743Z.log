@@ -1,0 +1,90 @@
+
+Tailoring for: Postgres Engineer • Remote • Full time
+Company: supabase
+URL: https://jobs.ashbyhq.com/supabase/c16bd707-29f2-46fb-8409-7270ff00978b
+Output: /Users/conner/Documents/SearXNG/tailoring/output/89-supabase-postgres-engineer-remote-full-time-2026-03-02
+
+→ Analyzing JD against skills inventory...
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /Users/conner/Documents/SearXNG/tailoring/tailor/ollama.py:32 in             │
+│ _ollama_lock                                                                 │
+│                                                                              │
+│    29 │   deadline = time.monotonic() + cfg.LOCK_TIMEOUT                     │
+│    30 │   while True:                                                        │
+│    31 │   │   try:                                                           │
+│ ❱  32 │   │   │   fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)             │
+│    33 │   │   │   break                                                      │
+│    34 │   │   except BlockingIOError:                                        │
+│    35 │   │   │   if time.monotonic() > deadline:                            │
+╰──────────────────────────────────────────────────────────────────────────────╯
+BlockingIOError: [Errno 35] Resource temporarily unavailable
+
+During handling of the above exception, another exception occurred:
+
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /Users/conner/Documents/SearXNG/tailoring/tailor/__main__.py:113 in run      │
+│                                                                              │
+│   110 │   │   │   analysis = analyze_job(job, output_dir, trace_recorder=tra │
+│   111 │   else:                                                              │
+│   112 │   │   typer.echo("→ Analyzing JD against skills inventory...")       │
+│ ❱ 113 │   │   analysis = analyze_job(job, output_dir, trace_recorder=trace_r │
+│   114 │   typer.echo(f"  Mapped {len(analysis.get('requirements', []))} requ │
+│   115 │   typer.echo(f"  Company: {analysis.get('company_name', '?')}")      │
+│   116 │   typer.echo(f"  Role: {analysis.get('role_title', '?')}\n")         │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/tailoring/tailor/analyzer.py:102 in          │
+│ analyze_job                                                                  │
+│                                                                              │
+│    99 │   │   f"{soul_text[:4000]}"                                          │
+│   100 │   )                                                                  │
+│   101 │                                                                      │
+│ ❱ 102 │   analysis = chat_expect_json(                                       │
+│   103 │   │   _SYSTEM_PROMPT,                                                │
+│   104 │   │   user_prompt,                                                   │
+│   105 │   │   max_tokens=4096,                                               │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/tailoring/tailor/ollama.py:299 in            │
+│ chat_expect_json                                                             │
+│                                                                              │
+│   296 │   trace_recorder: Callable[[dict[str, Any]], None] | None = None,    │
+│   297 ) -> dict[str, Any]:                                                   │
+│   298 │   """Get JSON from chat with compatibility + repair fallback for wea │
+│ ❱ 299 │   raw = chat(                                                        │
+│   300 │   │   system_prompt=system_prompt,                                   │
+│   301 │   │   user_prompt=user_prompt,                                       │
+│   302 │   │   max_tokens=max_tokens,                                         │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/tailoring/tailor/ollama.py:109 in chat       │
+│                                                                              │
+│   106 │   │   │   }                                                          │
+│   107 │   │   )                                                              │
+│   108 │                                                                      │
+│ ❱ 109 │   with _ollama_lock():                                               │
+│   110 │   │   logger.info("LLM call starting (model=%s, max_tokens=%d)", mod │
+│   111 │   │   try:                                                           │
+│   112 │   │   │   payload: dict[str, Any] = {                                │
+│                                                                              │
+│ /opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versio │
+│ ns/3.14/lib/python3.14/contextlib.py:141 in __enter__                        │
+│                                                                              │
+│   138 │   │   # they are only needed for recreation, which is not possible a │
+│   139 │   │   del self.args, self.kwds, self.func                            │
+│   140 │   │   try:                                                           │
+│ ❱ 141 │   │   │   return next(self.gen)                                      │
+│   142 │   │   except StopIteration:                                          │
+│   143 │   │   │   raise RuntimeError("generator didn't yield") from None     │
+│   144                                                                        │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/tailoring/tailor/ollama.py:37 in             │
+│ _ollama_lock                                                                 │
+│                                                                              │
+│    34 │   │   except BlockingIOError:                                        │
+│    35 │   │   │   if time.monotonic() > deadline:                            │
+│    36 │   │   │   │   fd.close()                                             │
+│ ❱  37 │   │   │   │   raise TimeoutError(                                    │
+│    38 │   │   │   │   │   f"Could not acquire LLM lock after {cfg.LOCK_TIMEO │
+│    39 │   │   │   │   │   "is the scraper's LLM review running?"             │
+│    40 │   │   │   │   )                                                      │
+╰──────────────────────────────────────────────────────────────────────────────╯
+TimeoutError: Could not acquire LLM lock after 300s — is the scraper's LLM 
+review running?

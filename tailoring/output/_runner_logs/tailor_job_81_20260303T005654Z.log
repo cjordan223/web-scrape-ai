@@ -1,0 +1,39 @@
+
+Tailoring for: Privacy EngineerTechnology • Remote (United States | Canada) • Full time • Remote
+Company: 1password
+URL: https://jobs.ashbyhq.com/1password/4aad5067-3d54-4b2a-b8e0-0fe8c5fd4f3a
+Output: /Users/conner/Documents/SearXNG/tailoring/output/81-1password-privacy-engineertechnology-remote-united-states-canada-full-time-re
+
+→ Analyzing JD against skills inventory...
+16:56:54 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+16:57:25 INFO     tailor.ollama — LLM call complete (5557 chars returned)
+16:57:25 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/81-1password-privacy-engineertechnology-remote-united-states-canada-full-time-re/analysis.json (11 requirements mapped)
+  Mapped 11 requirements
+  Company: 1Password
+  Role: Privacy Engineer
+
+→ Generating Resume...
+16:57:25 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+16:57:51 INFO     tailor.ollama — LLM call complete (3232 chars returned)
+16:57:51 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+16:58:38 INFO     tailor.ollama — LLM call complete (8363 chars returned)
+16:58:38 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+16:59:25 INFO     tailor.ollama — LLM call complete (8339 chars returned)
+16:59:25 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/81-1password-privacy-engineertechnology-remote-united-states-canada-full-time-re/Conner_Jordan_Resume.tex (8327 chars)
+  Validating (attempt 1/3)...
+16:59:26 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/81-1password-privacy-engineertechnology-remote-united-states-canada-full-time-re/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+16:59:26 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+16:59:41 INFO     tailor.ollama — LLM call complete (1814 chars returned)
+16:59:41 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+17:00:08 INFO     tailor.ollama — LLM call complete (4379 chars returned)
+17:00:08 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+17:00:33 INFO     tailor.ollama — LLM call complete (4235 chars returned)
+17:00:33 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/81-1password-privacy-engineertechnology-remote-united-states-canada-full-time-re/Conner_Jordan_Cover_Letter.tex (4222 chars)
+  Validating (attempt 1/3)...
+17:00:33 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/81-1password-privacy-engineertechnology-remote-united-states-canada-full-time-re/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/81-1password-privacy-engineertechnology-remote-united-states-canada-full-time-re

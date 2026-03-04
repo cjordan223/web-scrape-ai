@@ -1,0 +1,39 @@
+
+Tailoring for: Senior Security Engineer | Edtech.com
+Company: edtech
+URL: https://edtech.com/jobs/senior-security-engineer-9461
+Output: /Users/conner/Documents/SearXNG/tailoring/output/97-edtech-senior-security-engineer-edtech-com-2026-03-03
+
+→ Analyzing JD against skills inventory...
+11:11:12 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+11:11:40 INFO     tailor.ollama — LLM call complete (4838 chars returned)
+11:11:40 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/97-edtech-senior-security-engineer-edtech-com-2026-03-03/analysis.json (9 requirements mapped)
+  Mapped 9 requirements
+  Company: Coursera
+  Role: Senior Security Engineer
+
+→ Generating Resume...
+11:11:40 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+11:12:07 INFO     tailor.ollama — LLM call complete (3391 chars returned)
+11:12:07 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+11:12:57 INFO     tailor.ollama — LLM call complete (8369 chars returned)
+11:12:57 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+11:13:45 INFO     tailor.ollama — LLM call complete (8370 chars returned)
+11:13:45 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/97-edtech-senior-security-engineer-edtech-com-2026-03-03/Conner_Jordan_Resume.tex (8358 chars)
+  Validating (attempt 1/3)...
+11:13:46 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/97-edtech-senior-security-engineer-edtech-com-2026-03-03/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+11:13:46 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+11:14:00 INFO     tailor.ollama — LLM call complete (1506 chars returned)
+11:14:00 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+11:14:27 INFO     tailor.ollama — LLM call complete (4486 chars returned)
+11:14:27 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+11:14:52 INFO     tailor.ollama — LLM call complete (4341 chars returned)
+11:14:52 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/97-edtech-senior-security-engineer-edtech-com-2026-03-03/Conner_Jordan_Cover_Letter.tex (4328 chars)
+  Validating (attempt 1/3)...
+11:14:53 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/97-edtech-senior-security-engineer-edtech-com-2026-03-03/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/97-edtech-senior-security-engineer-edtech-com-2026-03-03

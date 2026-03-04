@@ -1,15 +1,8 @@
-# UI Structure Snapshot
+# UI Structure
 
-This document describes the current dashboard UI architecture after the hierarchical refactor.
+Dashboard UI architecture after hierarchical refactor.
 
-## Goals
-
-- Organize UI by **domain -> workflow -> page**
-- Keep navigation consistent across scraping, tailoring, and ops
-- Preserve old links via redirects during migration
-- Reuse shared page/workflow primitives to avoid ad-hoc layouts
-
-## Current Navigation Hierarchy
+## Navigation Hierarchy
 
 ```text
 Home
@@ -35,7 +28,7 @@ Ops
 ├── Data
 │   └── DB Explorer
 └── Diagnostics
-    └── SQL Console
+    └── Admin Operations
 ```
 
 ## Route Structure
@@ -51,56 +44,63 @@ Ops
 - `/ops/data/explorer`
 - `/ops/diagnostics/sql`
 
-Legacy routes (`/jobs`, `/runs`, `/sql`, etc.) are redirected to hierarchical routes.
+Legacy routes (`/jobs`, `/runs`, `/sql`, etc.) redirect to hierarchical routes.
 
-## Frontend Ownership Layout
+## Frontend Component Layout
 
 ```text
 dashboard/web/src
 ├── components/
 │   ├── layout/
-│   │   └── AppShell.tsx
-│   └── workflow/
-│       ├── PageLayout.tsx
-│       ├── Panel.tsx
-│       ├── States.tsx
-│       ├── ActionBar.tsx
-│       ├── FilterToolbar.tsx
-│       ├── LogPanel.tsx
-│       └── RunTimelineChart.tsx
+│   │   └── AppShell.tsx              # Domain/workflow nav + breadcrumbs
+│   ├── workflow/
+│   │   ├── PageLayout.tsx
+│   │   ├── Panel.tsx
+│   │   ├── States.tsx
+│   │   ├── ActionBar.tsx
+│   │   ├── FilterToolbar.tsx
+│   │   ├── LogPanel.tsx
+│   │   └── RunTimelineChart.tsx
+│   ├── Sidebar.tsx                   # Navigation sidebar
+│   └── VerdictChips.tsx              # Filter verdict chips
 └── views/domains/
     ├── home/
+    │   └── OverviewView.tsx
     ├── scraping/
     │   ├── intake/
+    │   │   ├── JobsView.tsx
+    │   │   └── RejectedView.tsx
     │   ├── runs/
+    │   │   └── RunsView.tsx
     │   └── quality/
+    │       ├── DedupView.tsx
+    │       └── SchedulesView.tsx
     ├── tailoring/
     │   ├── runs/
+    │   │   └── TailoringView.tsx
     │   └── outputs/
+    │       └── PackagesView.tsx
     └── ops/
         ├── data/
+        │   └── ExplorerView.tsx
         └── diagnostics/
+            └── SqlConsoleView.tsx    # Admin Operations page
 ```
 
-## Backend Ownership Layout
+## Backend Layout
 
 ```text
 dashboard/backend
+├── app.py                            # Shared state, helpers, module-level config
+├── server.py                         # App factory + startup
 ├── routers/
 │   ├── scraping.py
 │   ├── tailoring.py
 │   └── ops.py
 └── services/
-    ├── scraping.py
+    ├── scraping.py                   # Thin shim — imports from job-scraper/api/
     ├── tailoring.py
     └── ops.py
 ```
 
-Scraping-domain handlers are imported from `job-scraper/api/scraping_handlers.py` via `dashboard/backend/services/scraping.py`.
-
-## Refactor Status
-
-- Hierarchical IA: complete
-- Shared page/workflow primitives: complete
-- Route-level code splitting: complete
-- SQL Console DB admin controls (feature-flagged): complete
+Scraping-domain handlers live in `job-scraper/api/scraping_handlers.py` and are imported by `dashboard/backend/services/scraping.py`.

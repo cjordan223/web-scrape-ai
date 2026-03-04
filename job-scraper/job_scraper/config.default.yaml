@@ -8,7 +8,7 @@ search:
   fallback_engines:
     - "google"
     - "startpage"
-  time_range: "month"
+  time_range: "week"
   fallback_time_ranges:
     - "year"
   fallback_to_all_engines: true
@@ -104,14 +104,15 @@ filter:
   score_accept_threshold: 0
   score_reject_threshold: -3
   target_min_results: 5
-  target_max_results: 10
+  target_max_results: 50
+  seen_ttl_days: 14
   promotion_min_score: 0
 
 llm_review:
   enabled: true
   url: "http://localhost:1234/v1/chat/completions"
   model: "default"
-  fail_open: false
+  fail_open: true
   timeout: 30
   jd_max_chars: 2000
 
@@ -182,6 +183,27 @@ crawl:
       board: lever
     - url: "https://jobs.lever.co/arcadia"
       board: lever
+    # Additional security-focused Ashby boards
+    - url: "https://jobs.ashbyhq.com/lacework"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/expel"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/huntress"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/semgrep"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/drata"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/vanta"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/abnormalsecurity"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/chainguard"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/linear"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/vercel"
+      board: ashby
     # SimplyHired — aggregator, security search URLs
     - url: "https://www.simplyhired.com/search?q=security+engineer+remote&l="
       board: simplyhired
@@ -326,5 +348,34 @@ queries:
     board_site: "jobs.ashbyhq.com"
     title_phrase: "software engineer"
 
-  # Open-web unknown-board queries intentionally disabled:
-  # they frequently return listing pages / stale links / non-canonical postings.
+  # --- Open-web queries (no board_site) ---
+  - board: unknown
+    title_phrase: "security engineer"
+    suffix: "remote USA"
+  - board: unknown
+    title_phrase: "application security engineer"
+    suffix: "remote"
+  - board: unknown
+    title_phrase: "cloud security engineer"
+    suffix: "remote"
+  - board: unknown
+    title_phrase: "devsecops engineer"
+    suffix: "remote"
+  - board: unknown
+    title_phrase: "detection engineer"
+    suffix: "remote"
+  - board: unknown
+    title_phrase: "platform engineer"
+    suffix: "remote USA"
+  - board: unknown
+    title_phrase: "infrastructure engineer"
+    suffix: "remote USA"
+  - board: unknown
+    title_phrase: "devops engineer"
+    suffix: "remote USA"
+  - board: unknown
+    title_phrase: "site reliability engineer"
+    suffix: "remote"
+  - board: unknown
+    title_phrase: "software engineer security"
+    suffix: "remote"

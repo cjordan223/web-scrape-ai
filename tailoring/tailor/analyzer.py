@@ -37,7 +37,6 @@ Respond with ONLY a JSON object — no other text, no markdown fences:
     }
   ],
   "tone_notes": "any adjustments to cover letter tone based on JD signals",
-  "skills_line_recommendation": "which condensed skills line format (full/5/3) best fits this role",
   "summary_angle": "1-sentence guidance on how to angle the professional summary for this role"
 }"""
 

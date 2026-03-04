@@ -1,0 +1,284 @@
+
+Tailoring for: Offensive Security Engineer • United States • Full time • Remote
+Company: wraithwatch
+URL: https://jobs.ashbyhq.com/wraithwatch/92d9853b-c8df-45dd-871e-9a6eb11a9fd5
+Output: /Users/conner/Documents/SearXNG/tailoring/output/29-wraithwatch-offensive-security-engineer-united-states-full-time-remote-2026-0
+
+→ Analyzing JD against skills inventory...
+14:32:48 WARNING  tailor.ollama — Could not fetch models from http://localhost:1234/v1/models: HTTPConnectionPool(host='localhost', port=1234): Max retries exceeded with url: /v1/models (Caused by NewConnectionError("HTTPConnection(host='localhost', port=1234): Failed to establish a new connection: [Errno 61] Connection refused"))
+14:32:48 INFO     tailor.ollama — LLM call starting (model=default, max_tokens=4096)
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/urllib3/co │
+│ nnection.py:204 in _new_conn                                                 │
+│                                                                              │
+│    201 │   │   :return: New socket connection.                               │
+│    202 │   │   """                                                           │
+│    203 │   │   try:                                                          │
+│ ❱  204 │   │   │   sock = connection.create_connection(                      │
+│    205 │   │   │   │   (self._dns_host, self.port),                          │
+│    206 │   │   │   │   self.timeout,                                         │
+│    207 │   │   │   │   source_address=self.source_address,                   │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/urllib3/ut │
+│ il/connection.py:85 in create_connection                                     │
+│                                                                              │
+│    82 │                                                                      │
+│    83 │   if err is not None:                                                │
+│    84 │   │   try:                                                           │
+│ ❱  85 │   │   │   raise err                                                  │
+│    86 │   │   finally:                                                       │
+│    87 │   │   │   # Break explicitly a reference cycle                       │
+│    88 │   │   │   err = None                                                 │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/urllib3/ut │
+│ il/connection.py:73 in create_connection                                     │
+│                                                                              │
+│    70 │   │   │   │   sock.settimeout(timeout)                               │
+│    71 │   │   │   if source_address:                                         │
+│    72 │   │   │   │   sock.bind(source_address)                              │
+│ ❱  73 │   │   │   sock.connect(sa)                                           │
+│    74 │   │   │   # Break explicitly a reference cycle                       │
+│    75 │   │   │   err = None                                                 │
+│    76 │   │   │   return sock                                                │
+╰──────────────────────────────────────────────────────────────────────────────╯
+ConnectionRefusedError: [Errno 61] Connection refused
+
+The above exception was the direct cause of the following exception:
+
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/urllib3/co │
+│ nnectionpool.py:787 in urlopen                                               │
+│                                                                              │
+│    784 │   │   │   response_conn = conn if not release_conn else None        │
+│    785 │   │   │                                                             │
+│    786 │   │   │   # Make the request on the HTTPConnection object           │
+│ ❱  787 │   │   │   response = self._make_request(                            │
+│    788 │   │   │   │   conn,                                                 │
+│    789 │   │   │   │   method,                                               │
+│    790 │   │   │   │   url,                                                  │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/urllib3/co │
+│ nnectionpool.py:493 in _make_request                                         │
+│                                                                              │
+│    490 │   │   # conn.request() calls http.client.*.request, not the method  │
+│    491 │   │   # urllib3.request. It also calls makefile (recv) on the socke │
+│    492 │   │   try:                                                          │
+│ ❱  493 │   │   │   conn.request(                                             │
+│    494 │   │   │   │   method,                                               │
+│    495 │   │   │   │   url,                                                  │
+│    496 │   │   │   │   body=body,                                            │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/urllib3/co │
+│ nnection.py:500 in request                                                   │
+│                                                                              │
+│    497 │   │   │   self.putheader("User-Agent", _get_default_user_agent())   │
+│    498 │   │   for header, value in headers.items():                         │
+│    499 │   │   │   self.putheader(header, value)                             │
+│ ❱  500 │   │   self.endheaders()                                             │
+│    501 │   │                                                                 │
+│    502 │   │   # If we're given a body we start sending that in chunks.      │
+│    503 │   │   if chunks is not None:                                        │
+│                                                                              │
+│ /opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versio │
+│ ns/3.14/lib/python3.14/http/client.py:1353 in endheaders                     │
+│                                                                              │
+│   1350 │   │   │   self.__state = _CS_REQ_SENT                               │
+│   1351 │   │   else:                                                         │
+│   1352 │   │   │   raise CannotSendHeader()                                  │
+│ ❱ 1353 │   │   self._send_output(message_body, encode_chunked=encode_chunked │
+│   1354 │                                                                     │
+│   1355 │   def request(self, method, url, body=None, headers={}, *,          │
+│   1356 │   │   │   │   encode_chunked=False):                                │
+│                                                                              │
+│ /opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versio │
+│ ns/3.14/lib/python3.14/http/client.py:1113 in _send_output                   │
+│                                                                              │
+│   1110 │   │   self._buffer.extend((b"", b""))                               │
+│   1111 │   │   msg = b"\r\n".join(self._buffer)                              │
+│   1112 │   │   del self._buffer[:]                                           │
+│ ❱ 1113 │   │   self.send(msg)                                                │
+│   1114 │   │                                                                 │
+│   1115 │   │   if message_body is not None:                                  │
+│   1116                                                                       │
+│                                                                              │
+│ /opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versio │
+│ ns/3.14/lib/python3.14/http/client.py:1057 in send                           │
+│                                                                              │
+│   1054 │   │                                                                 │
+│   1055 │   │   if self.sock is None:                                         │
+│   1056 │   │   │   if self.auto_open:                                        │
+│ ❱ 1057 │   │   │   │   self.connect()                                        │
+│   1058 │   │   │   else:                                                     │
+│   1059 │   │   │   │   raise NotConnected()                                  │
+│   1060                                                                       │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/urllib3/co │
+│ nnection.py:331 in connect                                                   │
+│                                                                              │
+│    328 │   │   │   │   │   response.close()                                  │
+│    329 │                                                                     │
+│    330 │   def connect(self) -> None:                                        │
+│ ❱  331 │   │   self.sock = self._new_conn()                                  │
+│    332 │   │   if self._tunnel_host:                                         │
+│    333 │   │   │   # If we're tunneling it means we're connected to our prox │
+│    334 │   │   │   self._has_connected_to_proxy = True                       │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/urllib3/co │
+│ nnection.py:219 in _new_conn                                                 │
+│                                                                              │
+│    216 │   │   │   ) from e                                                  │
+│    217 │   │                                                                 │
+│    218 │   │   except OSError as e:                                          │
+│ ❱  219 │   │   │   raise NewConnectionError(                                 │
+│    220 │   │   │   │   self, f"Failed to establish a new connection: {e}"    │
+│    221 │   │   │   ) from e                                                  │
+│    222                                                                       │
+╰──────────────────────────────────────────────────────────────────────────────╯
+NewConnectionError: HTTPConnection(host='localhost', port=1234): Failed to 
+establish a new connection: [Errno 61] Connection refused
+
+The above exception was the direct cause of the following exception:
+
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/requests/a │
+│ dapters.py:644 in send                                                       │
+│                                                                              │
+│   641 │   │   │   timeout = TimeoutSauce(connect=timeout, read=timeout)      │
+│   642 │   │                                                                  │
+│   643 │   │   try:                                                           │
+│ ❱ 644 │   │   │   resp = conn.urlopen(                                       │
+│   645 │   │   │   │   method=request.method,                                 │
+│   646 │   │   │   │   url=url,                                               │
+│   647 │   │   │   │   body=request.body,                                     │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/urllib3/co │
+│ nnectionpool.py:841 in urlopen                                               │
+│                                                                              │
+│    838 │   │   │   elif isinstance(new_e, (OSError, HTTPException)):         │
+│    839 │   │   │   │   new_e = ProtocolError("Connection aborted.", new_e)   │
+│    840 │   │   │                                                             │
+│ ❱  841 │   │   │   retries = retries.increment(                              │
+│    842 │   │   │   │   method, url, error=new_e, _pool=self, _stacktrace=sys │
+│    843 │   │   │   )                                                         │
+│    844 │   │   │   retries.sleep()                                           │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/urllib3/ut │
+│ il/retry.py:535 in increment                                                 │
+│                                                                              │
+│   532 │   │                                                                  │
+│   533 │   │   if new_retry.is_exhausted():                                   │
+│   534 │   │   │   reason = error or ResponseError(cause)                     │
+│ ❱ 535 │   │   │   raise MaxRetryError(_pool, url, reason) from reason  # typ │
+│   536 │   │                                                                  │
+│   537 │   │   log.debug("Incremented Retry for (url='%s'): %r", url, new_ret │
+│   538                                                                        │
+╰──────────────────────────────────────────────────────────────────────────────╯
+MaxRetryError: HTTPConnectionPool(host='localhost', port=1234): Max retries 
+exceeded with url: /v1/chat/completions (Caused by 
+NewConnectionError("HTTPConnection(host='localhost', port=1234): Failed to 
+establish a new connection: [Errno 61] Connection refused"))
+
+During handling of the above exception, another exception occurred:
+
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /Users/conner/Documents/SearXNG/tailoring/tailor/__main__.py:113 in run      │
+│                                                                              │
+│   110 │   │   │   analysis = analyze_job(job, output_dir, trace_recorder=tra │
+│   111 │   else:                                                              │
+│   112 │   │   typer.echo("→ Analyzing JD against skills inventory...")       │
+│ ❱ 113 │   │   analysis = analyze_job(job, output_dir, trace_recorder=trace_r │
+│   114 │   typer.echo(f"  Mapped {len(analysis.get('requirements', []))} requ │
+│   115 │   typer.echo(f"  Company: {analysis.get('company_name', '?')}")      │
+│   116 │   typer.echo(f"  Role: {analysis.get('role_title', '?')}\n")         │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/tailoring/tailor/analyzer.py:102 in          │
+│ analyze_job                                                                  │
+│                                                                              │
+│    99 │   │   f"{soul_text[:4000]}"                                          │
+│   100 │   )                                                                  │
+│   101 │                                                                      │
+│ ❱ 102 │   analysis = chat_expect_json(                                       │
+│   103 │   │   _SYSTEM_PROMPT,                                                │
+│   104 │   │   user_prompt,                                                   │
+│   105 │   │   max_tokens=4096,                                               │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/tailoring/tailor/ollama.py:299 in            │
+│ chat_expect_json                                                             │
+│                                                                              │
+│   296 │   trace_recorder: Callable[[dict[str, Any]], None] | None = None,    │
+│   297 ) -> dict[str, Any]:                                                   │
+│   298 │   """Get JSON from chat with compatibility + repair fallback for wea │
+│ ❱ 299 │   raw = chat(                                                        │
+│   300 │   │   system_prompt=system_prompt,                                   │
+│   301 │   │   user_prompt=user_prompt,                                       │
+│   302 │   │   max_tokens=max_tokens,                                         │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/tailoring/tailor/ollama.py:133 in chat       │
+│                                                                              │
+│   130 │   │   │   │   │   │   },                                             │
+│   131 │   │   │   │   │   },                                                 │
+│   132 │   │   │   │   }                                                      │
+│ ❱ 133 │   │   │   resp = requests.post(cfg.OLLAMA_URL, json=payload, timeout │
+│   134 │   │   │   if json_mode and resp.status_code == 400:                  │
+│   135 │   │   │   │   # Some OpenAI-compatible servers/models reject respons │
+│   136 │   │   │   │   # Retry once without it so model experiments remain po │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/requests/a │
+│ pi.py:115 in post                                                            │
+│                                                                              │
+│   112 │   :rtype: requests.Response                                          │
+│   113 │   """                                                                │
+│   114 │                                                                      │
+│ ❱ 115 │   return request("post", url, data=data, json=json, **kwargs)        │
+│   116                                                                        │
+│   117                                                                        │
+│   118 def put(url, data=None, **kwargs):                                     │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/requests/a │
+│ pi.py:59 in request                                                          │
+│                                                                              │
+│    56 │   # avoid leaving sockets open which can trigger a ResourceWarning i │
+│    57 │   # cases, and look like a memory leak in others.                    │
+│    58 │   with sessions.Session() as session:                                │
+│ ❱  59 │   │   return session.request(method=method, url=url, **kwargs)       │
+│    60                                                                        │
+│    61                                                                        │
+│    62 def get(url, params=None, **kwargs):                                   │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/requests/s │
+│ essions.py:589 in request                                                    │
+│                                                                              │
+│   586 │   │   │   "allow_redirects": allow_redirects,                        │
+│   587 │   │   }                                                              │
+│   588 │   │   send_kwargs.update(settings)                                   │
+│ ❱ 589 │   │   resp = self.send(prep, **send_kwargs)                          │
+│   590 │   │                                                                  │
+│   591 │   │   return resp                                                    │
+│   592                                                                        │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/requests/s │
+│ essions.py:703 in send                                                       │
+│                                                                              │
+│   700 │   │   start = preferred_clock()                                      │
+│   701 │   │                                                                  │
+│   702 │   │   # Send the request                                             │
+│ ❱ 703 │   │   r = adapter.send(request, **kwargs)                            │
+│   704 │   │                                                                  │
+│   705 │   │   # Total elapsed time of the request (approximately)            │
+│   706 │   │   elapsed = preferred_clock() - start                            │
+│                                                                              │
+│ /Users/conner/Documents/SearXNG/venv/lib/python3.14/site-packages/requests/a │
+│ dapters.py:677 in send                                                       │
+│                                                                              │
+│   674 │   │   │   │   # This branch is for urllib3 v1.22 and later.          │
+│   675 │   │   │   │   raise SSLError(e, request=request)                     │
+│   676 │   │   │                                                              │
+│ ❱ 677 │   │   │   raise ConnectionError(e, request=request)                  │
+│   678 │   │                                                                  │
+│   679 │   │   except ClosedPoolError as e:                                   │
+│   680 │   │   │   raise ConnectionError(e, request=request)                  │
+╰──────────────────────────────────────────────────────────────────────────────╯
+ConnectionError: HTTPConnectionPool(host='localhost', port=1234): Max retries 
+exceeded with url: /v1/chat/completions (Caused by 
+NewConnectionError("HTTPConnection(host='localhost', port=1234): Failed to 
+establish a new connection: [Errno 61] Connection refused"))

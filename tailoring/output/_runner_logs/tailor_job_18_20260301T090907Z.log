@@ -1,0 +1,39 @@
+
+Tailoring for: AI Platform Engineer @ fastino.ai
+Company: fastino-ai
+URL: https://jobs.ashbyhq.com/fastino-ai/e98b22d5-caa2-4225-86e5-8bdc229aeed0
+Output: /Users/conner/Documents/SearXNG/tailoring/output/18-fastino-ai-ai-platform-engineer-fastino-ai-2026-03-01
+
+→ Analyzing JD against skills inventory...
+01:09:07 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+01:09:37 INFO     tailor.ollama — LLM call complete (5036 chars returned)
+01:09:37 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/18-fastino-ai-ai-platform-engineer-fastino-ai-2026-03-01/analysis.json (11 requirements mapped)
+  Mapped 11 requirements
+  Company: fastino-ai
+  Role: AI Platform Engineer
+
+→ Generating Resume...
+01:09:37 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+01:10:04 INFO     tailor.ollama — LLM call complete (3235 chars returned)
+01:10:04 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+01:10:54 INFO     tailor.ollama — LLM call complete (8332 chars returned)
+01:10:54 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+01:11:43 INFO     tailor.ollama — LLM call complete (8293 chars returned)
+01:11:43 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/18-fastino-ai-ai-platform-engineer-fastino-ai-2026-03-01/Conner_Jordan_Resume.tex (8281 chars)
+  Validating (attempt 1/3)...
+01:11:44 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/18-fastino-ai-ai-platform-engineer-fastino-ai-2026-03-01/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+01:11:44 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+01:12:00 INFO     tailor.ollama — LLM call complete (1768 chars returned)
+01:12:00 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+01:12:28 INFO     tailor.ollama — LLM call complete (4390 chars returned)
+01:12:28 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+01:12:53 INFO     tailor.ollama — LLM call complete (4156 chars returned)
+01:12:53 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/18-fastino-ai-ai-platform-engineer-fastino-ai-2026-03-01/Conner_Jordan_Cover_Letter.tex (4143 chars)
+  Validating (attempt 1/3)...
+01:12:54 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/18-fastino-ai-ai-platform-engineer-fastino-ai-2026-03-01/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/18-fastino-ai-ai-platform-engineer-fastino-ai-2026-03-01

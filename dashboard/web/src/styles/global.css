@@ -893,6 +893,17 @@ canvas {
   background: rgba(60,179,113,.08);
 }
 
+.btn-danger {
+  background: rgba(217,79,79,.16);
+  color: #ffb4b4;
+  border: 1px solid rgba(217,79,79,.45);
+}
+
+.btn-danger:hover {
+  background: rgba(217,79,79,.24);
+  color: #ffd1d1;
+}
+
 /* ── Stats bar ──────────────────────────────────────────────── */
 .stats-bar {
   display: flex;
@@ -1906,6 +1917,10 @@ tr.expanded td {
 
 @keyframes spin {
   to { transform: rotate(360deg) }
+}
+
+.spin {
+  animation: spin .6s linear infinite;
 }
 
 /* ── Link ───────────────────────────────────────────────────── */

@@ -22,6 +22,11 @@ const DedupView = lazy(() => import('./views/domains/scraping/quality/DedupView'
 const SchedulesView = lazy(() => import('./views/domains/scraping/quality/SchedulesView'));
 const ExplorerView = lazy(() => import('./views/domains/ops/data/ExplorerView'));
 const SqlConsoleView = lazy(() => import('./views/domains/ops/diagnostics/SqlConsoleView'));
+const ArchiveView = lazy(() => import('./views/domains/ops/data/ArchiveView'));
+const MobileShell = lazy(() => import('./components/layout/MobileShell'));
+const MobileIngestView = lazy(() => import('./views/mobile/MobileIngestView'));
+const MobileDocsView = lazy(() => import('./views/mobile/MobileDocsView'));
+const MobileJobsView = lazy(() => import('./views/mobile/MobileJobsView'));
 
 function RouteLoading() {
   return (
@@ -40,6 +45,11 @@ function LegacyRedirect({ to }: { to: string }) {
   return <Navigate to={`${to}${location.search}`} replace />;
 }
 
+function SmartRedirect() {
+  const isMobile = window.innerWidth < 768;
+  return <Navigate to={isMobile ? '/m/ingest' : '/home/overview'} replace />;
+}
+
 function App() {
   const [dbSizeLabel, setDbSizeLabel] = useState('...');
 
@@ -52,7 +62,14 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/home/overview" replace />} />
+        <Route path="/" element={<SmartRedirect />} />
+
+        <Route element={<LazyRoute><MobileShell /></LazyRoute>}>
+          <Route path="/m" element={<Navigate to="/m/ingest" replace />} />
+          <Route path="/m/ingest" element={<LazyRoute><MobileIngestView /></LazyRoute>} />
+          <Route path="/m/jobs" element={<LazyRoute><MobileJobsView /></LazyRoute>} />
+          <Route path="/m/docs" element={<LazyRoute><MobileDocsView /></LazyRoute>} />
+        </Route>
 
         <Route element={<AppShell dbSizeLabel={dbSizeLabel} />}>
           <Route path="/home" element={<Navigate to="/home/overview" replace />} />
@@ -72,6 +89,7 @@ function App() {
 
           <Route path="/ops" element={<Navigate to="/ops/data/explorer" replace />} />
           <Route path="/ops/data/explorer" element={<LazyRoute><ExplorerView /></LazyRoute>} />
+          <Route path="/ops/data/archives" element={<LazyRoute><ArchiveView /></LazyRoute>} />
           <Route path="/ops/diagnostics/sql" element={<LazyRoute><SqlConsoleView /></LazyRoute>} />
 
           <Route path="/overview" element={<LegacyRedirect to="/home/overview" />} />

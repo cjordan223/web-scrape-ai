@@ -5,6 +5,7 @@ import {
   FolderTree,
   PenTool,
   Settings,
+  Archive,
   LayoutDashboard,
   Briefcase,
   XCircle,
@@ -98,7 +99,10 @@ const domains: Domain[] = [
     groups: [
       {
         label: 'Data',
-        items: [{ label: 'DB Explorer', to: '/ops/data/explorer', icon: Database }],
+        items: [
+          { label: 'DB Explorer', to: '/ops/data/explorer', icon: Database },
+          { label: 'Archives', to: '/ops/data/archives', icon: Archive },
+        ],
       },
       {
         label: 'Diagnostics',
@@ -125,6 +129,7 @@ const labelBySegment: Record<string, string> = {
   ops: 'Ops',
   data: 'Data',
   explorer: 'DB Explorer',
+  archives: 'Archives',
   diagnostics: 'Diagnostics',
   sql: 'Admin Ops',
 };

@@ -1,0 +1,39 @@
+
+Tailoring for: Application Security Engineer | Apex Systems
+Company: apexsystems
+URL: https://apexsystems.com/job/3023257_usa/security-engineer
+Output: /Users/conner/Documents/SearXNG/tailoring/output/98-apexsystems-application-security-engineer-apex-systems-2026-03-03
+
+→ Analyzing JD against skills inventory...
+11:07:21 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+11:08:03 INFO     tailor.ollama — LLM call complete (7197 chars returned)
+11:08:03 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/98-apexsystems-application-security-engineer-apex-systems-2026-03-03/analysis.json (16 requirements mapped)
+  Mapped 16 requirements
+  Company: apexsystems
+  Role: Security Engineer
+
+→ Generating Resume...
+11:08:03 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+11:08:27 INFO     tailor.ollama — LLM call complete (2903 chars returned)
+11:08:27 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+11:09:16 INFO     tailor.ollama — LLM call complete (8326 chars returned)
+11:09:16 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+11:10:03 INFO     tailor.ollama — LLM call complete (8317 chars returned)
+11:10:03 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/98-apexsystems-application-security-engineer-apex-systems-2026-03-03/Conner_Jordan_Resume.tex (8305 chars)
+  Validating (attempt 1/3)...
+11:10:04 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/98-apexsystems-application-security-engineer-apex-systems-2026-03-03/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+11:10:04 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+11:10:18 INFO     tailor.ollama — LLM call complete (1471 chars returned)
+11:10:18 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+11:10:46 INFO     tailor.ollama — LLM call complete (4407 chars returned)
+11:10:46 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+11:11:11 INFO     tailor.ollama — LLM call complete (4293 chars returned)
+11:11:11 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/98-apexsystems-application-security-engineer-apex-systems-2026-03-03/Conner_Jordan_Cover_Letter.tex (4280 chars)
+  Validating (attempt 1/3)...
+11:11:11 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/98-apexsystems-application-security-engineer-apex-systems-2026-03-03/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/98-apexsystems-application-security-engineer-apex-systems-2026-03-03

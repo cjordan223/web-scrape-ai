@@ -1,0 +1,39 @@
+
+Tailoring for: Senior Security Engineer @ Loancrate
+Company: loancrate
+URL: https://jobs.ashbyhq.com/loancrate/dd9d6adb-0eb6-4c2e-a045-bbe94f5b26dd
+Output: /Users/conner/Documents/SearXNG/tailoring/output/93-loancrate-senior-security-engineer-loancrate-2026-03-03
+
+→ Analyzing JD against skills inventory...
+15:41:00 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:41:32 INFO     tailor.ollama — LLM call complete (5842 chars returned)
+15:41:32 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/93-loancrate-senior-security-engineer-loancrate-2026-03-03/analysis.json (11 requirements mapped)
+  Mapped 11 requirements
+  Company: loancrate
+  Role: Senior Security Engineer
+
+→ Generating Resume...
+15:41:32 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+15:42:00 INFO     tailor.ollama — LLM call complete (3357 chars returned)
+15:42:00 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+15:42:48 INFO     tailor.ollama — LLM call complete (8319 chars returned)
+15:42:48 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+15:43:36 INFO     tailor.ollama — LLM call complete (8324 chars returned)
+15:43:36 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/93-loancrate-senior-security-engineer-loancrate-2026-03-03/Conner_Jordan_Resume.tex (8312 chars)
+  Validating (attempt 1/3)...
+15:43:37 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/93-loancrate-senior-security-engineer-loancrate-2026-03-03/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+15:43:37 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+15:43:52 INFO     tailor.ollama — LLM call complete (1692 chars returned)
+15:43:52 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:44:20 INFO     tailor.ollama — LLM call complete (4514 chars returned)
+15:44:20 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+15:44:45 INFO     tailor.ollama — LLM call complete (4348 chars returned)
+15:44:45 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/93-loancrate-senior-security-engineer-loancrate-2026-03-03/Conner_Jordan_Cover_Letter.tex (4335 chars)
+  Validating (attempt 1/3)...
+15:44:45 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/93-loancrate-senior-security-engineer-loancrate-2026-03-03/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/93-loancrate-senior-security-engineer-loancrate-2026-03-03

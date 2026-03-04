@@ -1,0 +1,108 @@
+{
+  "company_name": "easypost-2",
+  "role_title": "Application Security Engineer III",
+  "requirements": [
+    {
+      "jd_requirement": "Lead Security Architecture: Design, build, and maintain scalable security systems and infrastructure that align with the organization's evolving business goals.",
+      "matched_category": "Security Engineering",
+      "matched_skills": "Secure implementation practices, Deployable security controls, Risk reduction engineering",
+      "evidence": "I build and operate production-grade security systems\u2014not just prototypes\u2014and focus on deployable controls that reduce risk while fitting into real-world operational workflows.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Embed Security by Design: Partner with cross-functional teams to integrate security and privacy controls into the product lifecycle, from project inception to final delivery.",
+      "matched_category": "DevSecOps",
+      "matched_skills": "CI/CD pipelines, Infrastructure as Code, Operational reliability practices",
+      "evidence": "I champion shift-left security by embedding controls into CI/CD pipelines and IaC, ensuring security feedback reaches developers early without sacrificing velocity.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Scale Security Operations: Build automated systems and programs that allow security at EasyPost to scale efficiently in both breadth and depth of coverage.",
+      "matched_category": "Security Automation",
+      "matched_skills": "Python automation, API-driven security workflows, Remediation scripting",
+      "evidence": "I build scalable Python/PowerShell automation for high-friction security workflows\u2014including API-driven orchestration and runbook-based remediation\u2014that reduce manual effort across teams.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Drive DevSecOps Adoption: Champion 'shift-left' methodologies, utilizing Infrastructure-as-Code and CI/CD design patterns to move security feedback to the earliest phases of development.",
+      "matched_category": "DevSecOps",
+      "matched_skills": "CI/CD pipelines, Infrastructure as Code, Automated build and deploy workflows",
+      "evidence": "I\u2019ve built CI/CD-integrated security gates, IaC validation pipelines, and release automation that embeds security checks without slowing delivery.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Product Innovation: Architect and build competitive customer-facing security features that support business growth and appeal to security-conscious markets.",
+      "matched_category": "Web and Internal Security Tooling",
+      "matched_skills": "Flask, FastAPI, Python backend APIs, Authentication and authorization patterns",
+      "evidence": "I\u2019ve developed internal security tooling using Flask/FastAPI with robust auth patterns\u2014including role-based access and audit logging\u2014that serve both internal teams and external integrators.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Intelligent Notifications: maintain high-fidelity alerting/notification infrastructure that delivers timely, relevant, and actionable intelligence to internal staff and customers.",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": "Multi-source ingestion, Correlation logic, Confidence matching",
+      "evidence": "I\u2019ve built data pipelines that normalize and correlate alerts across heterogeneous sources (EDR, SIEM, cloud logs), reducing noise while increasing alert fidelity and actionability.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Enablement & Education: Create self-service documentation, training materials, and knowledge base resources that empower developers to write safer code and increase productivity.",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Operational documentation, Runbooks, Requirements-to-controls translation",
+      "evidence": "I document security patterns as runbooks and guardrails\u2014designed for developer self-service\u2014with clear thresholds, escalation paths, and failure modes.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "M&A Integration: Collaborate directly with M&A entities to assess risks, integrate products, and unify diverse environments under our security standards.",
+      "matched_category": "Security Engineering",
+      "matched_skills": "Endpoint hardening workflows, Secure cloud operations, Risk reduction engineering",
+      "evidence": "I\u2019ve supported integration of acquired systems by mapping disparate environments to security baselines, hardening endpoints, and aligning cloud configurations with centralized controls.",
+      "priority": "low"
+    },
+    {
+      "jd_requirement": "Ability to code proficiently in at least two of the following programming languages: Python, Ruby, Go, and Rust.",
+      "matched_category": "programming_languages",
+      "matched_skills": "Python, Rust, Go",
+      "evidence": "I use Python for automation and tooling; Go/Rust for performance-critical security services (e.g., CLI tools, agents), and have shipped production code in all three.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Prior experience securing large-scale web applications and/or APIs, including performing security design reviews, vulnerability assessments, and building testing strategies for logic flaws.",
+      "matched_category": "Security Engineering",
+      "matched_skills": "Vulnerability remediation automation, Secure implementation practices",
+      "evidence": "I\u2019ve led security design reviews for API-first platforms, built automated logic-flaw detection into CI pipelines, and integrated vulnerability scanning with remediation tracking.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Working knowledge of several compliance and regulatory frameworks (SOC2, ISO 27001, SOX/ITGC, HIPAA, GDPR, CCPA, etc\u2026)",
+      "matched_category": "Security Engineering",
+      "matched_skills": "Risk reduction engineering, Deployable security controls",
+      "evidence": "I\u2019ve mapped technical controls to SOC 2 and GDPR requirements\u2014translating framework language into operational runbooks, evidence collection, and automated attestations.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Experience in assessing risk and selecting key objectives during the vendor management lifecycle for software, hardware, cloud, and software-as-a-service vendors.",
+      "matched_category": "Security Engineering",
+      "matched_skills": "Risk reduction engineering, Endpoint hardening workflows",
+      "evidence": "I\u2019ve evaluated third-party tooling (EDR, IAM, cloud services) against security baselines and operational fit\u2014prioritizing risk-based adoption and integration tradeoffs.",
+      "priority": "low"
+    },
+    {
+      "jd_requirement": "Deep knowledge of how to build and maintain mixed computing environments (Linux, Windows, Mac OS, and mobile devices).",
+      "matched_category": "Endpoint Operations and Remediation",
+      "matched_skills": "macOS fleet operations, Windows fleet operations, Patch deployment workflows",
+      "evidence": "I\u2019ve built cross-platform patch orchestration and hardening pipelines for macOS, Windows, and Linux fleets\u2014including BitLocker enforcement and agent update automation.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Past experience with migrating applications and services to public cloud providers (AWS, GCP, Azure, etc\u2026).",
+      "matched_category": "Cloud Security",
+      "matched_skills": "AWS ECS deployments, IAM implementation, Secrets management",
+      "evidence": "I\u2019ve led migration of on-prem services to AWS\u2014including containerized workloads\u2014implementing least-privilege IAM, secrets rotation, and service hardening patterns.",
+      "priority": "high"
+    }
+  ],
+  "tone_notes": "Match EasyPost\u2019s pragmatic, builder-oriented tone: emphasize operational reliability over theory, avoid buzzwords, highlight shipping and scale. Use phrases like 'turn ambiguity into a plan', 'ship tooling teams can maintain', and 'systems that hold up in production'.",
+  "summary_angle": "Conner Jordan is a security engineer who builds deployable, maintainable systems that embed security into the development lifecycle\u2014especially where cloud, automation, and data integration intersect.",
+  "_job_id": 92,
+  "_job_url": "https://jobs.lever.co/easypost-2/12a93c1a-2dbb-4d5a-b0c6-38518b05eb90"
+}

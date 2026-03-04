@@ -1,0 +1,39 @@
+
+Tailoring for: Senior Platform Consultant (Kubernetes / Cilium / Edge) - Lever
+Company: trility
+URL: https://jobs.lever.co/trility/b2fcd719-b60e-424f-990e-5c575f38adda
+Output: /Users/conner/Documents/SearXNG/tailoring/output/25-trility-senior-platform-consultant-kubernetes-cilium-edge---lever-2026-02-27
+
+→ Analyzing JD against skills inventory...
+22:04:58 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+22:05:20 INFO     tailor.ollama — LLM call complete (3981 chars returned)
+22:05:20 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/25-trility-senior-platform-consultant-kubernetes-cilium-edge---lever-2026-02-27/analysis.json (8 requirements mapped)
+  Mapped 8 requirements
+  Company: trility
+  Role: Senior Platform Consultant (Kubernetes / Cilium / Edge)
+
+→ Generating Resume...
+22:05:20 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+22:05:38 INFO     tailor.ollama — LLM call complete (1906 chars returned)
+22:05:38 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+22:06:19 INFO     tailor.ollama — LLM call complete (7532 chars returned)
+22:06:19 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+22:07:03 INFO     tailor.ollama — LLM call complete (8075 chars returned)
+22:07:03 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/25-trility-senior-platform-consultant-kubernetes-cilium-edge---lever-2026-02-27/Conner_Jordan_Resume.tex (8063 chars)
+  Validating (attempt 1/3)...
+22:07:04 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/25-trility-senior-platform-consultant-kubernetes-cilium-edge---lever-2026-02-27/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+22:07:04 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+22:07:18 INFO     tailor.ollama — LLM call complete (1655 chars returned)
+22:07:18 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+22:07:45 INFO     tailor.ollama — LLM call complete (4655 chars returned)
+22:07:45 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+22:08:10 INFO     tailor.ollama — LLM call complete (4480 chars returned)
+22:08:10 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/25-trility-senior-platform-consultant-kubernetes-cilium-edge---lever-2026-02-27/Conner_Jordan_Cover_Letter.tex (4467 chars)
+  Validating (attempt 1/3)...
+22:08:11 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/25-trility-senior-platform-consultant-kubernetes-cilium-edge---lever-2026-02-27/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/25-trility-senior-platform-consultant-kubernetes-cilium-edge---lever-2026-02-27

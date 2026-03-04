@@ -1,0 +1,80 @@
+{
+  "company_name": "modmed",
+  "role_title": "Senior Cloud Engineer",
+  "requirements": [
+    {
+      "jd_requirement": "Architect and manage secure, scalable cloud infrastructure with a strong focus on automation and efficiency",
+      "matched_category": "Cloud Security",
+      "matched_skills": "Secure cloud operations, IAM implementation, Containerized security services",
+      "evidence": "I build and operate production cloud systems with deployable security controls\u2014designing IAM, secrets management, and hardened ECS deployments that scale without compromising safety.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Lead Infrastructure as Code (IaC) development using Terraform, Helm, and Ansible",
+      "matched_category": "DevSecOps",
+      "matched_skills": "Infrastructure as Code, Configuration management, CI/CD pipelines",
+      "evidence": "I\u2019ve built and maintained Terraform/Ansible-based IaC pipelines for secure cloud deployments, ensuring repeatability and auditability across environments.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Develop and maintain CI/CD pipelines for Kubernetes applications and traditional EC2 workloads",
+      "matched_category": "DevSecOps",
+      "matched_skills": "CI/CD pipelines, Automated build and deploy workflows, Release automation",
+      "evidence": "I design CI/CD pipelines that unify containerized and EC2 deployments\u2014embedding security gates, version control, and rollback capabilities for operational reliability.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Implement and enhance observability solutions using DataDog, ensuring real-time monitoring and proactive issue resolution",
+      "matched_category": "Security Analytics",
+      "matched_skills": "Log analysis, Anomaly-oriented analysis, Security metrics and reporting",
+      "evidence": "I build observability pipelines using Grafana/Prometheus and correlate signals across systems to detect anomalies early\u2014turning telemetry into actionable alerts.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Drive Kubernetes-based containerization and orchestration initiatives",
+      "matched_category": "DevSecOps",
+      "matched_skills": "Container orchestration, AWS ECS deployments, Service hardening",
+      "evidence": "I\u2019ve containerized legacy Java apps and deployed them on Kubernetes/ECS with hardened configurations\u2014balancing security, scalability, and operational simplicity.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Work with Kafka to design and optimize event-driven architectures",
+      "matched_category": "Security Data Engineering",
+      "matched_skills": "Multi-source ingestion, Correlation logic, Entity resolution",
+      "evidence": "I\u2019ve built event-driven pipelines using Kafka to ingest and normalize security telemetry\u2014enabling real-time correlation and automated response.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Mentor junior engineers and contribute to a culture of continuous learning",
+      "matched_category": "Technical Communication and Delivery",
+      "matched_skills": "Operational documentation, Runbooks, Cross-functional execution",
+      "evidence": "I create runbooks, architecture decision records (ADRs), and onboarding guides that scale team velocity\u2014ensuring knowledge transfer and consistent delivery.",
+      "priority": "medium"
+    },
+    {
+      "jd_requirement": "Proficiency in Infrastructure as Code (Terraform, Ansible) and scripting (Python, Bash)",
+      "matched_category": "DevSecOps",
+      "matched_skills": "Infrastructure as Code, Configuration management, Python automation",
+      "evidence": "I write production-grade Python/Bash tooling to automate infrastructure provisioning, patching, and remediation\u2014reducing manual effort and drift.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Deep understanding of cloud networking, security, and scalability best practices",
+      "matched_category": "Cloud Security",
+      "matched_skills": "IAM implementation, Service hardening, Secure cloud operations",
+      "evidence": "I design secure network topologies and enforce least-privilege access across AWS environments\u2014balancing developer agility with compliance requirements.",
+      "priority": "high"
+    },
+    {
+      "jd_requirement": "Experience with troubleshooting and optimizing large-scale cloud infrastructures",
+      "matched_category": "DevSecOps",
+      "matched_skills": "Operational reliability practices, CI/CD pipelines, Infrastructure as Code",
+      "evidence": "I\u2019ve led post-incident reviews and built runbooks to prevent recurrence\u2014turning operational debt into scalable, observable infrastructure.",
+      "priority": "high"
+    }
+  ],
+  "tone_notes": "Match ModMed\u2019s pragmatic, mission-driven tone\u2014emphasize building secure systems that *hold up in production*, not just theoretical security. Align with their 'for doctors, by doctors' ethos by highlighting operational reliability and real-world impact over buzzwords.",
+  "summary_angle": "Position Conner as a security-minded cloud engineer who builds reliable, scalable infrastructure\u2014bridging DevOps, security automation, and cloud-native delivery to support high-stakes healthcare applications.",
+  "_job_id": 94,
+  "_job_url": "https://modmed.wd501.myworkdayjobs.com/ModMed12/job/Senior-Cloud-Engineer_R3265"
+}

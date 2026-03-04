@@ -97,6 +97,11 @@ export const api = {
         return data;
     },
 
+    getTailoringJobDetail: async (id: number) => {
+        const { data } = await apiClient.get(`/tailoring/jobs/${id}`);
+        return data;
+    },
+
     getTailoringRecentJobs: async () => {
         const { data } = await apiClient.get('/tailoring/jobs/recent');
         return data;
@@ -109,6 +114,26 @@ export const api = {
 
     getTailoringRunnerStatus: async () => {
         const { data } = await apiClient.get('/tailoring/runner/status');
+        return data;
+    },
+
+    stopTailoringRunner: async (payload?: { clear_queue?: boolean; wait_seconds?: number }) => {
+        const { data } = await apiClient.post('/tailoring/runner/stop', payload || {});
+        return data;
+    },
+
+    queueTailoring: async (jobs: { job_id: number; skip_analysis?: boolean }[]) => {
+        const { data } = await apiClient.post('/tailoring/queue', { jobs });
+        return data;
+    },
+
+    getTailoringQueue: async () => {
+        const { data } = await apiClient.get('/tailoring/queue');
+        return data;
+    },
+
+    clearTailoringQueue: async () => {
+        const { data } = await apiClient.delete('/tailoring/queue');
         return data;
     },
 
@@ -144,6 +169,51 @@ export const api = {
 
     getLlmStatus: async () => {
         const { data } = await apiClient.get('/llm/status');
+        return data;
+    },
+
+    getLlmModels: async () => {
+        const { data } = await apiClient.get('/llm/models');
+        return data;
+    },
+
+    loadLlmModel: async (identifier: string) => {
+        const { data } = await apiClient.post('/llm/models/load', { identifier });
+        return data;
+    },
+
+    unloadLlmModel: async (identifier: string) => {
+        const { data } = await apiClient.post('/llm/models/unload', { identifier });
+        return data;
+    },
+
+    ingestFetchUrl: async (url: string) => {
+        const { data } = await apiClient.post('/tailoring/ingest/fetch-url', { url });
+        return data;
+    },
+
+    ingestParse: async (jd_text: string) => {
+        const { data } = await apiClient.post('/tailoring/ingest/parse', { jd_text });
+        return data;
+    },
+
+    ingestCommit: async (fields: Record<string, any>) => {
+        const { data } = await apiClient.post('/tailoring/ingest/commit', fields);
+        return data;
+    },
+
+    createArchive: async (tag: string) => {
+        const { data } = await apiClient.post('/tailoring/archive', { tag });
+        return data;
+    },
+
+    getArchives: async () => {
+        const { data } = await apiClient.get('/tailoring/archives');
+        return data.archives;
+    },
+
+    getArchiveDetail: async (id: number) => {
+        const { data } = await apiClient.get(`/tailoring/archives/${id}`);
         return data;
     },
 
@@ -202,6 +272,16 @@ export const api = {
 
     dbAdminAction: async (action: string, tables: string[], confirm: string) => {
         const { data } = await apiClient.post('/db/admin/action', { action, tables, confirm });
+        return data;
+    },
+
+    opsStatus: async () => {
+        const { data } = await apiClient.get('/ops/status');
+        return data;
+    },
+
+    opsAction: async (action: string) => {
+        const { data } = await apiClient.post('/ops/action', { action });
         return data;
     },
 };

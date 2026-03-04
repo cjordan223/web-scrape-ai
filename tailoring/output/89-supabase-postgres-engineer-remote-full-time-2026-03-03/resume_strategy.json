@@ -1,0 +1,25 @@
+{
+  "summary_strategy": "Reframe Conner as a reliability-focused engineer who builds and operates secure, scalable infrastructure\u2014positioning his DevSecOps rigor, fleet automation, and systems thinking as directly transferable to Supabase\u2019s hosted Postgres platform",
+  "skills_tailoring": {
+    "Languages": "Reorder to prioritize C, Rust, Python, SQL\u2014highlighting low-level systems languages and query language first; keep all 11 items",
+    "Security Tooling": "Reorder to emphasize endpoint management, vulnerability orchestration, and CI/CD-integrated tooling; add 'managed database security' as a conceptual bridge",
+    "AI/ML and Research": "Reorder to surface RAG pipelines, vector databases, and NLP first; add 'database query intent classification' as a plausible extension of security log analysis work",
+    "Frameworks and Infrastructure": "Reorder to highlight Flask, FastAPI, Docker\u2014emphasizing API-first, containerized services; add 'managed service patterns' as a conceptual link",
+    "DevOps and CI/CD": "Reorder to lead with infrastructure as code, container orchestration, and release automation; add 'idempotent deployment patterns for distributed systems' as a safe conceptual extension",
+    "Databases": "Reorder PostgreSQL first, then managed databases (Snowflake, Databricks), then operational DBs (Redis, ClickHouse); keep all 10 items\u2014do not rename or merge"
+  },
+  "experience_focus": [
+    {
+      "company": "University of California|Great Wolf Resorts|Simple.biz",
+      "must_highlight": "idempotent automation at scale, operational reliability for distributed systems, secure API-driven tooling",
+      "safe_metrics_to_keep": "10,000+ devices, 2,900-user portal, 500 hours annually, 30 percent reduction in user-reported issues",
+      "claims_to_avoid": "no 'designed PostgreSQL internals', no 'built database extensions', no speculative metrics like '99.99% uptime'"
+    }
+  ],
+  "risk_controls": [
+    "Do not invent PostgreSQL-specific experience\u2014frame database familiarity through operational patterns (IAM, secrets, managed services)",
+    "Replace all speculative technical depth claims with transferable DevSecOps behaviors (e.g., 'operational familiarity' instead of 'deep expertise')",
+    "Avoid terms like 'architected', 'designed for scale'\u2014use 'built', 'deployed', 'operated'",
+    "Never claim extension development unless explicitly stated\u2014C/Rust usage must be tied to existing security tooling work"
+  ]
+}

@@ -284,6 +284,200 @@ def db_admin_action(payload: dict = Body(default={})):
         conn.close()
 
 
+def ops_action(payload: dict = Body(default={})):
+    """Unified ops action endpoint — handles all workflow admin actions."""
+    _sync_app_state()
+    if not isinstance(payload, dict):
+        return JSONResponse({"error": "Invalid payload"}, 400)
+
+    action = str(payload.get("action", "")).strip()
+
+    # ── Scraping: DB table clears ──────────────────────────────────────────
+    _SCRAPING_TABLE_ACTIONS = {
+        "clear_scrape_runs":   ["runs"],
+        "clear_jobs":          ["results"],
+        "clear_rejected":      ["rejected"],
+        "clear_seen_urls":     ["seen_urls"],
+        "clear_scraping_all":  ["runs", "results", "rejected", "seen_urls"],
+    }
+    if action in _SCRAPING_TABLE_ACTIONS:
+        tables = _SCRAPING_TABLE_ACTIONS[action]
+        conn = get_db_write()
+        try:
+            existing = set(_db_user_tables(conn))
+            affected = [t for t in tables if t in existing]
+            for t in affected:
+                conn.execute(f"DELETE FROM [{t}]")
+            conn.commit()
+            return {"ok": True, "action": action, "affected_tables": affected}
+        except sqlite3.Error as e:
+            conn.rollback()
+            return JSONResponse({"error": str(e)}, 500)
+        finally:
+            conn.close()
+
+    # ── Tailoring: filesystem purges ──────────────────────────────────────
+    if action in (
+        "clear_tailoring_runs",
+        "clear_tailoring_failed",
+        "clear_tailoring_partial",
+        "clear_tailoring_succeeded",
+        "clear_tailoring_logs",
+    ):
+        import shutil as _shutil
+        output_dir = TAILORING_OUTPUT_DIR
+        log_dir = TAILORING_RUNNER_LOG_DIR
+
+        if action == "clear_tailoring_logs":
+            removed = 0
+            if log_dir.exists():
+                for f in log_dir.iterdir():
+                    if f.is_file():
+                        f.unlink()
+                        removed += 1
+            return {"ok": True, "action": action, "removed": removed}
+
+        if action == "clear_tailoring_failed":
+            removed = []
+            if output_dir.exists():
+                for d in output_dir.iterdir():
+                    if not d.is_dir() or d.name == "_runner_logs":
+                        continue
+                    status = _tailoring_run_status(d)
+                    if status in ("failed", "error", "unknown", "no-trace"):
+                        _shutil.rmtree(d)
+                        removed.append(d.name)
+            return {"ok": True, "action": action, "removed": removed}
+
+        if action == "clear_tailoring_partial":
+            removed = []
+            if output_dir.exists():
+                for d in output_dir.iterdir():
+                    if not d.is_dir() or d.name == "_runner_logs":
+                        continue
+                    status = _tailoring_run_status(d)
+                    if status == "partial":
+                        _shutil.rmtree(d)
+                        removed.append(d.name)
+            return {"ok": True, "action": action, "removed": removed}
+
+        if action == "clear_tailoring_succeeded":
+            removed = []
+            if output_dir.exists():
+                for d in output_dir.iterdir():
+                    if not d.is_dir() or d.name == "_runner_logs":
+                        continue
+                    status = _tailoring_run_status(d)
+                    if status in ("complete", "passed", "success", "succeeded"):
+                        _shutil.rmtree(d)
+                        removed.append(d.name)
+            return {"ok": True, "action": action, "removed": removed}
+
+        if action == "clear_tailoring_runs":
+            removed = []
+            if output_dir.exists():
+                for d in output_dir.iterdir():
+                    if not d.is_dir() or d.name == "_runner_logs":
+                        continue
+                    _shutil.rmtree(d)
+                    removed.append(d.name)
+            return {"ok": True, "action": action, "removed": removed}
+
+    # ── Nuclear ────────────────────────────────────────────────────────────
+    if action == "nuke_all":
+        import shutil as _shutil
+        conn = get_db_write()
+        try:
+            existing = set(_db_user_tables(conn))
+            for t in sorted(existing):
+                conn.execute(f"DELETE FROM [{t}]")
+            conn.commit()
+        except sqlite3.Error as e:
+            conn.rollback()
+            return JSONResponse({"error": f"DB error: {e}"}, 500)
+        finally:
+            conn.close()
+        removed_runs = []
+        if TAILORING_OUTPUT_DIR.exists():
+            for d in TAILORING_OUTPUT_DIR.iterdir():
+                if d.is_dir() and d.name != "_runner_logs":
+                    _shutil.rmtree(d)
+                    removed_runs.append(d.name)
+        return {"ok": True, "action": action, "tailoring_runs_removed": removed_runs}
+
+    return JSONResponse({"error": f"Unknown action: {action!r}"}, 400)
+
+
+def ops_status():
+    """Return counts/sizes for all admin-relevant resources."""
+    _sync_app_state()
+    conn = get_db()
+    try:
+        tables = _db_user_tables(conn)
+        table_counts = _db_table_counts(conn, tables)
+    finally:
+        conn.close()
+
+    # Tailoring output stats
+    output_dir = TAILORING_OUTPUT_DIR
+    tailoring_runs = 0
+    tailoring_failed = 0
+    tailoring_partial = 0
+    tailoring_succeeded = 0
+    tailoring_unknown = 0
+    tailoring_logs = 0
+    if output_dir.exists():
+        for d in output_dir.iterdir():
+            if not d.is_dir() or d.name == "_runner_logs":
+                continue
+            tailoring_runs += 1
+            s = _tailoring_run_status(d)
+            if s in ("complete", "passed", "success", "succeeded"):
+                tailoring_succeeded += 1
+            elif s == "partial":
+                tailoring_partial += 1
+            elif s in ("failed", "error"):
+                tailoring_failed += 1
+            else:
+                tailoring_unknown += 1
+        log_dir = TAILORING_RUNNER_LOG_DIR
+        if log_dir.exists():
+            tailoring_logs = sum(1 for f in log_dir.iterdir() if f.is_file())
+
+    return {
+        "db_tables": table_counts,
+        "tailoring": {
+            "total_runs": tailoring_runs,
+            "failed_runs": tailoring_failed,
+            "partial_runs": tailoring_partial,
+            "succeeded_runs": tailoring_succeeded,
+            "unknown_runs": tailoring_unknown,
+            "log_files": tailoring_logs,
+        },
+    }
+
+
+def _tailoring_run_status(run_dir):
+    """Infer tailoring run status from summary first, then status.json if present."""
+    try:
+        summary = _tailoring_summary(run_dir)
+        s = str(summary.get("status") or "").strip().lower()
+        if s:
+            return s
+    except Exception:
+        pass
+
+    status_file = run_dir / "status.json"
+    if status_file.exists():
+        try:
+            import json as _json
+            s = str(_json.loads(status_file.read_text()).get("status", "unknown")).strip().lower()
+            return s or "unknown"
+        except Exception:
+            return "unknown"
+    return "unknown"
+
+
 # ---------------------------------------------------------------------------
 # Routes — API: Schedules (launchd)
 # ---------------------------------------------------------------------------

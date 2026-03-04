@@ -1,0 +1,39 @@
+
+Tailoring for: Enterprise Security Engineer @ Compa - Jobs
+Company: compa
+URL: https://jobs.ashbyhq.com/compa/1fe329ea-f4a5-4605-8a2a-febf8a31f3b6
+Output: /Users/conner/Documents/SearXNG/tailoring/output/32-compa-enterprise-security-engineer-compa---jobs-2026-03-01
+
+→ Analyzing JD against skills inventory...
+00:43:51 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+00:44:19 INFO     tailor.ollama — LLM call complete (5128 chars returned)
+00:44:19 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/32-compa-enterprise-security-engineer-compa---jobs-2026-03-01/analysis.json (11 requirements mapped)
+  Mapped 11 requirements
+  Company: compa
+  Role: Enterprise Security Engineer
+
+→ Generating Resume...
+00:44:19 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+00:44:43 INFO     tailor.ollama — LLM call complete (2685 chars returned)
+00:44:43 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+00:45:31 INFO     tailor.ollama — LLM call complete (8161 chars returned)
+00:45:31 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+00:46:16 INFO     tailor.ollama — LLM call complete (8125 chars returned)
+00:46:16 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/32-compa-enterprise-security-engineer-compa---jobs-2026-03-01/Conner_Jordan_Resume.tex (8113 chars)
+  Validating (attempt 1/3)...
+00:46:17 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/32-compa-enterprise-security-engineer-compa---jobs-2026-03-01/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+00:46:17 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+00:46:32 INFO     tailor.ollama — LLM call complete (1794 chars returned)
+00:46:32 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+00:46:59 INFO     tailor.ollama — LLM call complete (4482 chars returned)
+00:46:59 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+00:47:25 INFO     tailor.ollama — LLM call complete (4337 chars returned)
+00:47:25 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/32-compa-enterprise-security-engineer-compa---jobs-2026-03-01/Conner_Jordan_Cover_Letter.tex (4324 chars)
+  Validating (attempt 1/3)...
+00:47:25 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/32-compa-enterprise-security-engineer-compa---jobs-2026-03-01/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/32-compa-enterprise-security-engineer-compa---jobs-2026-03-01

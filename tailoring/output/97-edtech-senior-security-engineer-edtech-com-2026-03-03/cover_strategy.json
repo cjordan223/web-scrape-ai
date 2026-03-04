@@ -1,0 +1,21 @@
+{
+  "opening_angle": "Connect Coursera\u2019s mission of accessible education to Conner\u2019s strength in building secure, maintainable infrastructure\u2014positioning security as an enabler of reliability and trust for learners and institutions",
+  "paragraph_focus": [
+    "Direct alignment with Coursera\u2019s need for scalable security operations and incident response",
+    "Concrete examples of cloud-native security automation (AWS ECS, IAM, secrets) matching JD requirements",
+    "Cross-functional enablement: translating compliance to controls for Sales/Legal, embedding security in CI/CD",
+    "Operational mindset: documentation, guardrails, and sustainable remediation workflows over theoretical frameworks"
+  ],
+  "voice_controls": [
+    "Use active verbs: build, operate, automate, reconcile, standardize, embed",
+    "Replace 'I am passionate about' with 'I focus on' or 'I deliver'",
+    "Avoid 'leverage', 'synergy', 'holistic'\u2014use 'integrate', 'connect', 'enable'",
+    "Prefer 'runbooks that standardized remediation' over 'established security frameworks'"
+  ],
+  "claims_to_avoid": [
+    "No mention of leadership titles unless explicitly stated (e.g., 'led' only where evidence confirms action, not title)",
+    "No inflated metrics like 'reduced MTTR by 70%' without source data",
+    "Avoid 'AI-powered' or 'next-gen'\u2014use 'AI-assisted with governance'",
+    "Do not claim SOC2/ISO 27001 certification ownership\u2014state 'translated requirements into controls used during audits'"
+  ]
+}

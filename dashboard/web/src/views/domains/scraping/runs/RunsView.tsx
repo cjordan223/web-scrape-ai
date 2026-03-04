@@ -67,6 +67,23 @@ const formatCadence = (minutes: number | null | undefined) => {
     return `Every ${minutes} minutes`;
 };
 
+const deriveStopAfterHours = (controls: any): string => {
+    const stopRaw = controls?.schedule_stop_at;
+    if (!stopRaw) return '';
+    const stopAt = new Date(stopRaw);
+    if (Number.isNaN(stopAt.getTime())) return '';
+
+    const startedRaw = controls?.schedule_started_at;
+    const startedAt = startedRaw ? new Date(startedRaw) : null;
+    if (!startedAt || Number.isNaN(startedAt.getTime())) return '';
+
+    const diffMs = stopAt.getTime() - startedAt.getTime();
+    if (diffMs <= 0) return '';
+    const diffHours = diffMs / (60 * 60 * 1000);
+    if (!Number.isInteger(diffHours)) return '';
+    return String(diffHours);
+};
+
 export default function RunsView() {
     const navigate = useNavigate();
     const [controls, setControls] = useState<any>({
@@ -82,7 +99,7 @@ export default function RunsView() {
     const [savingSchedule, setSavingSchedule] = useState(false);
     const [loadingRunner, setLoadingRunner] = useState(false);
     const [llmStatus, setLlmStatus] = useState<any>(null);
-    const [isActive, setIsActive] = useState(false);
+    const [activeRun, setActiveRun] = useState<{ active: boolean; run_id?: string } | null>(null);
     const [scheduleIntervalMinutes, setScheduleIntervalMinutes] = useState<number>(1440);
     const [scheduleStopAfterHours, setScheduleStopAfterHours] = useState<string>('');
     const [customIntervalMinutes, setCustomIntervalMinutes] = useState<string>('');
@@ -106,7 +123,7 @@ export default function RunsView() {
             const data = await api.getRunsControls();
             setControls(data);
             setScheduleIntervalMinutes(data?.schedule_interval_minutes || 1440);
-            setScheduleStopAfterHours('');
+            setScheduleStopAfterHours(deriveStopAfterHours(data));
             setCustomIntervalMinutes('');
             setCustomStopAfterHours('');
         } catch (err) {
@@ -149,7 +166,7 @@ export default function RunsView() {
     const fetchActiveRun = async () => {
         try {
             const data = await api.getActiveRun();
-            setIsActive(data.active ?? false);
+            setActiveRun(data || { active: false });
         } catch { }
     };
 
@@ -235,13 +252,54 @@ export default function RunsView() {
             await api.updateRunsControls({
                 schedule_interval_minutes: intervalToUse,
                 schedule_stop_after_hours: stopAfterToUse,
-                scrape_enabled: true,
             });
             await fetchControls();
         } catch (err) {
             console.error(err);
         } finally {
             setSavingSchedule(false);
+        }
+    };
+
+    const handleDisableScheduledScrape = async () => {
+        setLoadingControls(true);
+        try {
+            await api.setScrapeEnabled(false);
+            await fetchControls();
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoadingControls(false);
+        }
+    };
+
+    const handleStopScheduledRunsNow = async () => {
+        setLoadingControls(true);
+        try {
+            await api.updateRunsControls({
+                scrape_enabled: false,
+                schedule_stop_after_hours: null,
+            });
+            await fetchControls();
+            await fetchActiveRun();
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoadingControls(false);
+        }
+    };
+
+    const handleTerminateActiveRun = async () => {
+        if (!activeRun?.active || !activeRun?.run_id) return;
+        if (!window.confirm("Terminate the currently running scrape now?")) return;
+        try {
+            await api.terminateRun(activeRun.run_id);
+            await fetchRuns();
+            await fetchRunnerStatus();
+            await fetchActiveRun();
+        } catch (err) {
+            console.error(err);
+            alert("Failed to terminate active run.");
         }
     };
 
@@ -362,8 +420,8 @@ export default function RunsView() {
                         <span className={`pill ${controls.scrape_enabled ? 'pill-success' : 'pill-unknown'}`}>
                             {controls.scrape_enabled ? 'Scheduled scrape enabled' : 'Scheduled scrape disabled'}
                         </span>
-                        <span className={`pill ${isActive ? 'pill-running' : 'pill-unknown'}`}>
-                            {isActive ? 'Scrape currently running' : 'No active scrape run'}
+                        <span className={`pill ${activeRun?.active ? 'pill-running' : 'pill-unknown'}`}>
+                            {activeRun?.active ? 'Scrape currently running' : 'No active scrape run'}
                         </span>
                         <span className={`pill ${llmStatus?.enabled === false ? 'pill-unknown' : (llmStatus?.available ? 'pill-success' : 'pill-fail')}`}
                             title={llmStatus?.enabled === false ? 'LLM checks are disabled by runtime controls' : (llmStatus?.available ? (llmStatus.models || []).join(', ') : `LLM server not reachable at ${llmStatus?.url}`)}>
@@ -466,6 +524,27 @@ export default function RunsView() {
                             >
                                 {savingSchedule ? 'Applying...' : 'Apply Schedule'}
                             </button>
+                            <button
+                                className="btn btn-ghost"
+                                disabled={savingSchedule || loadingControls || !controls.scrape_enabled}
+                                onClick={handleDisableScheduledScrape}
+                            >
+                                Disable Scheduled Scrape
+                            </button>
+                            <button
+                                className="btn btn-danger"
+                                disabled={savingSchedule || loadingControls}
+                                onClick={handleStopScheduledRunsNow}
+                            >
+                                Stop Scheduled Runs Now
+                            </button>
+                            <button
+                                className="btn btn-ghost"
+                                disabled={savingSchedule || loadingControls || !activeRun?.active || !activeRun?.run_id}
+                                onClick={handleTerminateActiveRun}
+                            >
+                                Terminate Active Run
+                            </button>
                         </div>
                         <div className="control-note">
                             If custom values are set, they override the dropdowns. Manual pipeline runs still execute immediately.
@@ -477,10 +556,10 @@ export default function RunsView() {
                     <div className="runs-control-title">Manual Pipeline Run</div>
                     <div className="control-actions">
                         <div className="control-action-row">
-                            <button className="btn btn-primary" disabled={loadingRunner || runner.running || isActive} onClick={() => startManualRun(true)}>
+                            <button className="btn btn-primary" disabled={loadingRunner || runner.running || activeRun?.active} onClick={() => startManualRun(true)}>
                                 {loadingRunner ? 'Starting...' : (runner.running ? 'Manual run in progress' : 'Run Pipeline With LLM')}
                             </button>
-                            <button className="btn btn-ghost" disabled={loadingRunner || runner.running || isActive} onClick={() => startManualRun(false)}>
+                            <button className="btn btn-ghost" disabled={loadingRunner || runner.running || activeRun?.active} onClick={() => startManualRun(false)}>
                                 Run Pipeline Without LLM
                             </button>
                             <button className="btn btn-ghost btn-sm" onClick={fetchRunnerStatus}>Refresh</button>

@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS seen_urls (
     last_seen TEXT NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_seen_urls_first_seen ON seen_urls(first_seen);
+
 CREATE TABLE IF NOT EXISTS results (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     url TEXT NOT NULL,
@@ -123,17 +125,30 @@ class JobStore:
 
     # --- Dedup ---
 
-    def is_seen(self, url: str) -> bool:
+    def is_seen(self, url: str, ttl_days: int | None = None) -> bool:
         canonical = canonicalize_job_url(url)
-        row = self._conn.execute(
-            """SELECT 1
-               FROM seen_urls
-               WHERE url = ?
-                  OR url = ?
-                  OR (instr(url, '?') > 0 AND substr(url, 1, instr(url, '?') - 1) = ?)
-               LIMIT 1""",
-            (url, canonical, canonical),
-        ).fetchone()
+        if ttl_days is not None:
+            from datetime import timedelta
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=ttl_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            row = self._conn.execute(
+                """SELECT 1
+                   FROM seen_urls
+                   WHERE (url = ? OR url = ?
+                          OR (instr(url, '?') > 0 AND substr(url, 1, instr(url, '?') - 1) = ?))
+                     AND first_seen >= ?
+                   LIMIT 1""",
+                (url, canonical, canonical, cutoff),
+            ).fetchone()
+        else:
+            row = self._conn.execute(
+                """SELECT 1
+                   FROM seen_urls
+                   WHERE url = ?
+                      OR url = ?
+                      OR (instr(url, '?') > 0 AND substr(url, 1, instr(url, '?') - 1) = ?)
+                   LIMIT 1""",
+                (url, canonical, canonical),
+            ).fetchone()
         return row is not None
 
     def mark_seen(self, url: str) -> None:

@@ -1,0 +1,39 @@
+
+Tailoring for: Job Application for Senior Machine Learning Engineer II - SIP Telephony ...
+Company: capitalrx
+URL: https://boards.greenhouse.io/capitalrx/jobs/5134991008
+Output: /Users/conner/Documents/SearXNG/tailoring/output/23-capitalrx-job-application-for-senior-machine-learning-engineer-ii---sip-telep
+
+→ Analyzing JD against skills inventory...
+00:47:27 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+00:47:58 INFO     tailor.ollama — LLM call complete (5020 chars returned)
+00:47:58 INFO     tailor.analyzer — Analysis saved to /Users/conner/Documents/SearXNG/tailoring/output/23-capitalrx-job-application-for-senior-machine-learning-engineer-ii---sip-telep/analysis.json (10 requirements mapped)
+  Mapped 10 requirements
+  Company: capitalrx
+  Role: Senior Machine Learning Engineer II - SIP Telephony
+
+→ Generating Resume...
+00:47:58 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1800)
+00:48:25 INFO     tailor.ollama — LLM call complete (3271 chars returned)
+00:48:25 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+00:49:14 INFO     tailor.ollama — LLM call complete (8319 chars returned)
+00:49:14 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=8192)
+00:50:02 INFO     tailor.ollama — LLM call complete (8263 chars returned)
+00:50:02 INFO     tailor.writer — Resume written to /Users/conner/Documents/SearXNG/tailoring/output/23-capitalrx-job-application-for-senior-machine-learning-engineer-ii---sip-telep/Conner_Jordan_Resume.tex (8251 chars)
+  Validating (attempt 1/3)...
+00:50:03 INFO     tailor.compiler — Compiled Conner_Jordan_Resume.tex -> /Users/conner/Documents/SearXNG/tailoring/output/23-capitalrx-job-application-for-senior-machine-learning-engineer-ii---sip-telep/Conner_Jordan_Resume.pdf
+  ✓ Resume passed all gates
+
+→ Generating Cover Letter...
+00:50:03 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=1400)
+00:50:19 INFO     tailor.ollama — LLM call complete (1725 chars returned)
+00:50:19 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+00:50:48 INFO     tailor.ollama — LLM call complete (4710 chars returned)
+00:50:48 INFO     tailor.ollama — LLM call starting (model=qwen/qwen3-coder-next, max_tokens=4096)
+00:51:14 INFO     tailor.ollama — LLM call complete (4565 chars returned)
+00:51:14 INFO     tailor.writer — Cover letter written to /Users/conner/Documents/SearXNG/tailoring/output/23-capitalrx-job-application-for-senior-machine-learning-engineer-ii---sip-telep/Conner_Jordan_Cover_Letter.tex (4552 chars)
+  Validating (attempt 1/3)...
+00:51:15 INFO     tailor.compiler — Compiled Conner_Jordan_Cover_Letter.tex -> /Users/conner/Documents/SearXNG/tailoring/output/23-capitalrx-job-application-for-senior-machine-learning-engineer-ii---sip-telep/Conner_Jordan_Cover_Letter.pdf
+  ✓ Cover Letter passed all gates
+
+Done. Output at: /Users/conner/Documents/SearXNG/tailoring/output/23-capitalrx-job-application-for-senior-machine-learning-engineer-ii---sip-telep
