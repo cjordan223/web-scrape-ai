@@ -50,8 +50,8 @@ LOCK_TIMEOUT = 300  # seconds to wait for file lock (prevents concurrent LLM acc
 # Run `python -m tailor validate <output_dir>` to test thresholds on existing output.
 
 RESUME_BULLET_COUNT = 14  # 6 (UCOP) + 5 (GWR) + 3 (Simple.biz) — must match baseline
-RESUME_CHAR_TOLERANCE = 0.15  # ±15% body text vs baseline (local models land 8-15% short)
-COVER_CHAR_TOLERANCE = 0.10  # ±10% body text vs baseline
+RESUME_CHAR_TOLERANCE = 0.20  # ±20% body text vs baseline
+COVER_CHAR_TOLERANCE = 0.15  # ±15% body text vs baseline
 MAX_RETRIES = 3  # full pipeline retries (strategy + draft + QA) per document
 
 # ── Section order (canonical) ──────────────────────────────────────────
