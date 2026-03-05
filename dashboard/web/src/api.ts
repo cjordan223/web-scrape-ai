@@ -217,6 +217,16 @@ export const api = {
         return data;
     },
 
+    getPipelinePackages: async () => {
+        const { data } = await apiClient.get('/ops/pipeline/packages');
+        return data.packages;
+    },
+
+    getPipelineTrace: async (archiveId: number, slug: string) => {
+        const { data } = await apiClient.get(`/ops/pipeline/trace/${archiveId}/${encodeURIComponent(slug)}`);
+        return data;
+    },
+
     getFilterStats: async () => {
         const { data } = await apiClient.get('/filters/stats');
         return data;

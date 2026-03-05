@@ -19,7 +19,7 @@ You are a job application strategist. You will receive a job description and a c
 RULES:
 1. Only reference skills that exist in the provided skills_inventory. Do NOT hallucinate skills the candidate does not have.
 2. Map each JD requirement to the best matching skill categories and specific skills.
-3. Select evidence anchors from the persona that best demonstrate each matched skill.
+3. Select evidence anchors from the BASELINE RESUME provided. You MUST quote or closely paraphrase a specific bullet from the resume and cite the company name. Do NOT fabricate metrics, percentages, or outcomes not present in the baseline.
 4. Identify the company name and exact role title from the JD.
 5. Note any tone adjustments needed based on the JD's language and culture signals.
 
@@ -32,7 +32,7 @@ Respond with ONLY a JSON object — no other text, no markdown fences:
       "jd_requirement": "what the JD asks for",
       "matched_category": "skill category name from inventory",
       "matched_skills": ["specific skill 1", "specific skill 2"],
-      "evidence": "brief description of candidate evidence supporting this",
+      "evidence": "quote or close paraphrase of a specific baseline resume bullet (cite company name)",
       "priority": "high|medium|low"
     }
   ],
@@ -82,6 +82,7 @@ def analyze_job(
 
     skills_data = json.loads(cfg.SKILLS_JSON.read_text())
     soul_text = cfg.SOUL_MD.read_text()
+    baseline_resume = cfg.RESUME_TEX.read_text()
 
     jd_text = job.jd_text or job.snippet or ""
     if not jd_text.strip():
@@ -93,6 +94,8 @@ def analyze_job(
         f"Company: {job.company}\n"
         f"URL: {job.url}\n\n"
         f"{jd_text[:8000]}\n\n"
+        f"## Baseline Resume (source of truth for evidence — quote from HERE, not from memory)\n"
+        f"```latex\n{baseline_resume}\n```\n\n"
         f"## Candidate Skills Inventory\n"
         f"{json.dumps(skills_data['skills_inventory'], indent=2)}\n\n"
         f"## Candidate Persona\n"

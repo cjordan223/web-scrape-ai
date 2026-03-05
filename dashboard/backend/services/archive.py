@@ -199,6 +199,78 @@ async def archive_list() -> JSONResponse:
         conn.close()
 
 
+async def pipeline_packages() -> JSONResponse:
+    """Return all archived packages across all archives for the pipeline inspector."""
+    conn = _get_archive_db()
+    try:
+        rows = conn.execute(
+            """SELECT ap.archive_id, ap.slug, ap.meta, a.tag, a.created_at as archive_created_at
+               FROM archived_packages ap
+               JOIN archives a ON a.id = ap.archive_id
+               ORDER BY ap.archive_id DESC, ap.slug""",
+        ).fetchall()
+        items = []
+        for r in rows:
+            meta = None
+            try:
+                meta = json.loads(r["meta"]) if r["meta"] else None
+            except Exception:
+                pass
+            items.append({
+                "archive_id": r["archive_id"],
+                "archive_tag": r["tag"],
+                "archive_created_at": r["archive_created_at"],
+                "slug": r["slug"],
+                "meta": meta,
+            })
+        return JSONResponse({"packages": items})
+    finally:
+        conn.close()
+
+
+async def pipeline_trace(archive_id: int, slug: str) -> JSONResponse:
+    """Return parsed LLM trace for a single archived package."""
+    conn = _get_archive_db()
+    try:
+        row = conn.execute(
+            "SELECT llm_trace, meta, analysis, resume_strategy, cover_strategy FROM archived_packages WHERE archive_id = ? AND slug = ?",
+            (archive_id, slug),
+        ).fetchone()
+        if not row:
+            return JSONResponse({"ok": False, "error": "Package not found"}, status_code=404)
+
+        events: list[dict] = []
+        if row["llm_trace"]:
+            for line in row["llm_trace"].strip().split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    events.append(json.loads(line))
+                except Exception:
+                    pass
+
+        def _parse_safe(text: str | None) -> dict | None:
+            if not text:
+                return None
+            try:
+                return json.loads(text)
+            except Exception:
+                return None
+
+        return JSONResponse({
+            "archive_id": archive_id,
+            "slug": slug,
+            "meta": _parse_safe(row["meta"]),
+            "analysis": _parse_safe(row["analysis"]),
+            "resume_strategy": _parse_safe(row["resume_strategy"]),
+            "cover_strategy": _parse_safe(row["cover_strategy"]),
+            "events": events,
+        })
+    finally:
+        conn.close()
+
+
 async def archive_detail(archive_id: int) -> JSONResponse:
     conn = _get_archive_db()
     try:

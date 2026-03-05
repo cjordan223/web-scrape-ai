@@ -15,6 +15,7 @@ import {
   Package,
   Database,
   Terminal,
+  GitBranch,
 } from 'lucide-react';
 
 type NavItem = {
@@ -106,7 +107,10 @@ const domains: Domain[] = [
       },
       {
         label: 'Diagnostics',
-        items: [{ label: 'Admin Ops', to: '/ops/diagnostics/sql', icon: Terminal }],
+        items: [
+          { label: 'Pipeline Inspector', to: '/ops/diagnostics/pipeline', icon: GitBranch },
+          { label: 'Admin Ops', to: '/ops/diagnostics/sql', icon: Terminal },
+        ],
       },
     ],
   },
@@ -132,6 +136,7 @@ const labelBySegment: Record<string, string> = {
   archives: 'Archives',
   diagnostics: 'Diagnostics',
   sql: 'Admin Ops',
+  pipeline: 'Pipeline Inspector',
 };
 
 function getActiveDomain(pathname: string): Domain {

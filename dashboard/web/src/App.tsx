@@ -22,6 +22,7 @@ const DedupView = lazy(() => import('./views/domains/scraping/quality/DedupView'
 const SchedulesView = lazy(() => import('./views/domains/scraping/quality/SchedulesView'));
 const ExplorerView = lazy(() => import('./views/domains/ops/data/ExplorerView'));
 const SqlConsoleView = lazy(() => import('./views/domains/ops/diagnostics/SqlConsoleView'));
+const PipelineView = lazy(() => import('./views/domains/ops/diagnostics/PipelineView'));
 const ArchiveView = lazy(() => import('./views/domains/ops/data/ArchiveView'));
 const MobileShell = lazy(() => import('./components/layout/MobileShell'));
 const MobileIngestView = lazy(() => import('./views/mobile/MobileIngestView'));
@@ -91,6 +92,7 @@ function App() {
           <Route path="/ops/data/explorer" element={<LazyRoute><ExplorerView /></LazyRoute>} />
           <Route path="/ops/data/archives" element={<LazyRoute><ArchiveView /></LazyRoute>} />
           <Route path="/ops/diagnostics/sql" element={<LazyRoute><SqlConsoleView /></LazyRoute>} />
+          <Route path="/ops/diagnostics/pipeline" element={<LazyRoute><PipelineView /></LazyRoute>} />
 
           <Route path="/overview" element={<LegacyRedirect to="/home/overview" />} />
           <Route path="/jobs" element={<LegacyRedirect to="/scraping/intake/jobs" />} />

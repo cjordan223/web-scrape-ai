@@ -22,6 +22,8 @@ ROUTES: list[tuple[str, str, str]] = [
     ("POST", "/api/tailoring/archive", "archive_create"),
     ("GET", "/api/tailoring/archives", "archive_list"),
     ("GET", "/api/tailoring/archives/{archive_id}", "archive_detail"),
+    ("GET", "/api/ops/pipeline/packages", "pipeline_packages"),
+    ("GET", "/api/ops/pipeline/trace/{archive_id}/{slug}", "pipeline_trace"),
     ("GET", "/{full_path:path}", "catch_all"),
 ]
 

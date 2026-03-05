@@ -790,7 +790,7 @@ from services import tailoring as tailoring_handlers
 
 
 def _register_routes() -> None:
-    _archive_names = {"archive_create", "archive_list", "archive_detail"}
+    _archive_names = {"archive_create", "archive_list", "archive_detail", "pipeline_packages", "pipeline_trace"}
     handlers = {
         **{name: getattr(scraping_handlers, name) for _, _, name in scraping_routes.ROUTES},
         **{name: getattr(tailoring_handlers, name) for _, _, name in tailoring_routes.ROUTES},
