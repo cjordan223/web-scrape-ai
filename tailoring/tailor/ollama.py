@@ -75,12 +75,13 @@ def chat(
     user_prompt: str,
     max_tokens: int = 4096,
     temperature: float = 0.3,
+    model: str | None = None,
     json_mode: bool = False,
     trace: dict[str, Any] | None = None,
     trace_recorder: Callable[[dict[str, Any]], None] | None = None,
 ) -> str:
     """Send a chat completion to the LLM with lock protection. Returns raw content string."""
-    model_id = get_loaded_model()
+    model_id = model or get_loaded_model()
     effective_user_prompt = user_prompt
     # Qwen reasoning-capable models often emit long chain-of-thought unless disabled.
     # Use /no_think control token so structured outputs remain parseable.

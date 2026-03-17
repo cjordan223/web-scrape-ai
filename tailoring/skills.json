@@ -1,4 +1,17 @@
 {
+    "_guide": {
+        "purpose": "skills.json is injected into every pipeline stage so the analyzer and writer know what the candidate can legitimately claim. It is the source of truth for skill names used in rewrite angles.",
+        "how_to_extend": {
+            "new_skill_category": "Add an entry to skills_inventory.core_skills with a 'name' and 'skills' array. The name must match the category names used in vignette frontmatter (skill_categories field) for scoring to work. Keep names consistent — if you add 'Threat Detection' here, use 'Threat Detection' in vignette frontmatter.",
+            "new_programming_language": "Add to programming_languages array. Note: the resume baseline has EXACTLY 11 language slots (see config.py RESUME_BULLET_COUNT). Adding here makes it available for reordering but does not auto-add it to the resume's fixed language line.",
+            "new_database": "Add to databases array. Same constraint as languages — baseline has exactly 10 database items. Adding here makes it claimable in analysis/cover letter but the resume validator will reject removals.",
+            "new_framework_or_tool": "Add to frameworks_and_infrastructure, security_tooling, or devops_and_cloud as appropriate. These have no fixed count — the draft LLM can add them to the resume's flexible categories.",
+            "existing_skill_update": "Edit the skills string directly. Skill names flow into 'matched_skills' in analysis.json, which then appear in rewrite angles. Precise names produce better rewrite angle specificity.",
+            "target_roles": "Add or remove from candidate_profile.target_roles. This shapes what the analyzer considers relevant and what roles the cover letter voice adapts for."
+        },
+        "pipeline_flow": "analyzer.py injects skills_inventory as JSON into the analysis prompt → LLM maps JD requirements to matched_category + matched_skills → writer.py uses matched_skills as the JD-Relevant Tools list → persona.py uses matched_category to score vignettes. All four steps depend on consistent naming across this file and persona vignette frontmatter.",
+        "resume_guardrails": "The resume draft system prompt hardcodes 6 category names (Languages, Security Tooling, AI/ML and Research, Frameworks and Infrastructure, DevOps and CI/CD, Databases) that must match the baseline .tex file. Adding skills here does NOT change those category names. Only add to the arrays that feed those categories."
+    },
     "schema_version": "2.0",
     "candidate_profile": {
         "name": "Conner Jordan",
@@ -8,12 +21,29 @@
             "Security Automation Engineer",
             "Cloud Security Engineer",
             "Platform Engineer",
-            "Software Engineer"
+            "Site Reliability Engineer",
+            "Infrastructure Engineer",
+            "Software Engineer",
+            "AI Security Engineer",
+            "MLOps Engineer",
+            "ML Infrastructure Engineer"
         ],
-        "positioning_summary": "Security engineer with strong experience in production security tooling, endpoint and vulnerability remediation automation, cloud/container deployments, security data correlation, and AI-assisted SecOps workflows."
+        "positioning_summary": "Security-first engineer with broad infrastructure and DevOps depth. Manages Linux and macOS systems, cloud and hybrid environments, containerized services, and production reliability alongside core security work. Strong automation and scripting across the stack."
     },
     "skills_inventory": {
         "core_skills": [
+            {
+                "name": "Infrastructure and Reliability",
+                "skills": [
+                    "Linux systems administration",
+                    "Production system operations",
+                    "Hybrid and cloud infrastructure",
+                    "Container orchestration and management",
+                    "Monitoring and observability",
+                    "Database operations",
+                    "Scripting and automation (Python, Bash, PowerShell)"
+                ]
+            },
             {
                 "name": "Security Engineering",
                 "skills": [

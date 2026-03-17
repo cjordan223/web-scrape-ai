@@ -9,6 +9,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -20,8 +21,9 @@ import urllib.request
 import uvicorn
 from fastapi import Body, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from dotenv import load_dotenv
 
 # Load environment variables from .env file if present
@@ -36,6 +38,7 @@ DB_PATH = os.environ.get(
 )
 PORT = int(os.environ.get("DASHBOARD_PORT", "8899"))
 LAUNCH_AGENTS_DIR = Path.home() / "Library/LaunchAgents"
+SCRAPE_SCHEDULED_LABEL = "com.jobscraper.scrape"
 
 HERE = Path(__file__).resolve().parent
 # Load environment variables from .env file in project root
@@ -80,6 +83,61 @@ TAILORING_BASELINE_DOC_MAP = {
     "cover": HERE.parent.parent / "tailoring" / "Baseline-Dox" / "Conner_Jordan_Cover_letter" / "Conner_Jordan_Cover_Letter.tex",
 }
 TAILORING_RUNNER_LOG_DIR = TAILORING_OUTPUT_DIR / "_runner_logs"
+APPLIED_STATUS_VALUES = {
+    "applied",
+    "follow_up",
+    "withdrawn",
+    "rejected",
+    "offer",
+}
+APPLIED_ARTIFACT_COLUMNS = {
+    "meta.json": ("meta", "application/json", False),
+    "job_context.json": ("job_context", "application/json", False),
+    "analysis.json": ("analysis", "application/json", False),
+    "resume_strategy.json": ("resume_strategy", "application/json", False),
+    "cover_strategy.json": ("cover_strategy", "application/json", False),
+    "Conner_Jordan_Resume.tex": ("resume_tex", "text/plain; charset=utf-8", False),
+    "Conner_Jordan_Cover_Letter.tex": ("cover_tex", "text/plain; charset=utf-8", False),
+    "Conner_Jordan_Resume.pdf": ("resume_pdf", "application/pdf", True),
+    "Conner_Jordan_Cover_Letter.pdf": ("cover_pdf", "application/pdf", True),
+    TAILORING_TRACE_FILE: ("llm_trace", "text/plain; charset=utf-8", False),
+}
+_APPLIED_DB_SCHEMA = """\
+CREATE TABLE IF NOT EXISTS applied_applications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    package_slug TEXT NOT NULL UNIQUE,
+    job_id INTEGER,
+    job_title TEXT,
+    company_name TEXT,
+    job_url TEXT,
+    application_url TEXT,
+    applied_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'applied',
+    follow_up_at TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    status_updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_applied_applications_job_id ON applied_applications(job_id);
+CREATE INDEX IF NOT EXISTS idx_applied_applications_status ON applied_applications(status);
+CREATE INDEX IF NOT EXISTS idx_applied_applications_applied_at ON applied_applications(applied_at);
+CREATE INDEX IF NOT EXISTS idx_applied_applications_updated_at ON applied_applications(updated_at);
+CREATE TABLE IF NOT EXISTS applied_snapshots (
+    application_id INTEGER PRIMARY KEY REFERENCES applied_applications(id) ON DELETE CASCADE,
+    meta TEXT,
+    job_context TEXT,
+    analysis TEXT,
+    resume_strategy TEXT,
+    cover_strategy TEXT,
+    resume_tex TEXT,
+    cover_tex TEXT,
+    resume_pdf BLOB,
+    cover_pdf BLOB,
+    llm_trace TEXT,
+    created_at TEXT NOT NULL
+);
+"""
 
 _TAILORING_RUNNER: dict = {
     "proc": None,
@@ -92,6 +150,17 @@ _TAILORING_RUNNER: dict = {
     "cmd": None,
 }
 _TAILORING_QUEUE: list[dict] = []
+_QA_LLM_REVIEW_LOCK = threading.Lock()
+_QA_LLM_REVIEW_RUNNER: dict = {
+    "thread": None,
+    "batch_id": 0,
+    "started_at": None,
+    "ended_at": None,
+    "active_job_id": None,
+    "active_started_at": None,
+    "resolved_model": None,
+    "items": [],
+}
 _SCRAPE_RUNNER: dict = {
     "proc": None,
     "log_handle": None,
@@ -112,6 +181,12 @@ RUNTIME_CONTROLS_PATH = Path(
 _DEFAULT_RUNTIME_CONTROLS = {
     "scrape_enabled": True,
     "llm_enabled": True,
+    "llm_provider": os.environ.get("LLM_PROVIDER", "lmstudio"),
+    "llm_base_url": os.environ.get("LLM_URL", "http://localhost:1234"),
+    "llm_model": os.environ.get(
+        "TAILOR_LMSTUDIO_MODEL",
+        os.environ.get("TAILOR_OLLAMA_MODEL", "default"),
+    ),
     "schedule_interval_minutes": None,
     "schedule_started_at": None,
     "schedule_stop_at": None,
@@ -136,12 +211,26 @@ def get_db_write() -> sqlite3.Connection:
     return conn
 
 
+def _ensure_applied_tables() -> None:
+    db_file = Path(DB_PATH)
+    db_file.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn.executescript(_APPLIED_DB_SCHEMA)
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _load_runtime_controls() -> dict:
     controls = dict(_DEFAULT_RUNTIME_CONTROLS)
     try:
         raw = json.loads(RUNTIME_CONTROLS_PATH.read_text(encoding="utf-8"))
         controls["scrape_enabled"] = bool(raw.get("scrape_enabled", controls["scrape_enabled"]))
         controls["llm_enabled"] = bool(raw.get("llm_enabled", controls["llm_enabled"]))
+        controls["llm_provider"] = str(raw.get("llm_provider", controls["llm_provider"]) or controls["llm_provider"]).strip()
+        controls["llm_base_url"] = str(raw.get("llm_base_url", controls["llm_base_url"]) or controls["llm_base_url"]).strip()
+        controls["llm_model"] = str(raw.get("llm_model", controls["llm_model"]) or controls["llm_model"]).strip()
         interval = raw.get("schedule_interval_minutes")
         if isinstance(interval, int) and interval > 0:
             controls["schedule_interval_minutes"] = interval
@@ -163,6 +252,12 @@ def _save_runtime_controls(updates: dict) -> dict:
         controls["scrape_enabled"] = bool(updates["scrape_enabled"])
     if "llm_enabled" in updates:
         controls["llm_enabled"] = bool(updates["llm_enabled"])
+    if "llm_provider" in updates:
+        controls["llm_provider"] = str(updates["llm_provider"] or "openai").strip() or "openai"
+    if "llm_base_url" in updates:
+        controls["llm_base_url"] = str(updates["llm_base_url"] or "").strip() or controls["llm_base_url"]
+    if "llm_model" in updates:
+        controls["llm_model"] = str(updates["llm_model"] or "default").strip() or "default"
     if "schedule_interval_minutes" in updates:
         interval = updates["schedule_interval_minutes"]
         if interval is None:
@@ -181,6 +276,9 @@ def _save_runtime_controls(updates: dict) -> dict:
             {
                 "scrape_enabled": controls["scrape_enabled"],
                 "llm_enabled": controls["llm_enabled"],
+                "llm_provider": controls["llm_provider"],
+                "llm_base_url": controls["llm_base_url"],
+                "llm_model": controls["llm_model"],
                 "schedule_interval_minutes": controls["schedule_interval_minutes"],
                 "schedule_started_at": controls["schedule_started_at"],
                 "schedule_stop_at": controls["schedule_stop_at"],
@@ -191,6 +289,34 @@ def _save_runtime_controls(updates: dict) -> dict:
         encoding="utf-8",
     )
     return controls
+
+
+def _normalize_llm_base_url(url: str | None) -> str:
+    value = (url or "").strip()
+    if not value:
+        return _DEFAULT_RUNTIME_CONTROLS["llm_base_url"]
+    for suffix in ("/v1/chat/completions", "/v1/models", "/api/v0/models/load", "/api/v0/models/unload", "/api/v0/models"):
+        if value.endswith(suffix):
+            value = value[: -len(suffix)]
+            break
+    return value.rstrip("/") or _DEFAULT_RUNTIME_CONTROLS["llm_base_url"]
+
+
+def _resolve_llm_runtime(controls: dict | None = None) -> dict:
+    controls = controls or _load_runtime_controls()
+    provider = str(controls.get("llm_provider") or "openai").strip().lower()
+    if provider not in {"lmstudio", "openai"}:
+        provider = "openai"
+    base_url = _normalize_llm_base_url(str(controls.get("llm_base_url") or _DEFAULT_RUNTIME_CONTROLS["llm_base_url"]))
+    selected_model = str(controls.get("llm_model") or "default").strip() or "default"
+    return {
+        "provider": provider,
+        "base_url": base_url,
+        "chat_url": f"{base_url}/v1/chat/completions",
+        "models_url": f"{base_url}/v1/models",
+        "manage_models": provider == "lmstudio",
+        "selected_model": selected_model,
+    }
 
 
 def _safe_tailoring_slug(slug: str) -> Path | None:
@@ -304,11 +430,182 @@ def _load_json_file(path: Path) -> dict | None:
         return None
 
 
+def _parse_json_text(raw: str | None) -> dict | list | None:
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except Exception:
+        return None
+
+
+def _applied_summary_from_row(row: sqlite3.Row | dict | None) -> dict | None:
+    if row is None:
+        return None
+    record = dict(row)
+    return {
+        "id": record["id"],
+        "package_slug": record.get("package_slug"),
+        "job_id": record.get("job_id"),
+        "job_title": record.get("job_title"),
+        "company_name": record.get("company_name"),
+        "job_url": record.get("job_url"),
+        "application_url": record.get("application_url"),
+        "applied_at": record.get("applied_at"),
+        "status": record.get("status"),
+        "follow_up_at": record.get("follow_up_at"),
+        "notes": record.get("notes"),
+        "created_at": record.get("created_at"),
+        "updated_at": record.get("updated_at"),
+        "status_updated_at": record.get("status_updated_at"),
+    }
+
+
+def _fetch_applied_by_package_slugs(package_slugs: list[str]) -> dict[str, dict]:
+    slugs = [slug for slug in package_slugs if slug]
+    if not slugs:
+        return {}
+    _ensure_applied_tables()
+    conn = get_db_write()
+    try:
+        placeholders = ",".join("?" for _ in slugs)
+        rows = conn.execute(
+            f"""
+            SELECT id, package_slug, job_id, job_title, company_name, job_url,
+                   application_url, applied_at, status, follow_up_at, notes,
+                   created_at, updated_at, status_updated_at
+            FROM applied_applications
+            WHERE package_slug IN ({placeholders})
+            """,
+            tuple(slugs),
+        ).fetchall()
+        return {
+            str(row["package_slug"]): _applied_summary_from_row(row)  # type: ignore[index]
+            for row in rows
+            if row["package_slug"]
+        }
+    finally:
+        conn.close()
+
+
+def _fetch_applied_by_job_ids(job_ids: list[int]) -> dict[int, dict]:
+    ids = [int(job_id) for job_id in job_ids]
+    if not ids:
+        return {}
+    _ensure_applied_tables()
+    conn = get_db_write()
+    try:
+        placeholders = ",".join("?" for _ in ids)
+        rows = conn.execute(
+            f"""
+            SELECT id, package_slug, job_id, job_title, company_name, job_url,
+                   application_url, applied_at, status, follow_up_at, notes,
+                   created_at, updated_at, status_updated_at
+            FROM applied_applications
+            WHERE job_id IN ({placeholders})
+            ORDER BY updated_at DESC, id DESC
+            """,
+            tuple(ids),
+        ).fetchall()
+        items: dict[int, dict] = {}
+        for row in rows:
+            job_id = row["job_id"]
+            if job_id is None or int(job_id) in items:
+                continue
+            items[int(job_id)] = _applied_summary_from_row(row)
+        return items
+    finally:
+        conn.close()
+
+
+def _get_applied_application(application_id: int) -> dict | None:
+    _ensure_applied_tables()
+    conn = get_db_write()
+    try:
+        row = conn.execute(
+            """
+            SELECT id, package_slug, job_id, job_title, company_name, job_url,
+                   application_url, applied_at, status, follow_up_at, notes,
+                   created_at, updated_at, status_updated_at
+            FROM applied_applications
+            WHERE id = ?
+            """,
+            (application_id,),
+        ).fetchone()
+        return _applied_summary_from_row(row)
+    finally:
+        conn.close()
+
+
+def _get_applied_snapshot_detail(application_id: int) -> dict | None:
+    _ensure_applied_tables()
+    conn = get_db_write()
+    try:
+        row = conn.execute(
+            """
+            SELECT aa.id, aa.package_slug, aa.job_id, aa.job_title, aa.company_name, aa.job_url,
+                   aa.application_url, aa.applied_at, aa.status, aa.follow_up_at, aa.notes,
+                   aa.created_at, aa.updated_at, aa.status_updated_at,
+                   s.meta, s.job_context, s.analysis, s.resume_strategy, s.cover_strategy,
+                   s.resume_tex, s.cover_tex, s.resume_pdf, s.cover_pdf, s.llm_trace
+            FROM applied_applications aa
+            JOIN applied_snapshots s ON s.application_id = aa.id
+            WHERE aa.id = ?
+            """,
+            (application_id,),
+        ).fetchone()
+        if not row:
+            return None
+        summary = _applied_summary_from_row(row) or {}
+        meta = _parse_json_text(row["meta"])
+        job_context = _parse_json_text(row["job_context"])
+        analysis = _parse_json_text(row["analysis"])
+        resume_strategy = _parse_json_text(row["resume_strategy"])
+        cover_strategy = _parse_json_text(row["cover_strategy"])
+        summary["meta"] = meta
+        summary["artifacts"] = {
+            name: bool(row[column])
+            for name, (column, _media_type, _is_bytes) in APPLIED_ARTIFACT_COLUMNS.items()
+        }
+        return {
+            "summary": summary,
+            "job_context": job_context,
+            "analysis": analysis,
+            "resume_strategy": resume_strategy,
+            "cover_strategy": cover_strategy,
+            "latex": {
+                "resume": row["resume_tex"] or "",
+                "cover": row["cover_tex"] or "",
+            },
+            "pdf_available": {
+                "resume": bool(row["resume_pdf"]),
+                "cover": bool(row["cover_pdf"]),
+            },
+        }
+    finally:
+        conn.close()
+
+
+def _results_has_column(conn: sqlite3.Connection, column: str) -> bool:
+    try:
+        cols = conn.execute("PRAGMA table_info(results)").fetchall()
+    except Exception:
+        return False
+    for col in cols:
+        name = col["name"] if isinstance(col, sqlite3.Row) else col[1]
+        if name == column:
+            return True
+    return False
+
+
 def _get_job_context(job_id: int) -> dict | None:
     conn = get_db()
     try:
+        jd_expr = "jd_text"
+        if _results_has_column(conn, "approved_jd_text"):
+            jd_expr = "COALESCE(approved_jd_text, jd_text)"
         row = conn.execute(
-            "SELECT id, url, title, snippet, jd_text, query, run_id, created_at "
+            f"SELECT id, url, title, snippet, {jd_expr} AS jd_text, query, run_id, created_at "
             "FROM results WHERE id = ?",
             (job_id,),
         ).fetchone()
@@ -359,22 +656,25 @@ def _recent_jobs(limit: int = 25, max_age_hours: int | None = None) -> list[dict
 
     conn = get_db()
     try:
-        where = ""
+        clauses = ["decision IN ('qa_approved','manual','manual_approved')"]
         params: list = []
         if max_age_hours is not None:
-            where = "WHERE julianday(created_at) >= julianday('now', ?)"
+            clauses.append("julianday(created_at) >= julianday('now', ?)")
             params.append(f"-{int(max_age_hours)} hours")
+        where = "WHERE " + " AND ".join(clauses)
         params.append(max(1, min(int(limit), 100)))
         rows = conn.execute(
             f"SELECT id, title, created_at, url FROM results {where} ORDER BY id DESC LIMIT ?",
             tuple(params),
         ).fetchall()
         items = [dict(r) for r in rows]
+        applied_by_job_id = _fetch_applied_by_job_ids([int(item["id"]) for item in items if item.get("id") is not None])
         for item in items:
             count = run_counts_by_job.get(int(item["id"]), 0)
             item["tailoring_run_count"] = count
             item["has_tailoring_runs"] = count > 0
             item["tailoring_latest_status"] = (latest_status_by_job.get(int(item["id"])) or {}).get("status")
+            item["applied"] = applied_by_job_id.get(int(item["id"]))
         return items
     finally:
         conn.close()
@@ -446,12 +746,21 @@ def _start_tailoring_run(job: dict, skip_analysis: bool = False) -> tuple[bool, 
 
     try:
         log_handle = log_path.open("w", encoding="utf-8")
+        llm_runtime = _resolve_llm_runtime()
+        env = os.environ.copy()
+        env["TAILOR_LMSTUDIO_URL"] = llm_runtime["chat_url"]
+        env["TAILOR_LMSTUDIO_MODELS_URL"] = llm_runtime["models_url"]
+        env["TAILOR_LMSTUDIO_MODEL"] = llm_runtime["selected_model"]
+        env["TAILOR_OLLAMA_URL"] = llm_runtime["chat_url"]
+        env["TAILOR_OLLAMA_MODELS_URL"] = llm_runtime["models_url"]
+        env["TAILOR_OLLAMA_MODEL"] = llm_runtime["selected_model"]
         proc = subprocess.Popen(
             cmd,
             cwd=str(TAILORING_ROOT),
             stdout=log_handle,
             stderr=subprocess.STDOUT,
             text=True,
+            env=env,
         )
     except Exception as e:
         return False, {"ok": False, "error": f"Failed to start tailoring run: {e}"}
@@ -472,6 +781,7 @@ def _start_tailoring_run(job: dict, skip_analysis: bool = False) -> tuple[bool, 
 
 
 def _db_has_active_scrape() -> bool:
+    _reconcile_stale_scrape_runs()
     conn = get_db()
     try:
         row = conn.execute(
@@ -480,6 +790,98 @@ def _db_has_active_scrape() -> bool:
         return row is not None
     finally:
         conn.close()
+
+
+def _scrape_schedule_status() -> dict:
+    return _get_launchctl_status(SCRAPE_SCHEDULED_LABEL)
+
+
+def _mark_scrape_run_inactive(run_id: str, *, status: str = "failed", error: str | None = None) -> bool:
+    now = datetime.now(timezone.utc).isoformat()
+    conn = get_db_write()
+    try:
+        row = conn.execute(
+            "SELECT errors FROM runs WHERE run_id = ? AND status = 'running'",
+            (run_id,),
+        ).fetchone()
+        if not row:
+            return False
+
+        errors: list[str] = []
+        raw_errors = row["errors"]
+        if raw_errors:
+            try:
+                parsed = json.loads(raw_errors)
+                if isinstance(parsed, list):
+                    errors = [str(item) for item in parsed if str(item).strip()]
+            except Exception:
+                errors = [str(raw_errors)]
+        if error and error not in errors:
+            errors.append(error)
+
+        conn.execute(
+            """
+            UPDATE runs
+            SET completed_at = COALESCE(completed_at, ?),
+                status = ?,
+                errors = ?,
+                error_count = ?
+            WHERE run_id = ? AND status = 'running'
+            """,
+            (
+                now,
+                status,
+                json.dumps(errors) if errors else None,
+                len(errors),
+                run_id,
+            ),
+        )
+        conn.commit()
+        return True
+    except sqlite3.Error:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def _reconcile_stale_scrape_runs() -> dict:
+    manual_running = bool(_scrape_runner_snapshot(log_lines=0).get("running"))
+    schedule_status = _scrape_schedule_status()
+    scheduled_running = bool(schedule_status.get("running"))
+    stale_run_ids: list[str] = []
+
+    if manual_running or scheduled_running:
+        return {
+            "manual_running": manual_running,
+            "scheduled_running": scheduled_running,
+            "scheduled_pid": schedule_status.get("pid"),
+            "stale_run_ids": stale_run_ids,
+        }
+
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT run_id FROM runs WHERE status = 'running' ORDER BY started_at DESC"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    for row in rows:
+        run_id = row["run_id"]
+        if _mark_scrape_run_inactive(
+            run_id,
+            status="failed",
+            error="Run was marked active, but no live scrape process was found. Marked failed automatically.",
+        ):
+            stale_run_ids.append(run_id)
+
+    return {
+        "manual_running": manual_running,
+        "scheduled_running": scheduled_running,
+        "scheduled_pid": schedule_status.get("pid"),
+        "stale_run_ids": stale_run_ids,
+    }
 
 
 def _scrape_runner_snapshot(log_lines: int = 80) -> dict:
@@ -700,9 +1102,31 @@ def _build_diff_pdf(
 
 DIST_DIR = HERE.parent / "web" / "dist"
 
+
+class StaleSafeStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404 and path.endswith(".js"):
+                reload_stub = (
+                    "if (!window.sessionStorage.getItem('dashboard.asset-reload-once')) {"
+                    "window.sessionStorage.setItem('dashboard.asset-reload-once','1');"
+                    "window.location.reload();"
+                    "} "
+                    "export default {};"
+                )
+                return Response(
+                    content=reload_stub,
+                    media_type="application/javascript",
+                    headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+                )
+            raise
+
 # Serve static assets from the vite build
 if DIST_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=str(DIST_DIR / "assets")), name="assets")
+    app.mount("/assets", StaleSafeStaticFiles(directory=str(DIST_DIR / "assets")), name="assets")
+
 def _parse_plist(path: Path) -> dict:
     """Parse a launchd plist file and return structured info."""
     with open(path, "rb") as f:
@@ -803,6 +1227,7 @@ def _register_routes() -> None:
 
 
 _register_routes()
+
 
 # ---------------------------------------------------------------------------
 # Entrypoint

@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS results (
     query TEXT,
     jd_text TEXT,
     filter_verdicts TEXT,
+    source TEXT DEFAULT '',
     run_id TEXT NOT NULL,
     created_at TEXT NOT NULL,
     UNIQUE(url, run_id)
@@ -98,6 +99,43 @@ CREATE TABLE IF NOT EXISTS quarantine (
 CREATE INDEX IF NOT EXISTS idx_quarantine_run_id ON quarantine(run_id);
 CREATE INDEX IF NOT EXISTS idx_quarantine_score ON quarantine(score);
 CREATE INDEX IF NOT EXISTS idx_quarantine_created_at ON quarantine(created_at);
+
+CREATE TABLE IF NOT EXISTS applied_applications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    package_slug TEXT NOT NULL UNIQUE,
+    job_id INTEGER,
+    job_title TEXT,
+    company_name TEXT,
+    job_url TEXT,
+    application_url TEXT,
+    applied_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'applied',
+    follow_up_at TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    status_updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_applied_applications_job_id ON applied_applications(job_id);
+CREATE INDEX IF NOT EXISTS idx_applied_applications_status ON applied_applications(status);
+CREATE INDEX IF NOT EXISTS idx_applied_applications_applied_at ON applied_applications(applied_at);
+CREATE INDEX IF NOT EXISTS idx_applied_applications_updated_at ON applied_applications(updated_at);
+
+CREATE TABLE IF NOT EXISTS applied_snapshots (
+    application_id INTEGER PRIMARY KEY REFERENCES applied_applications(id) ON DELETE CASCADE,
+    meta TEXT,
+    job_context TEXT,
+    analysis TEXT,
+    resume_strategy TEXT,
+    cover_strategy TEXT,
+    resume_tex TEXT,
+    cover_tex TEXT,
+    resume_pdf BLOB,
+    cover_pdf BLOB,
+    llm_trace TEXT,
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -121,6 +159,9 @@ class JobStore:
             self._conn.commit()
         if "decision" not in cols:
             self._conn.execute("ALTER TABLE results ADD COLUMN decision TEXT")
+            self._conn.commit()
+        if "source" not in cols:
+            self._conn.execute("ALTER TABLE results ADD COLUMN source TEXT DEFAULT ''")
             self._conn.commit()
 
     # --- Dedup ---
@@ -164,19 +205,19 @@ class JobStore:
 
     # --- Results ---
 
-    def save_result(self, job: JobResult, run_id: str, *, commit: bool = True) -> bool:
+    def save_result(self, job: JobResult, run_id: str, *, commit: bool = True, source: str = "") -> bool:
         now = datetime.now(timezone.utc).isoformat()
         verdicts_json = json.dumps([v.model_dump() for v in job.filter_verdicts])
         url = canonicalize_job_url(job.url)
         cur = self._conn.execute(
             """INSERT INTO results
-               (url, title, board, seniority, experience_years, salary_k, score, decision, snippet, query, jd_text, filter_verdicts, run_id, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               (url, title, board, seniority, experience_years, salary_k, score, decision, snippet, query, jd_text, filter_verdicts, source, run_id, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(url, run_id) DO NOTHING""",
             (
                 url, job.title, job.board.value, job.seniority.value,
                 job.experience_years, job.salary_k, job.score, job.decision,
-                job.snippet, job.query, job.jd_text, verdicts_json, run_id, now,
+                job.snippet, job.query, job.jd_text, verdicts_json, source, run_id, now,
             ),
         )
         if commit:
@@ -186,7 +227,7 @@ class JobStore:
     def save_results(self, jobs: list[JobResult], run_id: str) -> int:
         inserted = 0
         for job in jobs:
-            if self.save_result(job, run_id, commit=False):
+            if self.save_result(job, run_id, commit=False, source=getattr(job, "source", "")):
                 inserted += 1
         self._conn.commit()
         return inserted

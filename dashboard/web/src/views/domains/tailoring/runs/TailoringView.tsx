@@ -6,9 +6,19 @@ import RunHistoryTab from './RunHistoryTab';
 import IngestTab from './IngestTab';
 
 type Tab = 'jobs' | 'pipeline' | 'history' | 'ingest';
+const TAILORING_RUNS_TAB_KEY = 'tailoring.runs.activeTab';
+
+function getInitialTab(): Tab {
+    if (typeof window === 'undefined') return 'history';
+    const saved = window.localStorage.getItem(TAILORING_RUNS_TAB_KEY);
+    if (saved === 'jobs' || saved === 'pipeline' || saved === 'history' || saved === 'ingest') {
+        return saved;
+    }
+    return 'history';
+}
 
 export default function TailoringView() {
-    const [activeTab, setActiveTab] = useState<Tab>('jobs');
+    const [activeTab, setActiveTab] = useState<Tab>(getInitialTab);
 
     // --- Shared state ---
     const [runs, setRuns] = useState<any[]>([]);
@@ -21,6 +31,9 @@ export default function TailoringView() {
     const [modelBusy, setModelBusy] = useState<string | null>(null);
     const [modelError, setModelError] = useState('');
     const [stopBusy, setStopBusy] = useState(false);
+    const [llmProvider, setLlmProvider] = useState('lmstudio');
+    const [llmBaseUrl, setLlmBaseUrl] = useState('http://localhost:1234');
+    const [configBusy, setConfigBusy] = useState(false);
 
     const prevRunningRef = useRef<boolean>(false);
 
@@ -45,6 +58,8 @@ export default function TailoringView() {
         try {
             const res = await api.getLlmStatus();
             setLlmStatus(res);
+            setLlmProvider(res?.provider || 'openai');
+            setLlmBaseUrl(res?.url || 'http://localhost:1234');
         } catch { /* ignore */ }
     };
 
@@ -53,12 +68,37 @@ export default function TailoringView() {
         setModelError('');
         setModelsLoading(true);
         try {
+            const status = await api.getLlmStatus();
+            setLlmStatus(status);
+            setLlmProvider(status?.provider || 'openai');
+            setLlmBaseUrl(status?.url || 'http://localhost:1234');
             const res = await api.getLlmModels();
             setModels(res.models || []);
         } catch (e: any) {
             setModelError(e?.response?.data?.error || 'Failed to fetch models');
             setModels([]);
         } finally {
+            setModelsLoading(false);
+        }
+    };
+
+    const handleSaveConnection = async () => {
+        setConfigBusy(true);
+        setModelError('');
+        setModelsLoading(true);
+        try {
+            await api.updateRunsControls({
+                llm_provider: llmProvider,
+                llm_base_url: llmBaseUrl,
+            });
+            await fetchLlmStatus();
+            const updated = await api.getLlmModels();
+            setModels(updated.models || []);
+        } catch (e: any) {
+            setModelError(e?.response?.data?.error || 'Failed to save LLM connection');
+            setModels([]);
+        } finally {
+            setConfigBusy(false);
             setModelsLoading(false);
         }
     };
@@ -122,6 +162,12 @@ export default function TailoringView() {
         const i2 = setInterval(fetchRunnerStatus, 10000);
         return () => { clearInterval(i1); clearInterval(i2); };
     }, [fetchRuns]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem(TAILORING_RUNS_TAB_KEY, activeTab);
+        }
+    }, [activeTab]);
 
     // Fast-poll while runner active; auto-switch to pipeline tab
     useEffect(() => {
@@ -190,14 +236,14 @@ export default function TailoringView() {
                 {/* LLM Model */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.62rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.1em' }}>LLM</span>
-                    {llmStatus?.models?.[0] && (
+                    {(llmStatus?.selected_model || llmStatus?.models?.[0]) && (
                         <span style={{
                             fontFamily: 'var(--font-mono)', fontSize: '.68rem',
                             background: 'var(--surface-3)', border: '1px solid var(--border-bright)',
                             borderRadius: '2px', padding: '1px 6px', color: 'var(--green)',
                             maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }} title={llmStatus.models[0]}>
-                            {llmStatus.models[0].split('/').pop()}
+                        }} title={llmStatus?.selected_model || llmStatus?.models?.[0]}>
+                            {(llmStatus?.selected_model || llmStatus?.models?.[0]).split('/').pop()}
                         </span>
                     )}
                     <button
@@ -233,11 +279,57 @@ export default function TailoringView() {
             {modelPanelOpen && (
                 <div style={{
                     padding: '8px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)',
-                    display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', flexShrink: 0,
+                    display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', flexShrink: 0,
                 }}>
                     {modelError && (
                         <div style={{ fontSize: '.7rem', color: 'var(--red)', fontFamily: 'var(--font-mono)', width: '100%' }}>{modelError}</div>
                     )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', flexWrap: 'wrap' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.72rem' }}>
+                            <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>Provider</span>
+                            <select
+                                value={llmProvider}
+                                onChange={(e) => setLlmProvider(e.target.value)}
+                                disabled={configBusy}
+                                style={{
+                                    background: 'var(--surface-3)',
+                                    color: 'var(--text)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '2px',
+                                    padding: '4px 6px',
+                                }}
+                            >
+                                <option value="lmstudio">LM Studio</option>
+                                <option value="openai">OpenAI-compatible</option>
+                            </select>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: '320px', flex: '1 1 320px' }}>
+                            <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: '.72rem' }}>Base URL</span>
+                            <input
+                                type="text"
+                                value={llmBaseUrl}
+                                onChange={(e) => setLlmBaseUrl(e.target.value)}
+                                disabled={configBusy}
+                                placeholder="http://localhost:1234"
+                                style={{
+                                    width: '100%',
+                                    background: 'var(--surface-3)',
+                                    color: 'var(--text)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '2px',
+                                    padding: '4px 8px',
+                                    fontFamily: 'var(--font-mono)',
+                                    fontSize: '.72rem',
+                                }}
+                            />
+                        </label>
+                        <button className="btn btn-sm btn-primary" onClick={handleSaveConnection} disabled={configBusy || modelsLoading}>
+                            {configBusy ? 'Applying...' : 'Apply'}
+                        </button>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.68rem', color: 'var(--text-secondary)' }}>
+                            {llmStatus?.capabilities?.manage_models ? 'provider-managed loading enabled' : 'model selection only'}
+                        </span>
+                    </div>
                     {modelsLoading ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-mono)', fontSize: '.72rem', color: 'var(--text-secondary)' }}>
                             <div className="spinner" style={{ width: '12px', height: '12px' }} /> Loading...
@@ -247,6 +339,7 @@ export default function TailoringView() {
                     ) : models.map(m => {
                         const isLoaded = m.state === 'loaded';
                         const isBusy = modelBusy === m.id;
+                        const canManageModels = Boolean(llmStatus?.capabilities?.manage_models);
                         return (
                             <div key={m.id} style={{
                                 display: 'flex', alignItems: 'center', gap: '6px',
@@ -266,11 +359,16 @@ export default function TailoringView() {
                                 {isBusy ? (
                                     <div className="spinner" style={{ width: '12px', height: '12px', flexShrink: 0 }} />
                                 ) : isLoaded ? (
-                                    <button className="btn btn-ghost btn-sm" style={{ fontSize: '.65rem', flexShrink: 0 }}
-                                        onClick={() => handleUnloadModel(m.id)} disabled={modelBusy !== null}>Unload</button>
+                                    canManageModels ? (
+                                        <button className="btn btn-ghost btn-sm" style={{ fontSize: '.65rem', flexShrink: 0 }}
+                                            onClick={() => handleUnloadModel(m.id)} disabled={modelBusy !== null}>Unload</button>
+                                    ) : (
+                                        <button className="btn btn-ghost btn-sm" style={{ fontSize: '.65rem', flexShrink: 0 }}
+                                            onClick={() => handleUnloadModel(m.id)} disabled={modelBusy !== null}>Clear</button>
+                                    )
                                 ) : (
                                     <button className="btn btn-primary btn-sm" style={{ fontSize: '.65rem', flexShrink: 0 }}
-                                        onClick={() => handleLoadModel(m.id)} disabled={modelBusy !== null}>Load</button>
+                                        onClick={() => handleLoadModel(m.id)} disabled={modelBusy !== null}>{canManageModels ? 'Load' : 'Select'}</button>
                                 )}
                             </div>
                         );

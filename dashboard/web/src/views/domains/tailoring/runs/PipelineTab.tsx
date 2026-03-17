@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, apiClient } from '../../../../api';
+import { copyText } from '../../../../utils';
 import { groupTraceEvents, StageRow, SectionLabel, ArtifactViewer, TraceInspector } from './shared';
 
 interface Props {
@@ -104,7 +105,7 @@ export default function PipelineTab({ runner, runs }: Props) {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 14px', background: 'var(--surface-2)' }}>
                         <SectionLabel>Live Log</SectionLabel>
                         <button className="btn btn-ghost btn-sm" style={{ fontSize: '.68rem' }}
-                            onClick={() => { navigator.clipboard.writeText(runner.log_tail).catch(() => { }); }}>
+                            onClick={() => { void copyText(runner.log_tail); }}>
                             Copy
                         </button>
                     </div>

@@ -84,7 +84,7 @@ const SECTIONS: { title: string; subtitle: string; actions: ActionDef[] }[] = [
             {
                 action: 'clear_tailoring_runs',
                 label: 'Purge All Runs',
-                desc: 'Delete every tailoring output directory. Irreversible.',
+                desc: 'Delete every tailoring output directory and clear tailoring-only manual/mobile ingest jobs. Irreversible.',
                 icon: <AlertTriangle size={16} />,
                 danger: true,
             },

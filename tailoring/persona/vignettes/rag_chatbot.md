@@ -1,0 +1,8 @@
+<!-- See coraline.md for full frontmatter field documentation -->
+---
+tags: [ai_secops, internal_tooling, data_correlation]
+company_types: [startup, large_tech]
+skill_categories: [AI for Security Operations, Internal Tooling]
+keywords: [RAG, LangChain, vector, chatbot, knowledge base, retrieval, NLP]
+---
+Built an RAG-based security knowledge chatbot using LangChain and vector databases — not as a demo, but as internal tooling that reduced repeated questions to the security team. The implementation emphasized retrieval accuracy and source attribution, not flashy UX.

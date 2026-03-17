@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import os
+import signal
+import time
+
 # Reuse shared backend state/helpers from dashboard backend app module.
 import app as _app
 globals().update({k: v for k, v in _app.__dict__.items() if not k.startswith("__")})
@@ -253,6 +257,7 @@ def list_runs(
 def active_runs():
     _sync_app_state()
     controls = _load_runtime_controls()
+    _reconcile_stale_scrape_runs()
     conn = get_db()
     try:
         row = conn.execute(
@@ -338,6 +343,7 @@ def get_run(run_id: str):
 
 def get_run_logs(run_id: str, lines: int = Query(200, ge=1, le=2000)):
     _sync_app_state()
+    _reconcile_stale_scrape_runs()
     conn = get_db()
     try:
         row = conn.execute("SELECT status FROM runs WHERE run_id = ?", (run_id,)).fetchone()
@@ -354,7 +360,7 @@ def get_run_logs(run_id: str, lines: int = Query(200, ge=1, le=2000)):
         return {"lines": snap["log_tail"].split("\n"), "log_path": snap["log_path"]}
 
     # Check scheduled launchd agent
-    label = "com.conner.job_scraper"
+    label = SCRAPE_SCHEDULED_LABEL
     plist_path = LAUNCH_AGENTS_DIR / f"{label}.plist"
     if plist_path.exists():
         info = _parse_plist(plist_path)
@@ -370,6 +376,40 @@ def get_run_logs(run_id: str, lines: int = Query(200, ge=1, le=2000)):
     return {"lines": ["Waiting for logs to initialize..."]}
 
 
+def _terminate_pid(pid: int, *, grace_seconds: float = 5.0) -> bool:
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return True
+    except OSError:
+        return False
+
+    deadline = time.time() + max(grace_seconds, 0.5)
+    while time.time() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        except OSError:
+            return False
+        time.sleep(0.2)
+
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return True
+    except OSError:
+        return False
+
+    time.sleep(0.2)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    except OSError:
+        return False
+    return False
+
 
 def terminate_run(run_id: str):
     _sync_app_state()
@@ -382,23 +422,59 @@ def terminate_run(run_id: str):
         conn.close()
 
     terminated = False
-    
+
     # 1. Terminate manual runner if active
     proc = _SCRAPE_RUNNER.get("proc")
     if proc and proc.poll() is None:
-        proc.terminate()
-        terminated = True
-        
+        try:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=2)
+            terminated = True
+        except Exception:
+            pass
+
     # 2. Stop scheduled job via launchctl
-    result = subprocess.run(["launchctl", "list", "com.jobscraper.scrape"], capture_output=True, text=True)
-    if result.returncode == 0:
-        subprocess.run(["launchctl", "stop", "com.jobscraper.scrape"])
+    schedule_status = _scrape_schedule_status()
+    if schedule_status.get("loaded"):
+        subprocess.run(["launchctl", "stop", SCRAPE_SCHEDULED_LABEL], capture_output=True, text=True)
+    schedule_pid = schedule_status.get("pid")
+    if isinstance(schedule_pid, int) and schedule_pid > 0:
+        terminated = _terminate_pid(schedule_pid) or terminated
+    elif schedule_status.get("loaded"):
         terminated = True
-        
-    if not terminated:
-        return JSONResponse({"error": "Could not find an active process to terminate. The run may have already exited."}, 500)
-        
-    return {"ok": True, "message": "Termination signal sent successfully"}
+
+    reconciled = _mark_scrape_run_inactive(
+        run_id,
+        status="failed",
+        error="Run terminated by user via dashboard.",
+    )
+    if reconciled:
+        _reconcile_stale_scrape_runs()
+
+    if terminated or reconciled:
+        return {
+            "ok": True,
+            "message": "Termination processed successfully",
+            "terminated_process": terminated,
+            "reconciled_run": reconciled,
+            "runner": _scrape_runner_snapshot(log_lines=0),
+        }
+
+    stale = _reconcile_stale_scrape_runs()
+    if run_id in set(stale.get("stale_run_ids", [])):
+        return {
+            "ok": True,
+            "message": "No live process was found. Cleared stale active run state.",
+            "terminated_process": False,
+            "reconciled_run": True,
+            "runner": _scrape_runner_snapshot(log_lines=0),
+        }
+
+    return JSONResponse({"error": "Could not find an active process to terminate. The run may have already exited."}, 500)
 
 
 # ---------------------------------------------------------------------------
@@ -701,6 +777,106 @@ def approve_rejected(rejected_id: int):
 
 
 # ---------------------------------------------------------------------------
-# Routes — API: Tailoring transparency
+# Routes — API: Source Diagnostics
 # ---------------------------------------------------------------------------
 
+def source_diagnostics():
+    """Per-source and per-board breakdown of pipeline performance."""
+    _sync_app_state()
+    conn = get_db()
+    try:
+        # --- Source breakdown (accepted jobs) ---
+        source_rows = conn.execute(
+            """SELECT
+                 CASE
+                   WHEN source LIKE 'watcher:%' THEN source
+                   WHEN source = 'crawl4ai' OR source LIKE 'crawl%' THEN 'crawl4ai'
+                   WHEN source = '' OR source IS NULL THEN 'searxng'
+                   ELSE source
+                 END AS src,
+                 COUNT(*) AS cnt,
+                 COUNT(DISTINCT run_id) AS runs
+               FROM results
+               GROUP BY src
+               ORDER BY cnt DESC"""
+        ).fetchall()
+        by_source = [{"source": r["src"], "accepted": r["cnt"], "runs": r["runs"]} for r in source_rows]
+
+        # --- Board breakdown (accepted jobs) ---
+        board_rows = conn.execute(
+            "SELECT board, COUNT(*) AS cnt FROM results GROUP BY board ORDER BY cnt DESC"
+        ).fetchall()
+        by_board = [{"board": r["board"], "accepted": r["cnt"]} for r in board_rows]
+
+        # --- Rejection breakdown by source (from rejected table) ---
+        # rejected table doesn't have source column, but has board which correlates
+        rej_board_rows = conn.execute(
+            """SELECT board, rejection_stage, COUNT(*) AS cnt
+               FROM rejected
+               GROUP BY board, rejection_stage
+               ORDER BY cnt DESC"""
+        ).fetchall()
+        rejection_by_board: dict[str, dict[str, int]] = {}
+        for r in rej_board_rows:
+            board = r["board"] or "unknown"
+            if board not in rejection_by_board:
+                rejection_by_board[board] = {}
+            rejection_by_board[board][r["rejection_stage"]] = r["cnt"]
+
+        # --- Recent runs with source breakdown ---
+        recent_runs = conn.execute(
+            """SELECT run_id, started_at, raw_count, dedup_count, filtered_count, status
+               FROM runs ORDER BY started_at DESC LIMIT 10"""
+        ).fetchall()
+        run_sources = []
+        for run in recent_runs:
+            rid = run["run_id"]
+            src_counts = conn.execute(
+                """SELECT
+                     CASE
+                       WHEN source LIKE 'watcher:%' THEN source
+                       WHEN source = 'crawl4ai' OR source LIKE 'crawl%' THEN 'crawl4ai'
+                       WHEN source = '' OR source IS NULL THEN 'searxng'
+                       ELSE source
+                     END AS src,
+                     COUNT(*) AS cnt
+                   FROM results WHERE run_id = ?
+                   GROUP BY src""",
+                (rid,),
+            ).fetchall()
+            board_counts = conn.execute(
+                "SELECT board, COUNT(*) AS cnt FROM results WHERE run_id = ? GROUP BY board",
+                (rid,),
+            ).fetchall()
+            run_sources.append({
+                "run_id": rid,
+                "started_at": run["started_at"],
+                "status": run["status"],
+                "raw_count": run["raw_count"],
+                "dedup_count": run["dedup_count"],
+                "filtered_count": run["filtered_count"],
+                "sources": {r["src"]: r["cnt"] for r in src_counts},
+                "boards": {r["board"]: r["cnt"] for r in board_counts},
+            })
+
+        # --- Top rejection stages overall ---
+        rej_stage_rows = conn.execute(
+            """SELECT rejection_stage, COUNT(*) AS cnt
+               FROM rejected GROUP BY rejection_stage ORDER BY cnt DESC LIMIT 15"""
+        ).fetchall()
+        top_rejections = [{"stage": r["rejection_stage"], "count": r["cnt"]} for r in rej_stage_rows]
+
+        return {
+            "by_source": by_source,
+            "by_board": by_board,
+            "rejection_by_board": rejection_by_board,
+            "recent_runs": run_sources,
+            "top_rejections": top_rejections,
+        }
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Routes — API: Tailoring transparency
+# ---------------------------------------------------------------------------

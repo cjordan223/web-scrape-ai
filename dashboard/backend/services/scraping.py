@@ -29,4 +29,5 @@ rejected_stats = _MOD.rejected_stats
 list_rejected = _MOD.list_rejected
 get_rejected = _MOD.get_rejected
 approve_rejected = _MOD.approve_rejected
+source_diagnostics = _MOD.source_diagnostics
 

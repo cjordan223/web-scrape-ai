@@ -7,6 +7,7 @@ interface Job {
     url: string;
     runCount: number;
     latestStatus: string;
+    applied?: { id: number; status?: string } | null;
 }
 
 export default function MobileJobsView() {
@@ -25,6 +26,7 @@ export default function MobileJobsView() {
                 id: j.id, title: j.title || 'Untitled', url: j.url || '',
                 runCount: j.tailoring_run_count || 0,
                 latestStatus: j.tailoring_latest_status || '',
+                applied: j.applied || null,
             })));
         }).catch(() => {}).finally(() => setLoading(false));
         api.getTailoringRunnerStatus().then(setRunnerStatus).catch(() => {});
@@ -146,6 +148,11 @@ export default function MobileJobsView() {
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.62rem', color: 'var(--text-secondary)', marginTop: '3px', display: 'flex', alignItems: 'center' }}>
                                     {statusDot(j.latestStatus)}
                                     {j.runCount} run{j.runCount !== 1 ? 's' : ''} · {j.latestStatus || 'unknown'}
+                                </div>
+                            )}
+                            {j.applied && (
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.62rem', color: 'var(--accent)', marginTop: '3px' }}>
+                                    Applied{j.applied.status ? ` · ${j.applied.status}` : ''}
                                 </div>
                             )}
                         </div>

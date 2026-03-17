@@ -82,6 +82,11 @@ export const api = {
         return data;
     },
 
+    getSourceDiagnostics: async () => {
+        const { data } = await apiClient.get('/scrape/sources');
+        return data;
+    },
+
     getJobDetail: async (id: number) => {
         const { data } = await apiClient.get(`/jobs/${id}`);
         return data;
@@ -99,6 +104,11 @@ export const api = {
 
     getTailoringJobDetail: async (id: number) => {
         const { data } = await apiClient.get(`/tailoring/jobs/${id}`);
+        return data;
+    },
+
+    getTailoringJobBriefing: async (id: number) => {
+        const { data } = await apiClient.get(`/tailoring/jobs/${id}/briefing`);
         return data;
     },
 
@@ -147,6 +157,11 @@ export const api = {
         return data;
     },
 
+    applyPackage: async (slug: string, payload: Record<string, any>) => {
+        const { data } = await apiClient.post(`/packages/${slug}/apply`, payload);
+        return data;
+    },
+
     savePackageLatex: async (slug: string, docType: 'resume' | 'cover', content: string) => {
         const { data } = await apiClient.post(`/packages/${slug}/latex/${docType}`, { content });
         return data;
@@ -154,6 +169,21 @@ export const api = {
 
     compilePackageDoc: async (slug: string, docType: 'resume' | 'cover') => {
         const { data } = await apiClient.post(`/packages/${slug}/compile/${docType}`);
+        return data;
+    },
+
+    getAppliedList: async (params?: Record<string, any>) => {
+        const { data } = await apiClient.get('/applied', { params });
+        return data;
+    },
+
+    getAppliedDetail: async (applicationId: number) => {
+        const { data } = await apiClient.get(`/applied/${applicationId}`);
+        return data;
+    },
+
+    updateAppliedTracking: async (applicationId: number, payload: Record<string, any>) => {
+        const { data } = await apiClient.post(`/applied/${applicationId}/tracking`, payload);
         return data;
     },
 
@@ -199,6 +229,56 @@ export const api = {
 
     ingestCommit: async (fields: Record<string, any>) => {
         const { data } = await apiClient.post('/tailoring/ingest/commit', fields);
+        return data;
+    },
+
+    getQAPending: async (limit?: number) => {
+        const { data } = await apiClient.get('/tailoring/qa', { params: { limit } });
+        return data;
+    },
+
+    scanMobileJDs: async () => {
+        const { data } = await apiClient.post('/tailoring/ingest/scan-mobile');
+        return data;
+    },
+
+    approveQA: async (jobIds: number[]) => {
+        const { data } = await apiClient.post('/tailoring/qa/approve', { job_ids: jobIds });
+        return data;
+    },
+
+    llmReviewQA: async (jobIds: number[]) => {
+        const { data } = await apiClient.post('/tailoring/qa/llm-review', { job_ids: jobIds });
+        return data;
+    },
+
+    getQALlmReviewStatus: async () => {
+        const { data } = await apiClient.get('/tailoring/qa/llm-review');
+        return data;
+    },
+
+    rejectQA: async (jobIds: number[]) => {
+        const { data } = await apiClient.post('/tailoring/qa/reject', { job_ids: jobIds });
+        return data;
+    },
+
+    resetApprovedQA: async () => {
+        const { data } = await apiClient.post('/tailoring/qa/reset-approved');
+        return data;
+    },
+
+    packageChatSend: async (slug: string, message: string, docFocus?: string) => {
+        const { data } = await apiClient.post(`/packages/${slug}/chat`, { message, doc_focus: docFocus });
+        return data;
+    },
+
+    packageChatHistory: async (slug: string) => {
+        const { data } = await apiClient.get(`/packages/${slug}/chat`);
+        return data;
+    },
+
+    packageChatClear: async (slug: string) => {
+        const { data } = await apiClient.delete(`/packages/${slug}/chat`);
         return data;
     },
 

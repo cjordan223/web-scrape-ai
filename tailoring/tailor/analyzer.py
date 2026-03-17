@@ -9,6 +9,7 @@ from typing import Callable
 
 from . import config as cfg
 from .ollama import chat_expect_json
+from .persona import get_store as get_persona
 from .selector import SelectedJob
 
 logger = logging.getLogger(__name__)
@@ -22,11 +23,19 @@ RULES:
 3. Select evidence anchors from the BASELINE RESUME provided. You MUST quote or closely paraphrase a specific bullet from the resume and cite the company name. Do NOT fabricate metrics, percentages, or outcomes not present in the baseline.
 4. Identify the company name and exact role title from the JD.
 5. Note any tone adjustments needed based on the JD's language and culture signals.
+6. Extract company context: what the company builds/does, what engineering challenges the team likely faces, and what the company seems to value based on JD language. This will be used to personalize the cover letter opening.
+7. Classify the company type as one of: large_tech, security_focused, startup, enterprise_regulated, platform_devops, or other. This drives voice adaptation.
 
 Respond with ONLY a JSON object — no other text, no markdown fences:
 {
   "company_name": "string",
   "role_title": "string",
+  "company_context": {
+    "what_they_build": "1-2 sentences about the company's product/mission based on JD signals",
+    "engineering_challenges": "what this team likely cares about (scale, security depth, velocity, compliance, etc.)",
+    "company_type": "large_tech|security_focused|startup|enterprise_regulated|platform_devops|other",
+    "cover_letter_hook": "a specific, non-generic opening angle that references what the company does"
+  },
   "requirements": [
     {
       "jd_requirement": "what the JD asks for",
@@ -51,6 +60,11 @@ def load_cached_analysis(job: SelectedJob, output_dir: Path) -> dict | None:
         analysis = json.loads(cache_path.read_text())
     except Exception:
         logger.warning("Ignoring unreadable analysis cache at %s", cache_path)
+        return None
+
+    # Invalidate cache if it's missing required fields (e.g. company_context added later)
+    if "company_context" not in analysis:
+        logger.info("Invalidating analysis cache at %s (missing company_context)", cache_path)
         return None
 
     cache_job_id = analysis.get("_job_id")
@@ -81,7 +95,7 @@ def analyze_job(
         return cached
 
     skills_data = json.loads(cfg.SKILLS_JSON.read_text())
-    soul_text = cfg.SOUL_MD.read_text()
+    persona_text = get_persona().for_analysis()
     baseline_resume = cfg.RESUME_TEX.read_text()
 
     jd_text = job.jd_text or job.snippet or ""
@@ -99,7 +113,7 @@ def analyze_job(
         f"## Candidate Skills Inventory\n"
         f"{json.dumps(skills_data['skills_inventory'], indent=2)}\n\n"
         f"## Candidate Persona\n"
-        f"{soul_text[:4000]}"
+        f"{persona_text}"
     )
 
     analysis = chat_expect_json(

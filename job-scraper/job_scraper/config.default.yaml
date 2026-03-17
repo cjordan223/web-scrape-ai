@@ -55,12 +55,18 @@ filter:
     - "fullstack engineer"
     - "backend engineer"
     - "frontend engineer"
+    # --- AI/ML Infrastructure ---
+    - "mlops"
+    - "ml engineer"
+    - "ml infrastructure"
+    - "machine learning"
+    - "ai infrastructure"
   seniority_exclude:
     - staff
     - principal
     - manager
     - director
-  max_experience_years: 6
+  max_experience_years: 5
   min_salary_k: 70
   content_blocklist:
     - clearance
@@ -204,6 +210,38 @@ crawl:
       board: ashby
     - url: "https://jobs.ashbyhq.com/vercel"
       board: ashby
+    # Interest-aligned: AI/ML companies on Ashby
+    - url: "https://jobs.ashbyhq.com/anthropic"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/openai"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/cohere"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/mistral"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/huggingface"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/deepmind"
+      board: ashby
+    # Interest-aligned: Space/Aerospace on Greenhouse
+    - url: "https://job-boards.greenhouse.io/spacex"
+      board: greenhouse
+    - url: "https://job-boards.greenhouse.io/relativityspace"
+      board: greenhouse
+    - url: "https://job-boards.greenhouse.io/planet"
+      board: greenhouse
+    - url: "https://job-boards.greenhouse.io/astranis"
+      board: greenhouse
+    # Interest-aligned: Health tech
+    - url: "https://jobs.ashbyhq.com/oura"
+      board: ashby
+    - url: "https://jobs.ashbyhq.com/whoop"
+      board: ashby
+    # Interest-aligned: Climate/Environmental
+    - url: "https://jobs.ashbyhq.com/watershed"
+      board: ashby
+    - url: "https://job-boards.greenhouse.io/pachama"
+      board: greenhouse
     # SimplyHired — aggregator, security search URLs
     - url: "https://www.simplyhired.com/search?q=security+engineer+remote&l="
       board: simplyhired
@@ -211,6 +249,63 @@ crawl:
       board: simplyhired
     - url: "https://www.simplyhired.com/search?q=devops+engineer+remote&l="
       board: simplyhired
+
+# Watchers — source-agnostic job discovery plugins.
+# Types: crawl, rss, api, custom. Each watcher can skip specific filter stages.
+# Examples:
+#
+# watchers:
+#   - name: nasa-careers
+#     type: crawl
+#     url: "https://www.usajobs.gov/Search/Results?k=software+engineer&l=Remote"
+#     link_pattern: "/job/\\d+"
+#     skip_filters: [title_relevance, title_role, source_quality]
+#     tags: [space]
+#
+#   - name: usajobs-api
+#     type: api
+#     url: "https://data.usajobs.gov/api/Search"
+#     headers:
+#       Authorization-Key: "${USAJOBS_API_KEY}"
+#       User-Agent: "connercharlesjordan@gmail.com"
+#     params:
+#       Keyword: "security engineer"
+#       LocationName: "Remote"
+#     results_path: "SearchResult.SearchResultItems"
+#     title_field: "MatchedObjectDescriptor.PositionTitle"
+#     url_field: "MatchedObjectDescriptor.PositionURI"
+#     snippet_field: "MatchedObjectDescriptor.UserArea.Details.MajorDuties.0"
+#     skip_filters: [title_relevance, source_quality]
+#     tags: [space, government]
+#
+#   - name: planet-careers
+#     type: rss
+#     url: "https://www.planet.com/careers/feed/"
+#     skip_filters: [title_relevance, title_role]
+#     tags: [space, environmental]
+#
+#   - name: nasa-custom
+#     type: custom
+#     module: job_scraper.watchers_nasa
+#     skip_filters: [title_relevance, title_role, source_quality]
+#     tags: [space]
+watchers:
+  - name: usajobs
+    type: custom
+    module: job_scraper.usajobs
+    board: usajobs
+    enabled: true
+    skip_filters:
+      - url_domain
+      - source_quality
+      - remote
+      - location
+    params:
+      series: "2210;1550;0854;0861;1560;1301"
+      keywords: "cybersecurity;software engineer;platform engineer;cloud security;DevSecOps;aerospace engineer"
+      agencies: "NN;EP;NS"   # NASA, EPA, NSF
+      days: "14"
+      remote: "true"
 
 queries:
   # --- Greenhouse ---
@@ -378,4 +473,53 @@ queries:
     suffix: "remote"
   - board: unknown
     title_phrase: "software engineer security"
+    suffix: "remote"
+
+  # --- Interest-aligned: AI/ML ---
+  - board: unknown
+    title_phrase: "AI security engineer"
+    suffix: "remote"
+  - board: unknown
+    title_phrase: "MLOps engineer"
+    suffix: "remote"
+  - board: unknown
+    title_phrase: "ML infrastructure engineer"
+    suffix: "remote"
+  - board: unknown
+    title_phrase: "AI engineer"
+    suffix: "remote"
+  - board: greenhouse
+    board_site: "boards.greenhouse.io"
+    title_phrase: "AI engineer"
+    suffix: "remote"
+  - board: greenhouse
+    board_site: "boards.greenhouse.io"
+    title_phrase: "MLOps engineer"
+    suffix: "remote"
+
+  # --- Interest-aligned: Space & Aerospace ---
+  - board: unknown
+    title_phrase: "security engineer aerospace"
+    suffix: "remote"
+  - board: unknown
+    title_phrase: "software engineer space"
+    suffix: "remote"
+  - board: unknown
+    title_phrase: "platform engineer aerospace"
+    suffix: "remote"
+
+  # --- Interest-aligned: Health Tech ---
+  - board: unknown
+    title_phrase: "security engineer healthtech"
+    suffix: "remote"
+  - board: unknown
+    title_phrase: "platform engineer health"
+    suffix: "remote"
+
+  # --- Interest-aligned: Climate / Environmental ---
+  - board: unknown
+    title_phrase: "software engineer climate"
+    suffix: "remote"
+  - board: unknown
+    title_phrase: "platform engineer climate"
     suffix: "remote"

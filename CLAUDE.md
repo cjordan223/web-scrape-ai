@@ -59,9 +59,10 @@ Hierarchical routes:
 - `/ops/data/explorer`
 - `/ops/diagnostics/sql`
 
-Mobile routes (auto-redirect on `width < 768`):
+Mobile routes (auto-redirect on `width < 768`), tab bar order: Ingest, QA, Jobs, Docs:
 
-- `/m/ingest` — URL-based job ingestion (fetch + LLM parse + commit + queue)
+- `/m/ingest` — two input modes: **Paste Text** (raw JD → LLM parse) or **URL** (fetch + LLM parse). Both flow into editable fields → commit to DB → queue for tailoring
+- `/m/qa` — QA triage: approve/reject/LLM-review pending jobs, scan mobile-jd folder for OCR ingest
 - `/m/jobs` — job list with queue controls
 - `/m/docs` — tailoring output packages
 
@@ -98,8 +99,9 @@ Mobile routes (auto-redirect on `width < 768`):
 - `GET /api/llm/status`, `GET /api/llm/models`
 - `POST /api/llm/models/load`, `POST /api/llm/models/unload`
 - `POST /api/tailoring/ingest/fetch-url` — fetch JD text from URL (domain-specific extractors)
-- `POST /api/tailoring/ingest/parse` — LLM-extract structured fields from JD text
+- `POST /api/tailoring/ingest/parse` — LLM-extract structured fields from JD text (used by both URL and raw-text ingest flows)
 - `POST /api/tailoring/ingest/commit` — insert manual job into DB
+- `POST /api/tailoring/ingest/scan-mobile` — OCR screenshots in `tailoring/mobile-jd/` via macOS Vision, insert into DB
 
 **Ops** (`routers/ops.py`):
 - `GET /api/db/schema`, `GET /api/db/tables`, `GET /api/db/table/{name}`, `GET /api/db/query`, `GET /api/db/size`

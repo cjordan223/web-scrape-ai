@@ -67,6 +67,7 @@ def llm_review(
     config: LLMReviewConfig,
 ) -> FilterVerdict:
     """Call local LLM for a common-sense pass/fail review of a job posting."""
+    start_time = time.monotonic()
     model_id = _get_active_model(config)
     user_content = (
         f"Title: {title}\n"
@@ -118,6 +119,14 @@ def llm_review(
         if not passed and reason.startswith("unparseable") and config.fail_open:
             passed = True
             reason = f"fail_open: {reason}"
+        logger.debug(
+            "LLM review completed for %r in %.2fs passed=%s reason=%s prompt_chars=%d",
+            title,
+            time.monotonic() - start_time,
+            passed,
+            reason,
+            len(user_content),
+        )
         return FilterVerdict(stage="llm_review", passed=passed, reason=reason)
 
     except Exception as exc:

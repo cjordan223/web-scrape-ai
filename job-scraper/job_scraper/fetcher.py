@@ -64,6 +64,13 @@ def fetch_jd_text(
             allow_redirects=True,
         )
         resp.raise_for_status()
+        logger.debug(
+            "Fetched JD URL %s status=%s final_url=%s bytes=%d",
+            url,
+            resp.status_code,
+            resp.url,
+            len(resp.text or ""),
+        )
 
         # Detect cross-domain or homepage redirects (e.g. simplyhired.com/job/X → www.simplyhired.com/)
         orig_host = urlparse(url).netloc.lower().replace("www.", "")
@@ -76,13 +83,25 @@ def fetch_jd_text(
         extractor = _TextExtractor()
         extractor.feed(resp.text)
         text = extractor.get_text()
+        used_meta_fallback = False
         if len(text) < 200:
             # JS-heavy boards often keep useful metadata in <meta> tags.
             meta_parts = [unescape(m.group(1)).strip() for m in _META_FALLBACK_PATTERN.finditer(resp.text)]
             if meta_parts:
                 text = f"{text} {' '.join(meta_parts)}".strip()
+                used_meta_fallback = True
 
-        return text[:max_chars] if text else None
+        if text:
+            logger.debug(
+                "Extracted JD text for %s chars=%d truncated=%s meta_fallback=%s",
+                url,
+                len(text),
+                len(text) > max_chars,
+                used_meta_fallback,
+            )
+            return text[:max_chars]
+        logger.debug("No JD text extracted for %s", url)
+        return None
     except Exception as e:
         logger.warning("Failed to fetch JD from %s: %s", url, e)
         return None

@@ -17,6 +17,8 @@ class TestOllamaTracing(unittest.TestCase):
         events = []
 
         class FakeResp:
+            status_code = 200
+
             def raise_for_status(self):
                 return None
 

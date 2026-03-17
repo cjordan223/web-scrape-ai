@@ -328,6 +328,29 @@ def ops_action(payload: dict = Body(default={})):
         output_dir = TAILORING_OUTPUT_DIR
         log_dir = TAILORING_RUNNER_LOG_DIR
 
+        def _purge_tailoring_ingest_jobs() -> int:
+            conn = get_db_write()
+            try:
+                existing = set(_db_user_tables(conn))
+                if "results" not in existing:
+                    return 0
+                cur = conn.execute(
+                    """
+                    DELETE FROM results
+                    WHERE COALESCE(query, '') IN ('manual-ingest', 'mobile-ingest')
+                       OR COALESCE(run_id, '') IN ('manual-ingest', 'mobile-ingest')
+                       OR url LIKE 'manual://ingest/%'
+                       OR url LIKE 'mobile://ingest/%'
+                    """
+                )
+                conn.commit()
+                return max(int(cur.rowcount or 0), 0)
+            except sqlite3.Error:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+
         if action == "clear_tailoring_logs":
             removed = 0
             if log_dir.exists():
@@ -374,6 +397,10 @@ def ops_action(payload: dict = Body(default={})):
             return {"ok": True, "action": action, "removed": removed}
 
         if action == "clear_tailoring_runs":
+            try:
+                removed_jobs = _purge_tailoring_ingest_jobs()
+            except sqlite3.Error as e:
+                return JSONResponse({"error": str(e)}, 500)
             removed = []
             if output_dir.exists():
                 for d in output_dir.iterdir():
@@ -381,7 +408,7 @@ def ops_action(payload: dict = Body(default={})):
                         continue
                     _shutil.rmtree(d)
                     removed.append(d.name)
-            return {"ok": True, "action": action, "removed": removed}
+            return {"ok": True, "action": action, "removed": removed, "removed_jobs": removed_jobs}
 
     # ── Nuclear ────────────────────────────────────────────────────────────
     if action == "nuke_all":
@@ -569,6 +596,18 @@ def update_runtime_controls(payload: dict = Body(default={})):
         updates["scrape_enabled"] = bool(payload["scrape_enabled"])
     if "llm_enabled" in payload:
         updates["llm_enabled"] = bool(payload["llm_enabled"])
+    if "llm_provider" in payload:
+        provider = str(payload["llm_provider"] or "").strip().lower()
+        if provider not in {"lmstudio", "openai"}:
+            return JSONResponse({"error": "llm_provider must be 'lmstudio' or 'openai'"}, 400)
+        updates["llm_provider"] = provider
+    if "llm_base_url" in payload:
+        base_url = str(payload["llm_base_url"] or "").strip()
+        if not base_url:
+            return JSONResponse({"error": "llm_base_url is required"}, 400)
+        updates["llm_base_url"] = _normalize_llm_base_url(base_url)
+    if "llm_model" in payload:
+        updates["llm_model"] = str(payload["llm_model"] or "default").strip() or "default"
 
     if "schedule_interval_minutes" in payload:
         raw_interval = payload["schedule_interval_minutes"]
@@ -614,7 +653,30 @@ def catch_all(full_path: str):
     _sync_app_state()
     if full_path.startswith("api/"):
         return JSONResponse({"error": "API Route Not Found"}, status_code=404)
-    return FileResponse(DIST_DIR / "index.html")
+    # Serve static assets directly (route takes priority over StaticFiles mount)
+    if full_path.startswith("assets/"):
+        asset_path = DIST_DIR / full_path
+        if asset_path.exists() and asset_path.is_file():
+            return FileResponse(asset_path)
+        if full_path.endswith(".js"):
+            from starlette.responses import Response
+            reload_stub = (
+                "if (!window.sessionStorage.getItem('dashboard.asset-reload-once')) {"
+                "window.sessionStorage.setItem('dashboard.asset-reload-once','1');"
+                "window.location.reload();"
+                "} "
+                "export default {};"
+            )
+            return Response(
+                content=reload_stub,
+                media_type="application/javascript",
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+            )
+        return JSONResponse({"error": "Asset not found"}, status_code=404)
+    from starlette.responses import Response
+    content = (DIST_DIR / "index.html").read_bytes()
+    return Response(content=content, media_type="text/html",
+                    headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 from routers import ops as ops_routes

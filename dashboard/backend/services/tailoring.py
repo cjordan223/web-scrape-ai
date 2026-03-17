@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import os
-
 # Reuse shared backend state/helpers from app module.
 import app as _app
 globals().update({k: v for k, v in _app.__dict__.items() if not k.startswith("__")})
-
-LLM_URL = os.environ.get("LLM_URL", "http://localhost:1234")
 
 def _sync_app_state() -> None:
     globals().update({k: v for k, v in _app.__dict__.items() if not k.startswith("__")})
@@ -84,6 +80,53 @@ def tailoring_job_detail(job_id: int):
     if not job:
         return JSONResponse({"error": f"Job {job_id} not found"}, 404)
     return job
+
+
+def tailoring_job_briefing(job_id: int):
+    """Return job detail + analysis/strategy from the latest run (if any)."""
+    _sync_app_state()
+    job = _get_job_context(job_id)
+    if not job:
+        return JSONResponse({"error": f"Job {job_id} not found"}, 404)
+
+    briefing: dict = {"job": job, "analysis": None, "resume_strategy": None, "cover_strategy": None, "run_slug": None}
+
+    if not TAILORING_OUTPUT_DIR.exists():
+        return briefing
+
+    # Find latest run dir for this job
+    best_dir = None
+    best_ts = 0.0
+    for d in TAILORING_OUTPUT_DIR.iterdir():
+        if not d.is_dir():
+            continue
+        meta_path = d / "meta.json"
+        if not meta_path.exists():
+            continue
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            if int(meta.get("job_id", -1)) != job_id:
+                continue
+            ts = d.stat().st_mtime
+            if ts > best_ts:
+                best_ts = ts
+                best_dir = d
+        except Exception:
+            continue
+
+    if not best_dir:
+        return briefing
+
+    briefing["run_slug"] = best_dir.name
+    for name, key in [("analysis.json", "analysis"), ("resume_strategy.json", "resume_strategy"), ("cover_strategy.json", "cover_strategy")]:
+        path = best_dir / name
+        if path.exists():
+            try:
+                briefing[key] = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+
+    return briefing
 
 
 def tailoring_run_job(payload: dict = Body(...)):
@@ -256,48 +299,31 @@ def tailoring_artifact(slug: str, name: str):
 # Routes — API: Completed application packages (content review/edit)
 # ---------------------------------------------------------------------------
 
-def package_runs(status: str = Query("complete")):
-    _sync_app_state()
-    if not TAILORING_OUTPUT_DIR.exists():
-        return {"items": []}
-
-    rows = []
-    for d in sorted(TAILORING_OUTPUT_DIR.iterdir()):
-        if not d.is_dir():
-            continue
-        s = _tailoring_summary(d)
-        if status != "all" and s.get("status") != status:
-            continue
-        rows.append(s)
-    rows.sort(key=lambda r: _parse_ts(r.get("updated_at")) or 0, reverse=True)
-    return {"items": rows}
-
-
-
-def package_detail(slug: str):
-    _sync_app_state()
-    d = _safe_tailoring_slug(slug)
-    if d is None:
-        return JSONResponse({"error": "Package not found"}, 404)
-
-    summary = _tailoring_summary(d)
+def _package_job_context(summary: dict) -> dict:
     meta = summary.get("meta", {}) or {}
     job_context = _get_job_context(meta.get("job_id")) if meta.get("job_id") else None
     if job_context is None:
         job_context = {
             "id": meta.get("job_id"),
             "url": meta.get("url"),
-            "title": meta.get("title"),
+            "title": meta.get("title") or meta.get("job_title"),
             "snippet": None,
             "jd_text": None,
         }
+    return job_context
+
+
+def _package_detail_payload(d: Path, summary: dict | None = None) -> dict:
+    summary = summary or _tailoring_summary(d)
+    applied = _fetch_applied_by_package_slugs([summary.get("slug") or d.name]).get(summary.get("slug") or d.name)
+    summary["applied"] = applied
 
     resume_tex, resume_pdf = TAILORING_DOC_MAP["resume"]
     cover_tex, cover_pdf = TAILORING_DOC_MAP["cover"]
 
     return {
         "summary": summary,
-        "job_context": job_context,
+        "job_context": _package_job_context(summary),
         "analysis": _load_json_file(d / "analysis.json"),
         "resume_strategy": _load_json_file(d / "resume_strategy.json"),
         "cover_strategy": _load_json_file(d / "cover_strategy.json"),
@@ -311,6 +337,35 @@ def package_detail(slug: str):
         },
         "artifacts": summary.get("artifacts", {}),
     }
+
+
+def package_runs(status: str = Query("complete")):
+    _sync_app_state()
+    if not TAILORING_OUTPUT_DIR.exists():
+        return {"items": []}
+
+    rows = []
+    for d in sorted(TAILORING_OUTPUT_DIR.iterdir()):
+        if not d.is_dir():
+            continue
+        s = _tailoring_summary(d)
+        if status != "all" and s.get("status") != status:
+            continue
+        rows.append(s)
+    applied_by_slug = _fetch_applied_by_package_slugs([str(row.get("slug") or "") for row in rows])
+    for row in rows:
+        row["applied"] = applied_by_slug.get(str(row.get("slug") or ""))
+    rows.sort(key=lambda r: _parse_ts(r.get("updated_at")) or 0, reverse=True)
+    return {"items": rows}
+
+
+
+def package_detail(slug: str):
+    _sync_app_state()
+    d = _safe_tailoring_slug(slug)
+    if d is None:
+        return JSONResponse({"error": "Package not found"}, 404)
+    return _package_detail_payload(d)
 
 
 
@@ -336,6 +391,19 @@ def package_save_latex(
     return {"ok": True, "path": str(tex_path), "chars": len(content)}
 
 
+def _package_compile_status_code(error: str | None) -> int:
+    if not error:
+        return 500
+    lowered = error.lower()
+    if "tex file not found" in lowered:
+        return 404
+    if "pdflatex not found" in lowered:
+        return 503
+    if "pdflatex pass" in lowered or "pdf not produced" in lowered:
+        return 422
+    return 500
+
+
 
 def package_compile(slug: str, doc_type: str):
     _sync_app_state()
@@ -347,9 +415,18 @@ def package_compile(slug: str, doc_type: str):
 
     tex_name, pdf_name = TAILORING_DOC_MAP[doc_type]
     ok, error = _compile_tex_in_place(d / tex_name)
+    if not ok:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": error or "Compile failed",
+                "pdf_name": pdf_name,
+            },
+            _package_compile_status_code(error),
+        )
     return {
-        "ok": ok,
-        "error": error,
+        "ok": True,
+        "error": None,
         "pdf_name": pdf_name,
     }
 
@@ -375,6 +452,296 @@ def package_diff_preview(slug: str, doc_type: str):
     return FileResponse(out_pdf)
 
 
+def _read_optional_text(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    try:
+        return path.read_text(encoding="utf-8")
+    except Exception:
+        return None
+
+
+def _read_optional_bytes(path: Path) -> bytes | None:
+    if not path.exists():
+        return None
+    try:
+        return path.read_bytes()
+    except Exception:
+        return None
+
+
+def _clean_optional_str(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _normalize_tracking_datetime(value: object, field_name: str) -> tuple[str | None, str | None]:
+    text = _clean_optional_str(value)
+    if text is None:
+        return None, None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).isoformat(), None
+    except ValueError:
+        return None, f"{field_name} must be an ISO-8601 datetime"
+
+
+def package_apply(slug: str, payload: dict | None = Body(None)):
+    _sync_app_state()
+    payload = payload or {}
+    d = _safe_tailoring_slug(slug)
+    if d is None:
+        return JSONResponse({"error": "Package not found"}, 404)
+
+    existing = _fetch_applied_by_package_slugs([slug]).get(slug)
+    if existing:
+        return {"ok": True, "created": False, "application": existing}
+
+    summary = _tailoring_summary(d)
+    job_context = _package_job_context(summary)
+    now = datetime.now(timezone.utc).isoformat()
+
+    applied_at, applied_error = _normalize_tracking_datetime(payload.get("applied_at") or now, "applied_at")
+    if applied_error:
+        return JSONResponse({"ok": False, "error": applied_error}, 400)
+
+    follow_up_at, follow_up_error = _normalize_tracking_datetime(payload.get("follow_up_at"), "follow_up_at")
+    if follow_up_error:
+        return JSONResponse({"ok": False, "error": follow_up_error}, 400)
+
+    status = str(payload.get("status") or "applied").strip().lower()
+    if status not in APPLIED_STATUS_VALUES:
+        return JSONResponse({"ok": False, "error": f"status must be one of {', '.join(sorted(APPLIED_STATUS_VALUES))}"}, 400)
+
+    meta = summary.get("meta", {}) or {}
+    job_id = meta.get("job_id") or job_context.get("id")
+    try:
+        job_id = int(job_id) if job_id is not None else None
+    except (TypeError, ValueError):
+        job_id = None
+    company_name = meta.get("company_name") or meta.get("company")
+    job_title = meta.get("job_title") or meta.get("title") or job_context.get("title")
+    job_url = job_context.get("url") or meta.get("url")
+    application_url = _clean_optional_str(payload.get("application_url") or job_url)
+    notes = _clean_optional_str(payload.get("notes"))
+
+    _ensure_applied_tables()
+    conn = get_db_write()
+    try:
+        cur = conn.execute(
+            """
+            INSERT INTO applied_applications (
+                package_slug, job_id, job_title, company_name, job_url, application_url,
+                applied_at, status, follow_up_at, notes, created_at, updated_at, status_updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                slug,
+                job_id,
+                job_title,
+                company_name,
+                job_url,
+                application_url,
+                applied_at,
+                status,
+                follow_up_at,
+                notes,
+                now,
+                now,
+                now,
+            ),
+        )
+        application_id = int(cur.lastrowid)
+        conn.execute(
+            """
+            INSERT INTO applied_snapshots (
+                application_id, meta, job_context, analysis, resume_strategy, cover_strategy,
+                resume_tex, cover_tex, resume_pdf, cover_pdf, llm_trace, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                application_id,
+                json.dumps(meta),
+                json.dumps(job_context),
+                _read_optional_text(d / "analysis.json"),
+                _read_optional_text(d / "resume_strategy.json"),
+                _read_optional_text(d / "cover_strategy.json"),
+                _read_optional_text(d / "Conner_Jordan_Resume.tex"),
+                _read_optional_text(d / "Conner_Jordan_Cover_Letter.tex"),
+                _read_optional_bytes(d / "Conner_Jordan_Resume.pdf"),
+                _read_optional_bytes(d / "Conner_Jordan_Cover_Letter.pdf"),
+                _read_optional_text(d / TAILORING_TRACE_FILE),
+                now,
+            ),
+        )
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        existing = _fetch_applied_by_package_slugs([slug]).get(slug)
+        return {"ok": True, "created": False, "application": existing}
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse({"ok": False, "error": str(e)}, 500)
+    finally:
+        conn.close()
+
+    return {
+        "ok": True,
+        "created": True,
+        "application": _get_applied_application(application_id),
+    }
+
+
+def applied_list(
+    status: str | None = Query(None),
+    q: str | None = Query(None),
+):
+    _sync_app_state()
+    _ensure_applied_tables()
+    conn = get_db_write()
+    try:
+        clauses: list[str] = []
+        params: list[object] = []
+        if status:
+            normalized_status = status.strip().lower()
+            if normalized_status not in APPLIED_STATUS_VALUES:
+                return JSONResponse({"ok": False, "error": f"status must be one of {', '.join(sorted(APPLIED_STATUS_VALUES))}"}, 400)
+            clauses.append("status = ?")
+            params.append(normalized_status)
+        if q and q.strip():
+            clauses.append("(job_title LIKE ? OR company_name LIKE ? OR notes LIKE ?)")
+            pattern = f"%{q.strip()}%"
+            params.extend([pattern, pattern, pattern])
+
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        rows = conn.execute(
+            f"""
+            SELECT aa.id, aa.package_slug, aa.job_id, aa.job_title, aa.company_name, aa.job_url,
+                   aa.application_url, aa.applied_at, aa.status, aa.follow_up_at, aa.notes,
+                   aa.created_at, aa.updated_at, aa.status_updated_at,
+                   s.resume_pdf, s.cover_pdf
+            FROM applied_applications aa
+            JOIN applied_snapshots s ON s.application_id = aa.id
+            {where}
+            ORDER BY aa.updated_at DESC, aa.id DESC
+            """,
+            tuple(params),
+        ).fetchall()
+        items = []
+        for row in rows:
+            item = _applied_summary_from_row(row) or {}
+            item["artifacts"] = {
+                "Conner_Jordan_Resume.pdf": bool(row["resume_pdf"]),
+                "Conner_Jordan_Cover_Letter.pdf": bool(row["cover_pdf"]),
+            }
+            items.append(item)
+        return {"items": items, "count": len(items)}
+    finally:
+        conn.close()
+
+
+def applied_detail(application_id: int):
+    _sync_app_state()
+    detail = _get_applied_snapshot_detail(application_id)
+    if not detail:
+        return JSONResponse({"error": "Applied record not found"}, 404)
+    return detail
+
+
+def applied_update_tracking(application_id: int, payload: dict = Body(...)):
+    _sync_app_state()
+    current = _get_applied_application(application_id)
+    if not current:
+        return JSONResponse({"error": "Applied record not found"}, 404)
+
+    fields: dict[str, object] = {}
+    errors: list[str] = []
+
+    if "application_url" in payload:
+        fields["application_url"] = _clean_optional_str(payload.get("application_url"))
+    if "applied_at" in payload:
+        if _clean_optional_str(payload.get("applied_at")) is None:
+            errors.append("applied_at is required")
+        else:
+            applied_at, err = _normalize_tracking_datetime(payload.get("applied_at"), "applied_at")
+            if err:
+                errors.append(err)
+            else:
+                fields["applied_at"] = applied_at
+    if "follow_up_at" in payload:
+        follow_up_at, err = _normalize_tracking_datetime(payload.get("follow_up_at"), "follow_up_at")
+        if err:
+            errors.append(err)
+        else:
+            fields["follow_up_at"] = follow_up_at
+    if "notes" in payload:
+        fields["notes"] = _clean_optional_str(payload.get("notes"))
+    if "status" in payload:
+        status = str(payload.get("status") or "").strip().lower()
+        if status not in APPLIED_STATUS_VALUES:
+            errors.append(f"status must be one of {', '.join(sorted(APPLIED_STATUS_VALUES))}")
+        else:
+            fields["status"] = status
+
+    if errors:
+        return JSONResponse({"ok": False, "error": "; ".join(errors)}, 400)
+    if not fields:
+        return {"ok": True, "application": current}
+
+    now = datetime.now(timezone.utc).isoformat()
+    fields["updated_at"] = now
+    if fields.get("status") and fields.get("status") != current.get("status"):
+        fields["status_updated_at"] = now
+
+    assignments = ", ".join(f"{name} = ?" for name in fields)
+    params = list(fields.values()) + [application_id]
+
+    _ensure_applied_tables()
+    conn = get_db_write()
+    try:
+        conn.execute(
+            f"UPDATE applied_applications SET {assignments} WHERE id = ?",
+            tuple(params),
+        )
+        conn.commit()
+    except sqlite3.Error as e:
+        conn.rollback()
+        return JSONResponse({"ok": False, "error": str(e)}, 500)
+    finally:
+        conn.close()
+
+    return {"ok": True, "application": _get_applied_application(application_id)}
+
+
+def applied_artifact(application_id: int, name: str):
+    _sync_app_state()
+    if name not in APPLIED_ARTIFACT_COLUMNS:
+        return JSONResponse({"error": "Artifact not allowed"}, 400)
+    column, media_type, is_bytes = APPLIED_ARTIFACT_COLUMNS[name]
+
+    _ensure_applied_tables()
+    conn = get_db_write()
+    try:
+        row = conn.execute(
+            f"SELECT {column} FROM applied_snapshots WHERE application_id = ?",
+            (application_id,),
+        ).fetchone()
+        if not row:
+            return JSONResponse({"error": "Applied record not found"}, 404)
+        value = row[column]
+        if value is None:
+            return JSONResponse({"error": "Artifact not found"}, 404)
+        content = value if is_bytes else str(value)
+        return Response(
+            content=content,
+            media_type=media_type,
+            headers={"Content-Disposition": f'inline; filename="{name}"'},
+        )
+    finally:
+        conn.close()
+
+
 # ---------------------------------------------------------------------------
 # Routes — API: Manual JD ingestion
 # ---------------------------------------------------------------------------
@@ -396,15 +763,10 @@ def tailoring_ingest_parse(payload: dict = Body(...)):
     if not jd_text:
         return JSONResponse({"ok": False, "error": "jd_text is required"}, 400)
 
-    # Auto-discover active model
     try:
-        with urllib.request.urlopen(f"{LLM_URL}/v1/models", timeout=3) as resp:
-            mdata = json.loads(resp.read())
-        model_id = mdata["data"][0]["id"] if mdata.get("data") else None
-        if not model_id:
-            return JSONResponse({"ok": False, "error": "No LLM model loaded"}, 503)
+        llm_runtime, model_id = _resolve_active_llm_runtime()
     except Exception as e:
-        return JSONResponse({"ok": False, "error": f"LLM unreachable: {e}"}, 503)
+        return JSONResponse({"ok": False, "error": str(e)}, 503)
 
     req_body = json.dumps({
         "model": model_id,
@@ -417,27 +779,20 @@ def tailoring_ingest_parse(payload: dict = Body(...)):
 
     try:
         req = urllib.request.Request(
-            f"{LLM_URL}/v1/chat/completions",
+            llm_runtime["chat_url"],
             data=req_body,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=60) as resp:
             cdata = json.loads(resp.read())
-        raw = cdata["choices"][0]["message"]["content"]
-        # Strip markdown fences if present
-        raw = raw.strip()
-        if raw.startswith("```"):
-            raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
-            if raw.endswith("```"):
-                raw = raw[:-3]
-            raw = raw.strip()
+        raw = _strip_llm_fences(cdata["choices"][0]["message"]["content"])
         fields = json.loads(raw)
         return {"ok": True, "fields": fields}
     except json.JSONDecodeError:
         return {"ok": True, "fields": {}, "warning": "LLM returned non-JSON; fill fields manually"}
     except Exception as e:
-        return JSONResponse({"ok": False, "error": f"LLM call failed: {e}"}, 500)
+        return JSONResponse({"ok": False, "error": f"LLM call failed: {_http_error_details(e)}"}, 500)
 
 
 def tailoring_ingest_fetch_url(payload: dict = Body(...)):
@@ -508,6 +863,840 @@ def tailoring_ingest_commit(payload: dict = Body(...)):
 
 
 # ---------------------------------------------------------------------------
+# Routes — API: Mobile JD Scan
+# ---------------------------------------------------------------------------
+
+def tailoring_ingest_scan_mobile():
+    from services.mobile_jd import scan_and_process
+    return scan_and_process()
+
+
+# ---------------------------------------------------------------------------
+# Routes — API: QA Triage
+# ---------------------------------------------------------------------------
+
+_QA_POLISH_SYSTEM = (
+    "You are cleaning a scraped job description for internal QA approval and resume tailoring.\n"
+    "Rewrite noisy job text into a polished, structured, high-signal plain text brief.\n\n"
+    "Keep:\n"
+    "- the actual role focus\n"
+    "- core responsibilities\n"
+    "- required qualifications\n"
+    "- preferred qualifications when explicitly present\n"
+    "- concrete tools, environments, and domain requirements\n"
+    "- important logistics like remote/hybrid/onsite, location, employment type, or compensation when clearly stated\n\n"
+    "Remove:\n"
+    "- recruiting calls to action\n"
+    "- social media links and follow-us text\n"
+    "- legal/EEO/accommodation/privacy boilerplate\n"
+    "- generic company hype and culture filler unless it directly explains the role\n"
+    "- benefits and health-plan marketing unless unusually important to the role\n"
+    "- duplicate or near-duplicate content\n\n"
+    "approved_jd_text rules:\n"
+    "- plain text only, no markdown fences\n"
+    "- use these headings when you have content for them: ROLE SUMMARY, CORE RESPONSIBILITIES, REQUIRED QUALIFICATIONS, PREFERRED QUALIFICATIONS, LOGISTICS\n"
+    "- bullets should start with '- '\n"
+    "- keep it concise and readable\n"
+    "- do not include raw URLs unless essential to the role itself\n\n"
+    "Return JSON only:\n"
+    '{ "requirements_summary": "2-4 sentence summary: role focus, key technical requirements, must-have qualifications, seniority signals", '
+    '"approved_jd_text": "clean, structured JD body", "removed_noise": ["short examples of removed junk"] }'
+)
+
+_JD_NOISE_PATTERNS = [
+    re.compile(r"(?i)\b(?:follow us|connect with us|share this job|job alerts?|talent network|apply now|submit your application)\b"),
+    re.compile(r"(?i)\b(?:facebook|instagram|linkedin|twitter|x\.com|youtube|tiktok|social media)\b"),
+    re.compile(r"(?i)\b(?:equal opportunity|eeo|affirmative action|protected veteran|disability|reasonable accommodation|e-verify|criminal histories|privacy policy|terms of use|pay transparency non-discrimination)\b"),
+    re.compile(r"(?i)\b(?:medical|dental|vision|life insurance|401\(k\)|health savings|wellness program|employee assistance)\b"),
+]
+_JD_HEADING_MARKERS = [
+    "Role Overview",
+    "About the Role",
+    "About Us",
+    "Responsibilities",
+    "Core Responsibilities",
+    "What You'll Do",
+    "What You Will Do",
+    "Qualifications",
+    "Required Qualifications",
+    "Requirements",
+    "What You Bring",
+    "Preferred Qualifications",
+    "Nice to Have",
+    "Location",
+    "Compensation",
+    "Benefits",
+]
+
+
+def _ensure_results_approved_jd_column(conn: sqlite3.Connection) -> None:
+    if not _app._results_has_column(conn, "approved_jd_text"):
+        conn.execute("ALTER TABLE results ADD COLUMN approved_jd_text TEXT")
+
+
+def _strip_llm_fences(raw: str) -> str:
+    raw = (raw or "").strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+        if raw.endswith("```"):
+            raw = raw[:-3]
+    return raw.strip()
+
+
+def _normalize_jd_text(text: str) -> str:
+    text = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+    for marker in _JD_HEADING_MARKERS:
+        text = re.sub(rf"(?<!\n)\b{re.escape(marker)}\b", f"\n\n{marker}", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _is_noise_paragraph(paragraph: str) -> bool:
+    p = paragraph.strip()
+    if not p:
+        return True
+    if len(p.split()) <= 4 and re.search(r"https?://|www\.", p):
+        return True
+    if p.startswith("#") or p.startswith("@"):
+        return True
+    return any(pattern.search(p) for pattern in _JD_NOISE_PATTERNS)
+
+
+def _extract_candidate_paragraphs(text: str) -> list[str]:
+    normalized = _normalize_jd_text(text)
+    paragraphs = [
+        re.sub(r"\s+", " ", p).strip(" \n\t-•")
+        for p in re.split(r"\n{2,}", normalized)
+    ]
+    paragraphs = [p for p in paragraphs if p]
+    if len(paragraphs) <= 1 and normalized:
+        paragraphs = [
+            s.strip()
+            for s in re.split(r"(?<=[.!?])\s+(?=[A-Z])", normalized)
+            if s.strip()
+        ]
+    return paragraphs
+
+
+def _looks_like_logistics(text: str) -> bool:
+    return bool(re.search(r"(?i)\b(remote|hybrid|onsite|on-site|location|salary|compensation|employment type|full-time|contract)\b", text))
+
+
+def _classify_sentence(sentence: str) -> str:
+    s = sentence.strip()
+    if _looks_like_logistics(s):
+        return "logistics"
+    if re.search(r"(?i)\b(preferred|nice to have|bonus)\b", s):
+        return "preferred"
+    if re.search(r"(?i)\b(required|required qualifications|requirements|must have|what you bring|experience with|proficiency|knowledge of|background in|foundation in)\b", s):
+        return "required"
+    if re.search(r"(?i)\b(you will|responsible for|build|design|develop|create|support|lead|collaborate|implement|monitor|optimi[sz]e|partner)\b", s):
+        return "responsibilities"
+    return "summary"
+
+
+def _heuristic_requirements_summary(cleaned_text: str) -> str:
+    sentences = [
+        s.strip()
+        for s in re.split(r"(?<=[.!?])\s+", cleaned_text)
+        if s.strip() and not s.strip().isupper()
+    ]
+    return " ".join(sentences[:3])[:400].strip()
+
+
+def _heuristic_polish_jd(jd_text: str, title: str | None = None) -> tuple[str | None, str | None]:
+    paragraphs = [p for p in _extract_candidate_paragraphs(jd_text) if not _is_noise_paragraph(p)]
+    if not paragraphs:
+        cleaned = re.sub(r"\s+", " ", (jd_text or "")).strip()
+        summary = cleaned[:400] if cleaned else None
+        return summary, cleaned or None
+
+    sections: dict[str, list[str]] = {
+        "ROLE SUMMARY": [],
+        "CORE RESPONSIBILITIES": [],
+        "REQUIRED QUALIFICATIONS": [],
+        "PREFERRED QUALIFICATIONS": [],
+        "LOGISTICS": [],
+    }
+    for paragraph in paragraphs:
+        for sentence in re.split(r"(?<=[.!?])\s+", paragraph):
+            sentence = sentence.strip(" -•")
+            if not sentence:
+                continue
+            bucket = _classify_sentence(sentence)
+            if bucket == "responsibilities":
+                sections["CORE RESPONSIBILITIES"].append(sentence)
+            elif bucket == "required":
+                sections["REQUIRED QUALIFICATIONS"].append(sentence)
+            elif bucket == "preferred":
+                sections["PREFERRED QUALIFICATIONS"].append(sentence)
+            elif bucket == "logistics":
+                sections["LOGISTICS"].append(sentence)
+            elif not sections["ROLE SUMMARY"]:
+                sections["ROLE SUMMARY"].append(sentence)
+
+    if not sections["ROLE SUMMARY"] and title:
+        sections["ROLE SUMMARY"].append(f"{title.strip()} role with a focus on the responsibilities and qualifications listed below.")
+
+    rendered: list[str] = []
+    for heading, items in sections.items():
+        unique_items: list[str] = []
+        seen: set[str] = set()
+        for item in items:
+            norm = item.lower()
+            if norm in seen:
+                continue
+            seen.add(norm)
+            unique_items.append(item)
+        if not unique_items:
+            continue
+        rendered.append(heading)
+        if heading == "ROLE SUMMARY":
+            rendered.append(" ".join(unique_items[:2]))
+        else:
+            rendered.extend(f"- {item}" for item in unique_items[:8])
+        rendered.append("")
+    approved = "\n".join(rendered).strip()
+    return _heuristic_requirements_summary(approved), approved or None
+
+
+def _polish_job_description(
+    jd_text: str,
+    title: str | None,
+    url: str | None,
+    llm_runtime: dict | None,
+    model_id: str | None,
+) -> tuple[str | None, str | None, bool]:
+    heuristic_summary, heuristic_text = _heuristic_polish_jd(jd_text, title=title)
+    if not (llm_runtime and model_id and jd_text and len(jd_text.strip()) > 80):
+        return heuristic_summary, heuristic_text, False
+
+    user_text = heuristic_text or _normalize_jd_text(jd_text)
+    user_prompt = (
+        f"Title: {title or 'Unknown'}\n"
+        f"URL: {url or 'N/A'}\n\n"
+        f"Scraped JD Text:\n{user_text[:12000]}"
+    )
+    try:
+        req_body = json.dumps({
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": _QA_POLISH_SYSTEM},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.1,
+        }).encode()
+        req = urllib.request.Request(
+            llm_runtime["chat_url"],
+            data=req_body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            cdata = json.loads(resp.read())
+        raw = _strip_llm_fences(cdata["choices"][0]["message"]["content"])
+        fields = json.loads(raw)
+        summary = (fields.get("requirements_summary") or "").strip() or heuristic_summary
+        approved_jd_text = (fields.get("approved_jd_text") or "").strip() or heuristic_text
+        return summary, approved_jd_text, True
+    except Exception:
+        return heuristic_summary, heuristic_text, False
+
+
+def tailoring_qa_list(limit: int = Query(50, ge=1, le=200)):
+    _sync_app_state()
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT id, title, url, snippet, board, seniority, created_at "
+            "FROM results WHERE decision='accept' ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        items = [dict(r) for r in rows]
+        return {"items": items, "count": len(items)}
+    finally:
+        conn.close()
+
+
+def tailoring_qa_approve(payload: dict = Body(...)):
+    _sync_app_state()
+    job_ids = payload.get("job_ids") or []
+    if payload.get("job_id"):
+        job_ids = [payload["job_id"]]
+    if not job_ids:
+        return JSONResponse({"ok": False, "error": "job_id or job_ids required"}, 400)
+
+    # Try LLM reformat (fail-open)
+    llm_available = False
+    llm_runtime = None
+    model_id = None
+    try:
+        llm_runtime, model_id = _resolve_active_llm_runtime()
+        if model_id:
+            llm_available = True
+    except Exception:
+        pass
+
+    conn = get_db_write()
+    try:
+        _ensure_results_approved_jd_column(conn)
+        results = []
+        for jid in job_ids:
+            row = conn.execute(
+                "SELECT id, title, url, snippet, jd_text FROM results WHERE id = ?",
+                (jid,),
+            ).fetchone()
+            if not row:
+                continue
+
+            source_text = row["jd_text"] or row["snippet"] or ""
+            req_summary, approved_jd_text, polished_with_llm = _polish_job_description(
+                source_text,
+                row["title"],
+                row["url"],
+                llm_runtime if llm_available else None,
+                model_id if llm_available else None,
+            )
+            conn.execute(
+                "UPDATE results SET decision='qa_approved', snippet=?, approved_jd_text=? WHERE id=?",
+                (
+                    (req_summary or row["snippet"] or "").strip() or None,
+                    (approved_jd_text or source_text or "").strip() or None,
+                    jid,
+                ),
+            )
+            results.append({
+                "job_id": jid,
+                "summarized": bool(req_summary),
+                "polished": bool(approved_jd_text),
+                "polished_with_llm": polished_with_llm,
+            })
+
+        conn.commit()
+        return {"ok": True, "approved": results}
+    finally:
+        conn.close()
+
+
+def tailoring_qa_reject(payload: dict = Body(...)):
+    _sync_app_state()
+    job_ids = payload.get("job_ids") or []
+    if payload.get("job_id"):
+        job_ids = [payload["job_id"]]
+    if not job_ids:
+        return JSONResponse({"ok": False, "error": "job_id or job_ids required"}, 400)
+
+    conn = get_db_write()
+    try:
+        for jid in job_ids:
+            conn.execute("UPDATE results SET decision='qa_rejected' WHERE id=?", (jid,))
+        conn.commit()
+        return {"ok": True, "rejected": len(job_ids)}
+    finally:
+        conn.close()
+
+
+_QA_LLM_REVIEW_SYSTEM = (
+    "You are a job-candidate fit reviewer. Given the candidate's profile and a job description, "
+    "evaluate whether this is a strong enough match to warrant tailoring application materials.\n\n"
+    "Evaluation criteria:\n"
+    "- Requirement coverage: do candidate skills map to core JD requirements?\n"
+    "- Experience relevance: does baseline evidence support the role?\n"
+    "- Seniority alignment: mid-to-senior IC roles are ideal (not staff/principal/management)\n"
+    "- Domain fit: security/cloud/devops/platform engineering — not pure frontend, data science, etc.\n"
+    "- Red flags: onsite-only disguised as remote, clearance required, etc.\n\n"
+    "Return ONLY valid JSON:\n"
+    '{ "pass": true/false, "reason": "1-2 sentences", "confidence": 0.0-1.0, '
+    '"top_matches": ["skill1", "skill2"], "gaps": ["gap1"] }'
+)
+
+# Cache for profile context (loaded once)
+_profile_context_cache: str | None = None
+
+def _load_profile_context() -> str:
+    global _profile_context_cache
+    if _profile_context_cache is not None:
+        return _profile_context_cache
+
+    parts = []
+    soul_path = TAILORING_ROOT / "soul.md"
+    if soul_path.exists():
+        parts.append("=== CANDIDATE PROFILE (soul.md) ===\n" + soul_path.read_text(encoding="utf-8")[:6000])
+
+    skills_path = TAILORING_ROOT / "skills.json"
+    if skills_path.exists():
+        try:
+            skills = json.loads(skills_path.read_text(encoding="utf-8"))
+            profile = skills.get("candidate_profile", {})
+            parts.append(
+                "=== TARGET ROLES ===\n" + ", ".join(profile.get("target_roles", []))
+                + "\n\n=== POSITIONING ===\n" + profile.get("positioning_summary", "")
+            )
+            inventory = skills.get("skills_inventory", {})
+            skill_names = []
+            for cat in inventory.get("core_skills", []) + inventory.get("supporting_skills", []):
+                skill_names.append(f"- {cat['name']}: {', '.join(cat.get('skills', []))}")
+            if skill_names:
+                parts.append("=== SKILLS ===\n" + "\n".join(skill_names))
+        except Exception:
+            pass
+
+    _profile_context_cache = "\n\n".join(parts)
+    return _profile_context_cache
+
+
+def _http_error_details(exc: Exception) -> str:
+    message = str(exc)
+    if isinstance(exc, urllib.error.HTTPError):
+        try:
+            body = exc.read().decode("utf-8", errors="replace").strip()
+        except Exception:
+            body = ""
+        if body:
+            compact = re.sub(r"\s+", " ", body)
+            return f"{message}: {compact[:700]}"
+    return message
+
+
+def _fetch_llm_catalog(llm_runtime: dict, *, timeout: int = 5) -> tuple[list[dict], list[dict]]:
+    with urllib.request.urlopen(llm_runtime["models_url"], timeout=timeout) as resp:
+        data = json.loads(resp.read())
+    v1_models = data.get("data", []) or []
+
+    manage_models: list[dict] = []
+    if llm_runtime.get("manage_models"):
+        try:
+            with urllib.request.urlopen(f"{llm_runtime['base_url']}/api/v0/models", timeout=timeout) as resp:
+                manage_data = json.loads(resp.read())
+            manage_models = manage_data.get("data", []) or []
+        except Exception:
+            manage_models = []
+    return v1_models, manage_models
+
+
+def _resolve_llm_model_id(
+    llm_runtime: dict,
+    *,
+    v1_models: list[dict] | None = None,
+    manage_models: list[dict] | None = None,
+) -> str | None:
+    model_id = str(llm_runtime.get("selected_model") or "default").strip() or "default"
+    manage_models = manage_models or []
+    if llm_runtime.get("manage_models"):
+        loaded = [
+            str(item.get("id") or "").strip()
+            for item in manage_models
+            if str(item.get("state") or "").strip() == "loaded"
+            and str(item.get("type") or "llm").strip().lower() != "embeddings"
+        ]
+        loaded = [item for item in loaded if item]
+        if model_id != "default":
+            if model_id in loaded:
+                return model_id
+            raise RuntimeError(f"Selected model '{model_id}' is not loaded. Load it in the UI and retry.")
+        if loaded:
+            return loaded[0]
+        raise RuntimeError("No LLM model is loaded. Load one in the UI and retry.")
+
+    if model_id != "default":
+        return model_id
+    v1_models = v1_models or []
+    for item in v1_models:
+        candidate = str(item.get("id") or "").strip()
+        if candidate:
+            return candidate
+    return None
+
+
+def _resolve_active_llm_runtime() -> tuple[dict, str]:
+    llm_runtime = _resolve_llm_runtime()
+    try:
+        v1_models, manage_models = _fetch_llm_catalog(llm_runtime, timeout=3)
+        model_id = _resolve_llm_model_id(
+            llm_runtime,
+            v1_models=v1_models,
+            manage_models=manage_models,
+        )
+        if not model_id:
+            raise RuntimeError("No LLM model available")
+        return llm_runtime, model_id
+    except Exception as exc:
+        raise RuntimeError(f"LLM unavailable: {_http_error_details(exc)}") from exc
+
+
+def _coerce_confidence(value: object, default: float = 0.5) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _qa_llm_review_snapshot() -> dict:
+    with _app._QA_LLM_REVIEW_LOCK:
+        thread = _app._QA_LLM_REVIEW_RUNNER.get("thread")
+        if thread is not None and not thread.is_alive():
+            _app._QA_LLM_REVIEW_RUNNER["thread"] = None
+            thread = None
+
+        items = []
+        for item in _app._QA_LLM_REVIEW_RUNNER.get("items", []):
+            copied = dict(item)
+            copied["top_matches"] = list(item.get("top_matches") or [])
+            copied["gaps"] = list(item.get("gaps") or [])
+            items.append(copied)
+
+        counts = {
+            "total": len(items),
+            "queued": 0,
+            "reviewing": 0,
+            "completed": 0,
+            "passed": 0,
+            "failed": 0,
+            "skipped": 0,
+            "errors": 0,
+        }
+        for item in items:
+            status = item.get("status")
+            if status == "queued":
+                counts["queued"] += 1
+            elif status == "reviewing":
+                counts["reviewing"] += 1
+            elif status == "pass":
+                counts["completed"] += 1
+                counts["passed"] += 1
+            elif status == "fail":
+                counts["completed"] += 1
+                counts["failed"] += 1
+            elif status == "skipped":
+                counts["completed"] += 1
+                counts["skipped"] += 1
+            elif status == "error":
+                counts["completed"] += 1
+                counts["errors"] += 1
+
+        active_job = next((dict(item) for item in items if item.get("status") == "reviewing"), None)
+        if active_job is not None:
+            active_job["top_matches"] = list(active_job.get("top_matches") or [])
+            active_job["gaps"] = list(active_job.get("gaps") or [])
+
+        return {
+            "running": thread is not None,
+            "batch_id": int(_app._QA_LLM_REVIEW_RUNNER.get("batch_id") or 0),
+            "started_at": _app._QA_LLM_REVIEW_RUNNER.get("started_at"),
+            "ended_at": _app._QA_LLM_REVIEW_RUNNER.get("ended_at"),
+            "resolved_model": _app._QA_LLM_REVIEW_RUNNER.get("resolved_model"),
+            "active_job": active_job,
+            "items": items,
+            "summary": counts,
+        }
+
+
+def _qa_llm_review_mark_pending_as_error(reason: str) -> None:
+    completed_at = datetime.now(timezone.utc).isoformat()
+    with _app._QA_LLM_REVIEW_LOCK:
+        for item in _app._QA_LLM_REVIEW_RUNNER.get("items", []):
+            if item.get("status") not in {"queued", "reviewing"}:
+                continue
+            item["status"] = "error"
+            item["reason"] = reason
+            item["completed_at"] = completed_at
+        _app._QA_LLM_REVIEW_RUNNER["active_job_id"] = None
+        _app._QA_LLM_REVIEW_RUNNER["active_started_at"] = None
+        _app._QA_LLM_REVIEW_RUNNER["ended_at"] = completed_at
+
+
+def _run_single_qa_llm_review(
+    conn: sqlite3.Connection,
+    job_id: int,
+    *,
+    llm_runtime: dict,
+    model_id: str,
+    profile_ctx: str,
+) -> dict:
+    row = conn.execute(
+        "SELECT id, title, url, snippet, jd_text, decision FROM results WHERE id = ?",
+        (job_id,),
+    ).fetchone()
+    if not row:
+        return {"status": "skipped", "reason": "job not found"}
+    if (row["decision"] or "") != "accept":
+        return {
+            "status": "skipped",
+            "reason": f"job no longer pending QA ({row['decision'] or 'unknown'})",
+        }
+
+    jd_text = row["jd_text"] or row["snippet"] or ""
+    if len(jd_text.strip()) < 30:
+        return {"status": "skipped", "reason": "insufficient JD text"}
+
+    user_msg = (
+        f"Title: {row['title'] or 'Unknown'}\n"
+        f"URL: {row['url'] or 'N/A'}\n\n"
+        f"Job Description:\n{jd_text[:12000]}"
+    )
+    if model_id and "qwen" in model_id.lower():
+        user_msg = f"{user_msg}\n\n/no_think"
+
+    try:
+        req_body = json.dumps({
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": _QA_LLM_REVIEW_SYSTEM + "\n\n" + profile_ctx},
+                {"role": "user", "content": user_msg},
+            ],
+            "temperature": 0.2,
+        }).encode()
+        req = urllib.request.Request(
+            llm_runtime["chat_url"],
+            data=req_body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            cdata = json.loads(resp.read())
+
+        raw = _strip_llm_fences(cdata["choices"][0]["message"]["content"])
+        verdict = json.loads(raw)
+
+        passed = bool(verdict.get("pass", False))
+        new_decision = "qa_approved" if passed else "qa_rejected"
+        req_summary = row["snippet"]
+        approved_jd_text = row["jd_text"]
+        polished_with_llm = False
+        if passed:
+            req_summary, approved_jd_text, polished_with_llm = _polish_job_description(
+                jd_text,
+                row["title"],
+                row["url"],
+                llm_runtime,
+                model_id,
+            )
+            conn.execute(
+                "UPDATE results SET decision=?, snippet=?, approved_jd_text=? WHERE id=?",
+                (
+                    new_decision,
+                    (req_summary or row["snippet"] or "").strip() or None,
+                    (approved_jd_text or jd_text or "").strip() or None,
+                    job_id,
+                ),
+            )
+        else:
+            conn.execute(
+                "UPDATE results SET decision=? WHERE id=?",
+                (new_decision, job_id),
+            )
+        return {
+            "status": "pass" if passed else "fail",
+            "reason": str(verdict.get("reason") or ""),
+            "confidence": _coerce_confidence(verdict.get("confidence")),
+            "top_matches": list(verdict.get("top_matches") or []),
+            "gaps": list(verdict.get("gaps") or []),
+            "polished": bool(passed and approved_jd_text),
+            "polished_with_llm": bool(passed and polished_with_llm),
+        }
+    except Exception as exc:
+        conn.rollback()
+        return {"status": "error", "reason": _http_error_details(exc)}
+
+
+def _qa_llm_review_worker() -> None:
+    try:
+        llm_runtime, model_id = _resolve_active_llm_runtime()
+    except Exception as exc:
+        _qa_llm_review_mark_pending_as_error(str(exc))
+        with _app._QA_LLM_REVIEW_LOCK:
+            _app._QA_LLM_REVIEW_RUNNER["thread"] = None
+        return
+
+    profile_ctx = _load_profile_context()
+    with _app._QA_LLM_REVIEW_LOCK:
+        _app._QA_LLM_REVIEW_RUNNER["resolved_model"] = model_id
+
+    conn = get_db_write()
+    try:
+        _ensure_results_approved_jd_column(conn)
+        while True:
+            with _app._QA_LLM_REVIEW_LOCK:
+                next_item = next(
+                    (item for item in _app._QA_LLM_REVIEW_RUNNER.get("items", []) if item.get("status") == "queued"),
+                    None,
+                )
+                if next_item is None:
+                    _app._QA_LLM_REVIEW_RUNNER["active_job_id"] = None
+                    _app._QA_LLM_REVIEW_RUNNER["active_started_at"] = None
+                    _app._QA_LLM_REVIEW_RUNNER["ended_at"] = datetime.now(timezone.utc).isoformat()
+                    break
+                started_at = datetime.now(timezone.utc).isoformat()
+                next_item["status"] = "reviewing"
+                next_item["started_at"] = started_at
+                _app._QA_LLM_REVIEW_RUNNER["active_job_id"] = next_item["job_id"]
+                _app._QA_LLM_REVIEW_RUNNER["active_started_at"] = started_at
+                job_id = int(next_item["job_id"])
+
+            result = _run_single_qa_llm_review(
+                conn,
+                job_id,
+                llm_runtime=llm_runtime,
+                model_id=model_id,
+                profile_ctx=profile_ctx,
+            )
+            conn.commit()
+
+            completed_at = datetime.now(timezone.utc).isoformat()
+            with _app._QA_LLM_REVIEW_LOCK:
+                for item in _app._QA_LLM_REVIEW_RUNNER.get("items", []):
+                    if int(item.get("job_id") or -1) != job_id:
+                        continue
+                    item.update(result)
+                    item["completed_at"] = completed_at
+                    break
+                _app._QA_LLM_REVIEW_RUNNER["active_job_id"] = None
+                _app._QA_LLM_REVIEW_RUNNER["active_started_at"] = None
+    finally:
+        conn.close()
+        with _app._QA_LLM_REVIEW_LOCK:
+            _app._QA_LLM_REVIEW_RUNNER["thread"] = None
+            if _app._QA_LLM_REVIEW_RUNNER.get("ended_at") is None:
+                _app._QA_LLM_REVIEW_RUNNER["ended_at"] = datetime.now(timezone.utc).isoformat()
+
+
+def tailoring_qa_llm_review_status():
+    _sync_app_state()
+    return _qa_llm_review_snapshot()
+
+
+def tailoring_qa_llm_review(payload: dict = Body(...)):
+    _sync_app_state()
+    job_ids = payload.get("job_ids") or []
+    if not job_ids:
+        return JSONResponse({"ok": False, "error": "job_ids required"}, 400)
+    unique_ids: list[int] = []
+    for raw_job_id in job_ids:
+        if not isinstance(raw_job_id, int):
+            return JSONResponse({"ok": False, "error": f"Invalid job_id: {raw_job_id}"}, 400)
+        if raw_job_id not in unique_ids:
+            unique_ids.append(raw_job_id)
+
+    conn = get_db()
+    try:
+        placeholders = ",".join("?" for _ in unique_ids)
+        rows = conn.execute(
+            f"SELECT id, title FROM results WHERE id IN ({placeholders})",
+            tuple(unique_ids),
+        ).fetchall()
+    finally:
+        conn.close()
+    titles_by_id = {int(row["id"]): row["title"] for row in rows}
+
+    now = datetime.now(timezone.utc).isoformat()
+    should_start = False
+    duplicates: list[int] = []
+    missing: list[int] = []
+    added = 0
+
+    with _app._QA_LLM_REVIEW_LOCK:
+        thread = _app._QA_LLM_REVIEW_RUNNER.get("thread")
+        running = thread is not None and thread.is_alive()
+        if not running:
+            _app._QA_LLM_REVIEW_RUNNER.update(
+                {
+                    "thread": None,
+                    "batch_id": int(_app._QA_LLM_REVIEW_RUNNER.get("batch_id") or 0) + 1,
+                    "started_at": now,
+                    "ended_at": None,
+                    "active_job_id": None,
+                    "active_started_at": None,
+                    "resolved_model": None,
+                    "items": [],
+                }
+            )
+
+        existing_ids = {
+            int(item.get("job_id") or -1)
+            for item in _app._QA_LLM_REVIEW_RUNNER.get("items", [])
+            if item.get("status") in {"queued", "reviewing"}
+        }
+
+        for job_id in unique_ids:
+            if job_id not in titles_by_id:
+                missing.append(job_id)
+                continue
+            if job_id in existing_ids:
+                duplicates.append(job_id)
+                continue
+            _app._QA_LLM_REVIEW_RUNNER["items"].append(
+                {
+                    "job_id": job_id,
+                    "title": titles_by_id.get(job_id),
+                    "status": "queued",
+                    "queued_at": now,
+                    "started_at": None,
+                    "completed_at": None,
+                    "reason": "",
+                    "confidence": None,
+                    "top_matches": [],
+                    "gaps": [],
+                    "polished": False,
+                    "polished_with_llm": False,
+                }
+            )
+            added += 1
+
+        if added > 0 and _app._QA_LLM_REVIEW_RUNNER.get("thread") is None:
+            should_start = True
+
+    if should_start:
+        worker = threading.Thread(target=_qa_llm_review_worker, daemon=True, name="qa-llm-review")
+        with _app._QA_LLM_REVIEW_LOCK:
+            _app._QA_LLM_REVIEW_RUNNER["thread"] = worker
+        worker.start()
+
+    return {
+        "ok": True,
+        "queued": added,
+        "duplicates": duplicates,
+        "missing": missing,
+        "runner": _qa_llm_review_snapshot(),
+    }
+
+
+def tailoring_qa_reset_approved():
+    _sync_app_state()
+    conn = get_db_write()
+    try:
+        cur = conn.execute("UPDATE results SET decision='accept' WHERE decision='qa_approved'")
+        conn.commit()
+        return {"ok": True, "reset": cur.rowcount}
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Routes — API: Package Chat
+# ---------------------------------------------------------------------------
+
+def package_chat_send(slug: str, payload: dict = Body(...)):
+    from services.package_chat import send_chat
+    message = (payload.get("message") or "").strip()
+    if not message:
+        return JSONResponse({"ok": False, "error": "message is required"}, 400)
+    doc_focus = payload.get("doc_focus") or None
+    return send_chat(slug, message, doc_focus)
+
+
+def package_chat_history(slug: str):
+    from services.package_chat import load_history
+    return {"messages": load_history(slug)}
+
+
+def package_chat_clear(slug: str):
+    from services.package_chat import clear_history
+    cleared = clear_history(slug)
+    return {"ok": True, "cleared": cleared}
+
+
+# ---------------------------------------------------------------------------
 # Routes — API: Runtime controls
 # ---------------------------------------------------------------------------
 
@@ -515,72 +1704,123 @@ def llm_status():
     _sync_app_state()
     """Check whether the local LLM server is reachable."""
     controls = _load_runtime_controls()
+    llm_runtime = _resolve_llm_runtime(controls)
     if not controls["llm_enabled"]:
         return {
             "enabled": False,
             "available": False,
             "models": [],
-            "url": LLM_URL,
+            "url": llm_runtime["base_url"],
+            "provider": llm_runtime["provider"],
+            "selected_model": llm_runtime["selected_model"],
+            "capabilities": {"manage_models": llm_runtime["manage_models"]},
             "state": "disabled",
         }
     try:
-        with urllib.request.urlopen(f"{LLM_URL}/v1/models", timeout=2) as resp:
+        with urllib.request.urlopen(llm_runtime["models_url"], timeout=2) as resp:
             data = json.loads(resp.read())
         models = [m["id"] for m in data.get("data", [])]
-        return {"enabled": True, "available": True, "models": models, "url": LLM_URL, "state": "online"}
+        return {
+            "enabled": True,
+            "available": True,
+            "models": models,
+            "url": llm_runtime["base_url"],
+            "provider": llm_runtime["provider"],
+            "selected_model": llm_runtime["selected_model"],
+            "capabilities": {"manage_models": llm_runtime["manage_models"]},
+            "state": "online",
+        }
     except Exception:
-        return {"enabled": True, "available": False, "models": [], "url": LLM_URL, "state": "offline"}
+        return {
+            "enabled": True,
+            "available": False,
+            "models": [],
+            "url": llm_runtime["base_url"],
+            "provider": llm_runtime["provider"],
+            "selected_model": llm_runtime["selected_model"],
+            "capabilities": {"manage_models": llm_runtime["manage_models"]},
+            "state": "offline",
+        }
 
 
 def llm_models():
-    """Return all downloaded models from LM Studio with their load state."""
+    _sync_app_state()
+    """Return models from the configured provider."""
+    controls = _load_runtime_controls()
+    llm_runtime = _resolve_llm_runtime(controls)
     try:
-        with urllib.request.urlopen(f"{LLM_URL}/api/v0/models", timeout=5) as resp:
-            data = json.loads(resp.read())
-        models = data.get("data", [])
-        return {
-            "models": [
+        models: list[dict] = []
+        if llm_runtime["manage_models"]:
+            with urllib.request.urlopen(f"{llm_runtime['base_url']}/api/v0/models", timeout=5) as resp:
+                data = json.loads(resp.read())
+            models = [
                 {"id": m["id"], "state": m.get("state", "not-loaded")}
-                for m in models
+                for m in data.get("data", [])
             ]
+        else:
+            with urllib.request.urlopen(llm_runtime["models_url"], timeout=5) as resp:
+                data = json.loads(resp.read())
+            selected = llm_runtime["selected_model"]
+            raw_models = data.get("data", [])
+            for idx, item in enumerate(raw_models):
+                model_id = item["id"]
+                is_selected = model_id == selected or (selected == "default" and idx == 0)
+                models.append({"id": model_id, "state": "loaded" if is_selected else "available"})
+        return {
+            "provider": llm_runtime["provider"],
+            "selected_model": llm_runtime["selected_model"],
+            "capabilities": {"manage_models": llm_runtime["manage_models"]},
+            "models": models,
         }
     except Exception as e:
-        return JSONResponse({"error": f"LM Studio unreachable: {e}"}, 503)
+        return JSONResponse({"error": f"LLM unreachable: {e}"}, 503)
 
 
 def llm_load_model(payload: dict = Body(...)):
-    """Load a model in LM Studio."""
+    _sync_app_state()
+    """Select a model, optionally loading it when the provider supports that."""
     identifier = payload.get("identifier")
     if not identifier:
         return JSONResponse({"ok": False, "error": "identifier required"}, 400)
+    controls = _load_runtime_controls()
+    llm_runtime = _resolve_llm_runtime(controls)
     try:
-        req = urllib.request.Request(
-            f"{LLM_URL}/api/v0/models/load",
-            data=json.dumps({"identifier": identifier}).encode(),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            resp.read()
+        if llm_runtime["manage_models"]:
+            req = urllib.request.Request(
+                f"{llm_runtime['base_url']}/api/v0/models/load",
+                data=json.dumps({"identifier": identifier}).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                resp.read()
+        _save_runtime_controls({"llm_model": identifier})
         return {"ok": True, "model": identifier}
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, 500)
 
 
 def llm_unload_model(payload: dict = Body(...)):
-    """Unload a model in LM Studio."""
+    _sync_app_state()
+    """Clear or unload a selected model."""
     identifier = payload.get("identifier")
     if not identifier:
         return JSONResponse({"ok": False, "error": "identifier required"}, 400)
+    controls = _load_runtime_controls()
+    llm_runtime = _resolve_llm_runtime(controls)
     try:
-        req = urllib.request.Request(
-            f"{LLM_URL}/api/v0/models/unload",
-            data=json.dumps({"identifier": identifier}).encode(),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            resp.read()
+        if llm_runtime["manage_models"]:
+            req = urllib.request.Request(
+                f"{llm_runtime['base_url']}/api/v0/models/unload",
+                data=json.dumps({"identifier": identifier}).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                resp.read()
+        current_model = llm_runtime["selected_model"]
+        if current_model == identifier:
+            _save_runtime_controls({"llm_model": "default"})
         return {"ok": True, "model": identifier}
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, 500)
@@ -589,4 +1829,3 @@ def llm_unload_model(payload: dict = Body(...)):
 # ---------------------------------------------------------------------------
 # Catch-all route to serve the React index.html for client-side routing
 # ---------------------------------------------------------------------------
-

@@ -23,6 +23,7 @@ ROUTES: list[tuple[str, str, str]] = [
     ("GET", "/api/rejected", "list_rejected"),
     ("GET", "/api/rejected/{rejected_id}", "get_rejected"),
     ("POST", "/api/rejected/{rejected_id}/approve", "approve_rejected"),
+    ("GET", "/api/scrape/sources", "source_diagnostics"),
 ]
 
 

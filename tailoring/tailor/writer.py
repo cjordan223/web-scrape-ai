@@ -21,9 +21,17 @@ from pathlib import Path
 from typing import Callable
 
 from . import config as cfg
+from .compiler import compile_tex
 from .ollama import chat, chat_expect_json, extract_latex
+from .persona import get_store as get_persona
 from .selector import SelectedJob
-from .validator import _extract_body_text, _count_resume_bullets
+from .validator import (
+    ResumeFitMetrics,
+    _count_resume_bullets,
+    _count_resume_bullets_by_company,
+    _extract_body_text,
+    inspect_resume_pdf_fit,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +117,7 @@ CRITICAL — WHAT A REWRITE ANGLE IS:
 - A rewrite angle tells the draft writer to COMPLETELY RESTRUCTURE the bullet to focus on the JD requirement.
 - Do NOT just copy the baseline sentence and add a wrapper. You must instruct the writer to rethink the sentence structure completely.
 - ALL baseline metrics (numbers, tool names, concrete outcomes) MUST survive into the rewritten bullet, but you can incorporate additional facts from the Candidate Persona or Skills Inventory if they support the JD requirement and fit the project.
-- The candidate persona describes their voice, contribution patterns, and evidence anchors. Use these to shape the angle — the candidate is a "builder-operator" who ships production systems, not an analyst who writes reports.
+- The candidate persona includes narrative vignettes — specific stories with problem/approach/outcome. Use the most relevant vignette to shape each rewrite angle. The candidate is a "builder-operator" who ships production systems, not an analyst who writes reports.
 - Good angle: "Keep 5-source ingestion, 500 drifted assets, 7,000+ endpoints. Rewrite completely to lead with the correlation logic as the candidate's core pattern: reconciling inconsistent records into actionable data. Structure the sentence around the Flask/React/Docker stack as production security tooling built and operated."
 - Bad angle: "Reframe to emphasize secure-by-design principles" — vague corporate filler with no connection to baseline facts or candidate voice. NEVER write angles like this.
 - Each rewrite_angle MUST reference: (1) specific baseline numbers/tools/outcomes to KEEP, (2) which JD requirement to frame them against, (3) which candidate contribution pattern from the persona applies."""
@@ -130,11 +138,10 @@ Output requirements:
   - Great Wolf Resorts: exactly 5 \\resumeItem bullets
   - Simple.biz: exactly 3 \\resumeItem bullets
   - Total: exactly 14 bullets
-- LENGTH IS FLEXIBLE: Your output must match the baseline template's body length within ±20%.
-  You are highly encouraged to write entirely new and structurally different sentences.
-  Do NOT shorten the overall resume too much, but you can restructure and combine ideas.
-  When in doubt, write longer rather than shorter by adding relevant technical detail.
-  Shorter output WILL fail validation.
+- ONE-PAGE FIT MATTERS: The baseline template is designed to render on exactly one page.
+  Keep the resume dense, concise, and information-rich enough to fit that layout.
+  Preserve technical substance, but cut filler, redundant lead-ins, and overly long transitions.
+  Write entirely new and structurally different sentences when needed, but avoid bloated phrasing.
 - Escape LaTeX special characters (for example '&' as '\\&', '_' as '\\_').
 - Do not output literal \\n tokens.
 - Do not output Python list syntax.
@@ -165,10 +172,11 @@ Task:
 - Preserve the exact structure and fixed bullet counts (exactly 14 \\resumeItem: 6 + 5 + 3).
 - Remove or rewrite risky claims rather than inventing evidence.
 - CRITICAL LENGTH CHECK: Compare the draft against the baseline template provided.
-  The output body text must be within ±20% of the baseline's character count.
-  If the draft is shorter than the baseline, expand bullets with additional grounded technical detail
-  until the length matches. Do NOT trim or shorten content. Every bullet should be a substantial
-  sentence comparable in length to its baseline counterpart.
+  The output body text must stay within ±20% of the baseline's character count.
+  If the structural checks say the draft is too short, expand with grounded detail.
+  If the structural checks say the draft is too long, tighten phrasing aggressively while
+  preserving the factual payload.
+  Prefer concise, high-density bullets that can still render on one page with the baseline layout.
 - SKILLS CHECK (HARD GATE):
   - Must have EXACTLY 6 categories with these EXACT \\textbf names: Languages, Security Tooling, AI/ML and Research, Frameworks and Infrastructure, DevOps and CI/CD, Databases.
   - Languages must have ALL 11 from baseline (Python, C, C++, TypeScript, Java, SQL, PowerShell, Bash, Swift, Rust, Go). Order may change.
@@ -176,26 +184,77 @@ Task:
   - If any category is renamed (e.g., "AI for SecOps" instead of "AI/ML and Research"), fix the name back.
   - If any items are missing from Languages or Databases, restore them."""
 
+_RESUME_FIT_CONDENSE_SYSTEM = f"""\
+You are a LaTeX resume compression specialist.
+
+{_STYLE_GUARDRAILS}
+
+Task:
+- The current resume rendered to more than one page. Repair the content so it fits back onto one page.
+- Return ONLY the complete .tex file content.
+- Preserve the exact LaTeX preamble, commands, and section order from the template.
+- Preserve all 3 employers and the exact bullet counts: UCOP 6, Great Wolf 5, Simple.biz 3.
+- Preserve all factual evidence, named systems, grounded metrics, and JD-relevant tools.
+- Do NOT delete bullets, employers, or sections.
+- Make the smallest edits that solve fit:
+  - tighten summary language
+  - shorten low-value phrasing and repetitive lead-ins
+  - compress skill-line wording without removing required items
+  - shorten bulky UCOP/GWR bullets when they are not central to the JD
+  - avoid widow-like one-word lines at the bottom of a page
+- If overflow looks marginal, prefer tiny sentence-level edits over broad rewrites."""
+
+_RESUME_FIT_PRUNE_SYSTEM = f"""\
+You are a last-resort LaTeX resume compression specialist.
+
+{_STYLE_GUARDRAILS}
+
+Task:
+- The resume still renders to more than one page even after a light condensation pass and compact layout mode.
+- Return ONLY the complete .tex file content.
+- Preserve the exact LaTeX preamble, commands, and section order from the template.
+- Preserve all 3 employers and keep the resume credible, targeted, and factual.
+- Compact layout is already enabled. Focus on content triage.
+- You MAY reduce bullets only as a last resort, and only under these limits:
+  - University of California, Office of the President: minimum 4 bullets
+  - Great Wolf Resorts: minimum 4 bullets
+  - Simple.biz: exactly 3 bullets
+- Never remove a bullet that directly addresses a high-priority JD requirement if a lower-value alternative exists.
+- Prefer merging or removing overlapping operational/support bullets before stronger builder-operator bullets.
+- Preserve unique evidence, named systems, and differentiated technical wins.
+- Keep skills categories intact and preserve all required Languages and Databases entries."""
+
 _COVER_STRATEGY_SYSTEM = f"""\
 You are a cover-letter strategist creating a concise writing plan.
 
 {_STYLE_GUARDRAILS}
 
+PERSONALIZATION RULES:
+- The opening MUST reference something specific about the company — their product, team mission, or engineering challenge. Never open with "I am reaching out to apply for X."
+- Structure is FLEXIBLE. You choose how many body paragraphs (2-4) and what order to present experience. Lead with whichever experience is most relevant to THIS role, not chronological order.
+- You may organize paragraphs by THEME (e.g., "automation at scale" drawing from multiple roles) instead of by company.
+- The closing must connect back to the company-specific hook, not generic "thank you for your consideration."
+- Select the most relevant narrative vignettes from the candidate persona. Not every letter needs Coraline or GWR — pick what fits.
+- Adapt voice to the company type provided in the analysis (large_tech, startup, security_focused, etc.).
+
 Return ONLY JSON:
 {{
-  "opening_angle": "how to connect role/company and candidate fit",
-  "paragraph_focus": [
-    "paragraph 1 focus",
-    "paragraph 2 focus",
-    "paragraph 3 focus",
-    "paragraph 4 focus"
+  "company_hook": "the specific company/team insight that opens the letter — must reference what they build or care about",
+  "structure": [
+    {{
+      "focus": "what this paragraph covers",
+      "experience_sources": ["which roles/projects to draw from"],
+      "theme": "the organizing principle (not just a company name)"
+    }}
   ],
+  "closing_angle": "how to close — must tie back to the company hook, not generic",
   "voice_controls": [
     "specific wording/tone controls to avoid fluff and keep concrete"
   ],
   "claims_to_avoid": [
     "specific risky claims or inflated phrasing to avoid"
-  ]
+  ],
+  "vignettes_to_use": ["which narrative vignettes from soul.md are most relevant"]
 }}"""
 
 _COVER_DRAFT_SYSTEM = f"""\
@@ -208,10 +267,14 @@ Output requirements:
 - Preserve exact LaTeX preamble and document structure from template.
 - Replace [COMPANY_NAME] in \\companyname.
 - Replace [DATE] with today's date.
-- Keep a 4-paragraph structure: opening, current role, prior experience, closing.
+- Follow the paragraph structure from the strategy — do NOT default to a fixed 4-paragraph formula.
+- The opening paragraph MUST reference the company specifically (their product, mission, or challenge). Never start with "I am reaching out to apply for X at Y."
+- Body paragraphs may be organized by theme rather than by employer. Draw from whichever roles/projects the strategy specifies.
+- The closing MUST tie back to the company-specific hook. Never end with generic "thank you for your consideration" or "I would welcome the opportunity to discuss."
 - Keep tone grounded, direct, and technically credible.
 - Do not use literal \\n tokens or Python list syntax.
-- Keep content factual and grounded in provided source text only."""
+- Keep content factual and grounded in provided source text only.
+- Apply the candidate voice from the persona section. Use the narrative vignettes as source material to reshape, not to copy."""
 
 _COVER_QA_SYSTEM = f"""\
 You are a strict final quality reviewer for LaTeX cover letters.
@@ -221,10 +284,15 @@ You are a strict final quality reviewer for LaTeX cover letters.
 Task:
 - Review draft LaTeX for factual grounding, style violations, and LaTeX safety.
 - Repair issues directly and return corrected LaTeX only.
-- Preserve template structure and 4-paragraph flow.
+- Preserve the paragraph structure from the strategy.
 - Remove or rewrite risky claims rather than inventing evidence.
 - LENGTH CHECK: If the structural checks section reports the letter is too short or too long, fix it.
-  Too short: expand with grounded detail. Too long: tighten language. Target ±15% of baseline length."""
+  Too short: expand with grounded detail. Too long: tighten language. Target ±15% of baseline length.
+
+DIFFERENTIATION CHECKS (fix if violated):
+- The opening paragraph MUST mention something specific about the company. If it starts with "I am reaching out to apply for X" or similar generic opener, rewrite it to lead with a company-specific insight.
+- The closing MUST NOT be generic "thank you for your consideration" or "I would welcome the opportunity to discuss." It must connect to the company or role specifically.
+- If the letter follows a rigid formula of opening → UCOP paragraph → GWR paragraph → closing, restructure to follow the strategy's prescribed order instead."""
 
 
 def _strip_disallowed_dashes(text: str) -> str:
@@ -240,7 +308,7 @@ def _resume_strategy(
     attempt: int,
     trace_recorder: Callable[[dict], None] | None = None,
 ) -> dict:
-    soul = cfg.SOUL_MD.read_text()
+    persona_text = get_persona().for_strategy(analysis, "resume")
 
     # Extract matched tools from analysis requirements for easy reference
     matched_tools: list[str] = []
@@ -252,7 +320,7 @@ def _resume_strategy(
         f"## Baseline Resume Template\n```latex\n{baseline}\n```\n\n"
         f"## Analysis Mapping\n{json.dumps(analysis, indent=2)}\n\n"
         f"## Candidate Persona (voice, contribution patterns, evidence anchors)\n"
-        f"{soul}\n\n"
+        f"{persona_text}\n\n"
         f"## JD-Relevant Tools (from analysis — use these names in rewrite angles)\n"
         f"{', '.join(matched_tools) if matched_tools else 'none extracted'}\n\n"
         f"## Skills Inventory (supplemental — these category names are NOT resume section names)\n"
@@ -281,17 +349,23 @@ def _cover_strategy(
     job: SelectedJob,
     analysis: dict,
     baseline: str,
-    soul: str,
     attempt: int,
     trace_recorder: Callable[[dict], None] | None = None,
     resume_strategy: dict | None = None,
 ) -> dict:
     from datetime import date
     today = date.today().strftime("%B %d, %Y")
+    persona_text = get_persona().for_strategy(analysis, "cover")
+    company_ctx = analysis.get("company_context", {})
     user_prompt = (
         f"## Baseline Cover Letter Template\n```latex\n{baseline}\n```\n\n"
         f"## Analysis Mapping\n{json.dumps(analysis, indent=2)}\n\n"
-        f"## Candidate Persona\n{soul[:4000]}\n\n"
+        f"## Company Context\n"
+        f"What they build: {company_ctx.get('what_they_build', 'unknown')}\n"
+        f"Engineering challenges: {company_ctx.get('engineering_challenges', 'unknown')}\n"
+        f"Company type: {company_ctx.get('company_type', 'other')}\n"
+        f"Suggested hook: {company_ctx.get('cover_letter_hook', 'none')}\n\n"
+        f"## Candidate Persona\n{persona_text}\n\n"
     )
     if resume_strategy:
         user_prompt += (
@@ -299,8 +373,7 @@ def _cover_strategy(
             f"{json.dumps(resume_strategy, indent=2)}\n\n"
             f"CONSISTENCY RULES:\n"
             f"- Do NOT recommend claims the resume strategy listed in claims_to_avoid.\n"
-            f"- Paragraph 2 (current role) should reference the same UCOP bullet angles from the resume strategy.\n"
-            f"- Paragraph 3 (prior experience) should reference the same GWR bullet angles.\n\n"
+            f"- Body paragraphs should reference the same bullet angles from the resume strategy, but organized by theme, not by company.\n\n"
         )
     user_prompt += (
         f"Target Role: {analysis.get('role_title', job.title)}\n"
@@ -355,6 +428,244 @@ def _extract_rewrite_directives(strategy: dict) -> tuple[list[dict], list[dict]]
     return rewrites, preserves
 
 
+def _set_resume_fit_flags(
+    tex: str,
+    *,
+    compact: bool | None = None,
+    pruned: bool | None = None,
+) -> str:
+    """Toggle deterministic resume fit flags without asking the LLM to edit layout."""
+    if compact is not None:
+        tex = tex.replace(
+            "\\compactresumetrue" if not compact else "\\compactresumefalse",
+            "\\compactresumetrue" if compact else "\\compactresumefalse",
+            1,
+        )
+    if pruned is not None:
+        tex = tex.replace(
+            "\\prunedresumetrue" if not pruned else "\\prunedresumefalse",
+            "\\prunedresumetrue" if pruned else "\\prunedresumefalse",
+            1,
+        )
+    return tex
+
+
+def _resume_fit_metrics_block(metrics: ResumeFitMetrics) -> str:
+    suspicious = ", ".join(metrics.suspicious_single_word_lines) if metrics.suspicious_single_word_lines else "none"
+    return (
+        f"- Rendered page count: {metrics.page_count}\n"
+        f"- Page 2 word count: {metrics.page_2_word_count}\n"
+        f"- Widow-like single-word lines: "
+        f"{'yes' if metrics.has_suspicious_single_word_lines else 'no'} ({suspicious})"
+    )
+
+
+def _inspect_resume_candidate(
+    out_path: Path,
+    tex: str,
+    *,
+    attempt: int,
+    fit_mode: str,
+    baseline_body_len: int,
+    trace_recorder: Callable[[dict], None] | None = None,
+) -> tuple[bool, ResumeFitMetrics]:
+    """Write, compile, and inspect a resume candidate for rendered fit."""
+    out_path.write_text(tex)
+    pdf = compile_tex(out_path)
+    metrics = ResumeFitMetrics()
+    if pdf is not None:
+        metrics = inspect_resume_pdf_fit(pdf)
+
+    body_len = len(_extract_body_text(tex))
+    if trace_recorder:
+        trace_recorder(
+            {
+                "event_type": "resume_fit_inspection",
+                "doc_type": "resume",
+                "phase": "fit",
+                "fit_mode": fit_mode,
+                "attempt": attempt,
+                "compiled": pdf is not None,
+                "body_chars": body_len,
+                "baseline_body_chars": baseline_body_len,
+                "char_ratio": round(body_len / baseline_body_len, 4) if baseline_body_len else 1.0,
+                **metrics.as_dict(),
+            }
+        )
+    return pdf is not None, metrics
+
+
+def _run_resume_fit_pass(
+    mode: str,
+    *,
+    job: SelectedJob,
+    analysis: dict,
+    baseline: str,
+    strategy: dict,
+    rewrite_block: str,
+    current_tex: str,
+    metrics: ResumeFitMetrics,
+    attempt: int,
+    trace_recorder: Callable[[dict], None] | None = None,
+) -> str:
+    """Run an LLM fit pass to condense or prune a resume."""
+    system_prompt = _RESUME_FIT_CONDENSE_SYSTEM if mode == "condense" else _RESUME_FIT_PRUNE_SYSTEM
+    counts = _count_resume_bullets_by_company(current_tex)
+    user_prompt = (
+        f"## Baseline Resume Template\n```latex\n{baseline}\n```\n\n"
+        f"## Analysis Mapping\n{json.dumps(analysis, indent=2)}\n\n"
+        f"## Resume Strategy\n{json.dumps(strategy, indent=2)}\n\n"
+        f"## Current Resume\n```latex\n{current_tex}\n```\n\n"
+        f"## Rendered Fit Diagnostics\n{_resume_fit_metrics_block(metrics)}\n\n"
+        f"## Current Bullet Counts\n{json.dumps(counts, indent=2)}\n\n"
+        f"## Rewrite Directives (preserve JD-critical coverage)\n"
+        f"{rewrite_block if rewrite_block else '(no rewrite directives extracted)'}\n\n"
+        f"Target Role: {analysis.get('role_title', job.title)}\n"
+        f"Target Company: {analysis.get('company_name', job.company)}\n"
+    )
+    if mode == "prune":
+        user_prompt += (
+            f"\n## Hard Floors\n"
+            f"{json.dumps(cfg.RESUME_COMPANY_BULLET_FLOORS, indent=2)}\n"
+            f"\n## Hard Caps\n"
+            f"{json.dumps(cfg.RESUME_COMPANY_BULLET_TARGETS, indent=2)}\n"
+        )
+
+    raw = chat(
+        system_prompt,
+        user_prompt,
+        max_tokens=8192,
+        temperature=0.15 if mode == "prune" else 0.1,
+        trace={
+            "doc_type": "resume",
+            "phase": "fit",
+            "fit_mode": mode,
+            "attempt": attempt,
+            "response_parse_kind": "latex",
+            "response_parse_status": "ok",
+        },
+        trace_recorder=trace_recorder,
+    )
+    tex = _strip_disallowed_dashes(extract_latex(raw))
+    return _set_resume_fit_flags(
+        tex,
+        compact="\\compactresumetrue" in current_tex,
+        pruned=(mode == "prune"),
+    )
+
+
+def _fit_resume_to_one_page(
+    job: SelectedJob,
+    analysis: dict,
+    baseline: str,
+    strategy: dict,
+    rewrite_block: str,
+    tex: str,
+    output_dir: Path,
+    attempt: int,
+    trace_recorder: Callable[[dict], None] | None = None,
+) -> str:
+    """Apply resume-only fit stages until the PDF renders on one page or stages are exhausted."""
+    out_path = output_dir / "Conner_Jordan_Resume.tex"
+    baseline_body_len = len(_extract_body_text(baseline))
+    current_tex = _set_resume_fit_flags(tex, compact=False, pruned=False)
+
+    compiled, metrics = _inspect_resume_candidate(
+        out_path,
+        current_tex,
+        attempt=attempt,
+        fit_mode="initial",
+        baseline_body_len=baseline_body_len,
+        trace_recorder=trace_recorder,
+    )
+    if not compiled or metrics.page_count == cfg.RESUME_TARGET_PAGES:
+        return current_tex
+
+    if cfg.RESUME_FIT_MAX_STAGES >= 1:
+        condensed_tex = _run_resume_fit_pass(
+            "condense",
+            job=job,
+            analysis=analysis,
+            baseline=baseline,
+            strategy=strategy,
+            rewrite_block=rewrite_block,
+            current_tex=current_tex,
+            metrics=metrics,
+            attempt=attempt,
+            trace_recorder=trace_recorder,
+        )
+        compiled, condensed_metrics = _inspect_resume_candidate(
+            out_path,
+            condensed_tex,
+            attempt=attempt,
+            fit_mode="condense",
+            baseline_body_len=baseline_body_len,
+            trace_recorder=trace_recorder,
+        )
+        if compiled:
+            current_tex = condensed_tex
+            metrics = condensed_metrics
+        if metrics.page_count == cfg.RESUME_TARGET_PAGES:
+            return current_tex
+
+    if cfg.RESUME_COMPACT_MODE_ENABLED and cfg.RESUME_FIT_MAX_STAGES >= 2:
+        compact_tex = _set_resume_fit_flags(current_tex, compact=True, pruned=False)
+        if trace_recorder:
+            trace_recorder(
+                {
+                    "event_type": "resume_fit_stage",
+                    "doc_type": "resume",
+                    "phase": "fit",
+                    "fit_mode": "compact",
+                    "attempt": attempt,
+                    "action": "enable_compact_layout",
+                }
+            )
+        compiled, compact_metrics = _inspect_resume_candidate(
+            out_path,
+            compact_tex,
+            attempt=attempt,
+            fit_mode="compact",
+            baseline_body_len=baseline_body_len,
+            trace_recorder=trace_recorder,
+        )
+        if compiled:
+            current_tex = compact_tex
+            metrics = compact_metrics
+        if metrics.page_count == cfg.RESUME_TARGET_PAGES:
+            return current_tex
+
+    if cfg.RESUME_FIT_MAX_STAGES < 3:
+        return current_tex
+
+    compact_active = "\\compactresumetrue" in current_tex
+    pruned_tex = _run_resume_fit_pass(
+        "prune",
+        job=job,
+        analysis=analysis,
+        baseline=baseline,
+        strategy=strategy,
+        rewrite_block=rewrite_block,
+        current_tex=_set_resume_fit_flags(current_tex, compact=compact_active, pruned=False),
+        metrics=metrics,
+        attempt=attempt,
+        trace_recorder=trace_recorder,
+    )
+    compiled, prune_metrics = _inspect_resume_candidate(
+        out_path,
+        _set_resume_fit_flags(pruned_tex, compact=compact_active, pruned=True),
+        attempt=attempt,
+        fit_mode="prune",
+        baseline_body_len=baseline_body_len,
+        trace_recorder=trace_recorder,
+    )
+    if compiled:
+        current_tex = _set_resume_fit_flags(pruned_tex, compact=compact_active, pruned=True)
+        metrics = prune_metrics
+
+    return current_tex
+
+
 def write_resume(
     job: SelectedJob,
     analysis: dict,
@@ -365,7 +676,6 @@ def write_resume(
 ) -> Path:
     """Generate a tailored resume with a 3-stage pipeline: strategy, draft, QA."""
     baseline = cfg.RESUME_TEX.read_text()
-    soul = cfg.SOUL_MD.read_text()
     skills_data = json.loads(cfg.SKILLS_JSON.read_text())
     strategy = _resume_strategy(
         job,
@@ -398,7 +708,7 @@ def write_resume(
         f"## Baseline Resume Template\n```latex\n{baseline}\n```\n\n"
         f"## Analysis Mapping\n{json.dumps(analysis, indent=2)}\n\n"
         f"## Candidate Persona (voice, contribution patterns, evidence anchors — use this to guide HOW bullets are written)\n"
-        f"{soul}\n\n"
+        f"{get_persona().for_draft(analysis, 'resume')}\n\n"
         f"## Skills Inventory (supplemental context — these category names are NOT resume section names)\n"
         f"Note: The resume's TECHNICAL SKILLS categories come from the baseline template above, NOT from this inventory.\n"
         f"This inventory lists additional skills the candidate knows that you may ADD to resume categories if JD-relevant.\n"
@@ -442,7 +752,12 @@ def write_resume(
         f"You MUST expand bullet content to reach at least {int(baseline_body_len * 0.80)} chars. "
         f"Add grounded technical detail to each bullet until length matches."
         if char_ratio < 0.80
-        else f"Length OK ({draft_body_len} vs baseline {baseline_body_len}, ratio {char_ratio:.2f})"
+        else (
+            f"DRAFT MAY BE TOO LONG ({draft_body_len} chars vs baseline {baseline_body_len}, ratio {char_ratio:.2f}). "
+            f"Tighten summary language, shorten low-value phrasing, and reduce line wrapping pressure while preserving facts."
+            if char_ratio > 1.05
+            else f"Length OK ({draft_body_len} vs baseline {baseline_body_len}, ratio {char_ratio:.2f})"
+        )
     )
     bullet_status = (
         f"BULLET COUNT WRONG: {draft_bullets} found, need exactly 14 (6 + 5 + 3). Fix this."
@@ -461,6 +776,7 @@ def write_resume(
         f"- remove em/en dashes\n"
         f"- remove or soften ungrounded percentage claims\n"
         f"- replace generic corporate language with concrete technical phrasing\n"
+        f"- keep the resume concise enough to fit the one-page baseline layout\n"
     )
     if previous_errors:
         qa_prompt += f"\n## PRIOR VALIDATION FAILURES TO FIX\n{previous_errors}\n"
@@ -480,6 +796,17 @@ def write_resume(
         trace_recorder=trace_recorder,
     )
     tex = _strip_disallowed_dashes(extract_latex(qa_raw))
+    tex = _fit_resume_to_one_page(
+        job,
+        analysis,
+        baseline,
+        strategy,
+        rewrite_block,
+        tex,
+        output_dir,
+        attempt,
+        trace_recorder=trace_recorder,
+    )
 
     out_path = output_dir / "Conner_Jordan_Resume.tex"
     out_path.write_text(tex)
@@ -497,7 +824,6 @@ def write_cover_letter(
 ) -> Path:
     """Generate a tailored cover letter with a 3-stage pipeline: strategy, draft, QA."""
     baseline = cfg.COVER_TEX.read_text()
-    soul = cfg.SOUL_MD.read_text()
 
     # Load resume strategy for cross-document consistency
     resume_strat_path = output_dir / "resume_strategy.json"
@@ -512,7 +838,6 @@ def write_cover_letter(
         job,
         analysis,
         baseline,
-        soul,
         attempt=attempt,
         trace_recorder=trace_recorder,
         resume_strategy=resume_strategy,
@@ -522,11 +847,17 @@ def write_cover_letter(
     from datetime import date
     today = date.today().strftime("%B %d, %Y")
 
+    company_ctx = analysis.get("company_context", {})
     draft_prompt = (
         f"## Baseline Cover Letter Template\n```latex\n{baseline}\n```\n\n"
         f"## Analysis Mapping\n{json.dumps(analysis, indent=2)}\n\n"
         f"## Cover Strategy\n{json.dumps(strategy, indent=2)}\n\n"
-        f"## Candidate Persona\n{soul[:4000]}\n\n"
+        f"## Company Context\n"
+        f"What they build: {company_ctx.get('what_they_build', 'unknown')}\n"
+        f"Engineering challenges: {company_ctx.get('engineering_challenges', 'unknown')}\n"
+        f"Company type: {company_ctx.get('company_type', 'other')}\n"
+        f"Cover letter hook: {company_ctx.get('cover_letter_hook', 'none')}\n\n"
+        f"## Candidate Persona\n{get_persona().for_draft(analysis, 'cover')}\n\n"
         f"Target Role: {analysis.get('role_title', job.title)}\n"
         f"Target Company: {analysis.get('company_name', job.company)}\n"
         f"Today's Date: {today}\n"

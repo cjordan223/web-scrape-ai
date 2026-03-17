@@ -29,9 +29,9 @@ class FilterConfig(BaseModel):
         "vulnerability", "soc", "infosec", "secops",
     ])
     seniority_exclude: list[str] = Field(default_factory=lambda: [
-        "staff", "principal", "manager", "director",
+        "senior", "staff", "principal", "manager", "director",
     ])
-    max_experience_years: int = 6
+    max_experience_years: int = 5
     min_salary_k: int = 70
     content_blocklist: list[str] = Field(default_factory=lambda: [
         "clearance", "ts/sci", "ts-sci", "polygraph", "top secret",
@@ -91,12 +91,35 @@ class LLMReviewConfig(BaseModel):
     jd_max_chars: int = 2000
 
 
+class WatcherConfig(BaseModel):
+    name: str
+    type: str = "crawl"  # "crawl" | "rss" | "api" | "custom"
+    url: str = ""
+    board: str = "unknown"
+    enabled: bool = True
+    skip_filters: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    # crawl-specific
+    link_pattern: str | None = None
+    # api-specific
+    method: str = "GET"
+    headers: dict[str, str] = Field(default_factory=dict)
+    params: dict[str, str] = Field(default_factory=dict)
+    results_path: str = ""
+    title_field: str = "title"
+    url_field: str = "url"
+    snippet_field: str = ""
+    # custom-specific
+    module: str | None = None
+
+
 class ScraperConfig(BaseModel):
     search: SearchConfig = Field(default_factory=SearchConfig)
     filter: FilterConfig = Field(default_factory=FilterConfig)
     queries: list[QueryTemplate] = Field(default_factory=list)
     crawl: CrawlConfig = Field(default_factory=CrawlConfig)
     llm_review: LLMReviewConfig = Field(default_factory=LLMReviewConfig)
+    watchers: list[WatcherConfig] = Field(default_factory=list)
 
 
 def load_config(config_path: Optional[Path] = None) -> ScraperConfig:

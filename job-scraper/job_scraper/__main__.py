@@ -25,6 +25,7 @@ def scrape(
     dry_run: bool = typer.Option(False, "--dry-run", help="Don't mark jobs as seen or persist results"),
     no_fetch: bool = typer.Option(False, "--no-fetch", help="Skip JD fetching (faster, title filters only)"),
     no_crawl: bool = typer.Option(False, "--no-crawl", help="Skip Crawl4AI board crawling (SearXNG only)"),
+    no_watchers: bool = typer.Option(False, "--no-watchers", help="Skip watcher plugins"),
     ignore_runtime_controls: bool = typer.Option(
         False,
         "--ignore-runtime-controls",
@@ -49,6 +50,7 @@ def scrape(
         mark_seen=not dry_run,
         fetch_jd=False if no_fetch else None,
         crawl=not no_crawl,
+        watchers=not no_watchers,
         respect_runtime_controls=not ignore_runtime_controls,
         llm_enabled_override=llm_enabled,
     )

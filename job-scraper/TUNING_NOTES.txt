@@ -1,6 +1,6 @@
 FILTER TUNING NOTES
 ===================
-Last updated: 2026-03-01
+Last updated: 2026-03-15
 
 PURPOSE
 -------
@@ -59,7 +59,8 @@ filter.max_experience_years
 
 filter.seen_ttl_days
   - URLs older than this in seen_urls are re-eligible for processing.
-  - Default: 14. Set to 0 or omit to disable TTL (permanent dedup).
+  - Default: 14.
+  - Use a positive integer day count. The current implementation does not treat `0` as a "disable TTL" switch, so do not set `0` expecting permanent dedup behavior.
 
 filter.score_accept_threshold / score_reject_threshold
   - Controls pass/review/reject banding.

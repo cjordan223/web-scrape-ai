@@ -16,6 +16,7 @@ import {
   Database,
   Terminal,
   GitBranch,
+  CheckSquare,
 } from 'lucide-react';
 
 type NavItem = {
@@ -83,12 +84,19 @@ const domains: Domain[] = [
     icon: PenTool,
     groups: [
       {
+        label: 'Triage',
+        items: [{ label: 'QA', to: '/tailoring/qa', icon: CheckSquare }],
+      },
+      {
         label: 'Runs',
         items: [{ label: 'Manual & Traces', to: '/tailoring/runs', icon: Activity }],
       },
       {
         label: 'Outputs',
-        items: [{ label: 'Packages', to: '/tailoring/outputs/packages', icon: Package }],
+        items: [
+          { label: 'Packages', to: '/tailoring/outputs/packages', icon: Package },
+          { label: 'Applied', to: '/tailoring/outputs/applied', icon: Archive },
+        ],
       },
     ],
   },
@@ -130,6 +138,7 @@ const labelBySegment: Record<string, string> = {
   tailoring: 'Tailoring',
   outputs: 'Outputs',
   packages: 'Packages',
+  applied: 'Applied',
   ops: 'Ops',
   data: 'Data',
   explorer: 'DB Explorer',

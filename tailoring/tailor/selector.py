@@ -61,12 +61,20 @@ def list_recent_jobs(limit: int = 20) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def _results_has_column(conn: sqlite3.Connection, column: str) -> bool:
+    rows = conn.execute("PRAGMA table_info(results)").fetchall()
+    return any((row["name"] if isinstance(row, sqlite3.Row) else row[1]) == column for row in rows)
+
+
 def select_job(job_id: int) -> SelectedJob:
     """Fetch a specific job by ID."""
     conn = sqlite3.connect(cfg.DB_PATH, timeout=5)
     conn.row_factory = sqlite3.Row
+    jd_expr = "jd_text"
+    if _results_has_column(conn, "approved_jd_text"):
+        jd_expr = "COALESCE(approved_jd_text, jd_text)"
     row = conn.execute(
-        "SELECT id, url, title, board, seniority, jd_text, snippet "
+        f"SELECT id, url, title, board, seniority, {jd_expr} AS jd_text, snippet "
         "FROM results WHERE id = ?",
         (job_id,),
     ).fetchone()

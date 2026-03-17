@@ -14,3 +14,21 @@ dist/
 # Virtual environments
 .venv/
 venv/
+
+# Secrets
+.env
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.synctex.gz
+
+# Tailoring output (generated per-job packages, runner logs)
+tailoring/output/
+tailoring/tmp/
+tailoring/mobile-jd/
+
+# Top-level output/tmp (scraper artifacts)
+output/
+tmp/

@@ -32,6 +32,7 @@ class JobBoard(str, Enum):
     jobvite = "jobvite"
     simplyhired = "simplyhired"
     linkedin = "linkedin"
+    usajobs = "usajobs"
     unknown = "unknown"
 
 
@@ -43,6 +44,8 @@ class SearchResult(BaseModel):
     snippet: str = ""
     query: str = ""
     board: JobBoard = JobBoard.unknown
+    source: str = ""
+    skip_filters: list[str] = Field(default_factory=list)
 
 
 class FilterVerdict(BaseModel):
@@ -67,6 +70,7 @@ class JobResult(BaseModel):
     jd_text: Optional[str] = None
     snippet: str = ""
     query: str = ""
+    source: str = ""
     filter_verdicts: list[FilterVerdict] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

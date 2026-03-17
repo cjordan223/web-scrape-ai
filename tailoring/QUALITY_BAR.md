@@ -8,8 +8,10 @@ Threshold values live in `tailor/config.py`.
 | Gate | Config | Default | Requirement |
 |---|---|---:|---|
 | LaTeX compiles | — | — | `pdflatex` exit code must be `0` |
-| Bullet count | `RESUME_BULLET_COUNT` | 14 | Must match baseline count exactly |
-| Body char ratio | `RESUME_CHAR_TOLERANCE` | ±15% | Generated/body text must stay within tolerance |
+| Rendered pages | `RESUME_TARGET_PAGES` | 1 | Compiled PDF must render to exactly one page |
+| Bullet counts | `RESUME_COMPANY_BULLET_TARGETS` | 6 / 5 / 3 | Normal mode must match per-company targets exactly |
+| Pruned-mode floors | `RESUME_COMPANY_BULLET_FLOORS` | 4 / 4 / 3 | Last-resort prune mode may reduce UCOP/GWR only, never Simple.biz |
+| Body char ratio | `RESUME_CHAR_TOLERANCE` | ±20% | Generated/body text must stay within tolerance |
 | No Python literals | — | — | Rejects `['` / `"]` artifacts |
 | No literal `\\n` | — | — | Rejects escaped newline tokens |
 | Section order | `RESUME_SECTIONS` | canonical | Required section order must match |
@@ -28,6 +30,7 @@ Threshold values live in `tailor/config.py`.
 - `MAX_RETRIES` controls attempts per document.
 - Validation failures are fed back to subsequent attempts.
 - Error feedback includes concrete counts/targets to help recovery.
+- Resume generation now includes fit-stage recovery: condense → compact layout → last-resort prune.
 
 ## Tuning Guidance
 
@@ -41,8 +44,8 @@ Most common tuning is char tolerance.
 python -m tailor validate output/<slug>
 ```
 
-## QA Structural Awareness
+## Resume Fit Awareness
 
-QA prompts include structural checks (char ratios, bullet counts) so repair can happen before final validation.
+Resume QA prompts include structural checks, and resume generation now inspects rendered PDFs using `pdfinfo` and `pdftotext -bbox-layout` so overflow can be repaired before final validation.
 
 Inspect prompt logic in `tailor/writer.py` (`STRUCTURAL CHECKS` section).

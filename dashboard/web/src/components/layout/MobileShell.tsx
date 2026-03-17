@@ -69,8 +69,12 @@ export default function MobileShell() {
 
             <div style={tabBar}>
                 <NavLink to="/m/ingest" style={({ isActive }) => tabStyle(isActive)}>
-                    <span style={{ fontSize: '1.1rem' }}>+</span>
+                    <span style={{ fontSize: '1.1rem' }}>&#43;</span>
                     <span>Ingest</span>
+                </NavLink>
+                <NavLink to="/m/qa" style={({ isActive }) => tabStyle(isActive)}>
+                    <span style={{ fontSize: '1.1rem' }}>&#10003;</span>
+                    <span>QA</span>
                 </NavLink>
                 <NavLink to="/m/jobs" style={({ isActive }) => tabStyle(isActive)}>
                     <span style={{ fontSize: '1.1rem' }}>&#9881;</span>

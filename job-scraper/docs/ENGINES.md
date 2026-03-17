@@ -8,11 +8,14 @@ The scraper depends on SearXNG returning stable web results for job-board and op
 
 ## Key Engines for Scraper
 
-Ensure these are active in `settings.yml`:
+Current scraper defaults in `job_scraper/config.default.yaml` prefer:
 
 - `google`
-- `bing`
-- `duckduckgo`
+- `startpage`
+
+Also keep `duckduckgo` active in `settings.yml` as a useful fallback when SearXNG is queried without an explicit engine list.
+
+Note: `bing` is currently disabled in this workspace's `settings.yml`, so it is not part of the active default scraper path right now.
 
 ## Key Query Targets
 

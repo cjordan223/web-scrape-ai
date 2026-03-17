@@ -1,4 +1,5 @@
 import React from 'react';
+import { copyText } from '../../../../utils';
 
 // ─── Trace grouping ───
 
@@ -126,7 +127,7 @@ export function ArtifactViewer({ artifact, onClose }: ArtifactViewerProps) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.75rem', fontWeight: 600 }}>{artifact.name}</span>
                 <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}
-                    onClick={() => { navigator.clipboard.writeText(artifact.content).catch(() => { }); }}>
+                    onClick={() => { void copyText(artifact.content); }}>
                     Copy
                 </button>
                 <button className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
@@ -218,11 +219,11 @@ export function TraceInspector({ event, traceTab, setTraceTab }: TraceInspectorP
                 {traceTab === 'overview' && (
                     <>
                         <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}
-                            onClick={() => navigator.clipboard.writeText(event.error || 'No error for this event').catch(() => { })}>
+                            onClick={() => { void copyText(event.error || 'No error for this event'); }}>
                             Copy error
                         </button>
                         <button className="btn btn-ghost btn-sm"
-                            onClick={() => navigator.clipboard.writeText(requestSummary).catch(() => { })}>
+                            onClick={() => { void copyText(requestSummary); }}>
                             Copy summary
                         </button>
                         <button className="btn btn-ghost btn-sm" onClick={() => setTraceTab('raw')}>
@@ -232,7 +233,7 @@ export function TraceInspector({ event, traceTab, setTraceTab }: TraceInspectorP
                 )}
                 {traceTab !== 'overview' && (
                     <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}
-                        onClick={() => navigator.clipboard.writeText(tabContent()).catch(() => { })}>
+                        onClick={() => { void copyText(tabContent()); }}>
                         Copy
                     </button>
                 )}

@@ -22,6 +22,20 @@ from .urlnorm import canonicalize_job_url
 
 logger = logging.getLogger(__name__)
 
+_TITLE_DEPARTMENT_SUFFIX_PATTERN = re.compile(
+    r"\b((?:[A-Za-z0-9&/+\-.]+\s+){0,6}Engineer)\s+(?:Engineering|Security)\b"
+)
+_TITLE_METADATA_SEGMENT_PATTERN = re.compile(
+    r"^(?:"
+    r"remote|hybrid|onsite|on-site|"
+    r"full[\s-]?time|part[\s-]?time|contract|temporary|internship|"
+    r"united states|u\.?s\.?a?\.?|"
+    r"engineering|security|product|design|operations|marketing|sales|finance|"
+    r"legal|people|talent|recruiting|growth|federal|commercial"
+    r")$",
+    re.I,
+)
+
 
 def _normalize_title_for_key(title: str) -> str:
     t = title.lower()
@@ -108,26 +122,50 @@ def _dedupe_canonical_jobs(jobs: list[JobResult]) -> tuple[list[JobResult], list
     return [by_key[k] for k in key_order], dropped
 
 
-def _clean_job_title(title: str) -> str:
-    t = " ".join(title.split())
-    # Ashby pages sometimes concatenate role + department labels.
-    t = re.sub(r"\b([A-Za-z]+Engineer)Engineering\b", r"\1", t)
-    t = re.sub(r"\b([A-Za-z]+Engineer)Security\b", r"\1", t)
-    t = re.sub(r"(?<=[A-Za-z0-9\)])Engineering(?=\s*•)", "", t)
-    t = re.sub(r"(?<=[A-Za-z0-9\)])Security(?=\s*•)", "", t)
-    t = re.sub(r"(?<=\w)\$(?=\d)", " $", t)
-    if "•" in t:
-        parts = [p.strip() for p in t.split("•")]
-        head, tail = parts[0], parts[1:]
-        deduped_tail: list[str] = []
-        seen: set[str] = set()
-        for p in tail:
-            key = p.lower()
-            if p and key not in seen:
-                deduped_tail.append(p)
-                seen.add(key)
-        t = " • ".join([head, *deduped_tail]) if deduped_tail else head
-    return t.strip()
+def _clean_job_title(title: str) -> tuple[str, str]:
+    def _collapse_adjacent_tokens(text: str) -> str:
+        tokens = text.split()
+        collapsed: list[str] = []
+        for token in tokens:
+            if collapsed and collapsed[-1].lower() == token.lower():
+                continue
+            collapsed.append(token)
+        return " ".join(collapsed)
+
+    def _normalize_segment(text: str) -> str:
+        text = " ".join(text.split())
+        text = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
+        text = _TITLE_DEPARTMENT_SUFFIX_PATTERN.sub(r"\1", text)
+        text = re.sub(r"(?<=\w)\$(?=\d)", " $", text)
+        return _collapse_adjacent_tokens(text).strip()
+
+    t = _normalize_segment(title)
+    if "•" not in t:
+        return t, ""
+
+    parts = [segment for segment in (_normalize_segment(p) for p in t.split("•")) if segment]
+    if not parts:
+        return "", ""
+
+    head, tail = parts[0], parts[1:]
+    cleaned_tail: list[str] = []
+    metadata_tail: list[str] = []
+    seen: set[str] = set()
+    for segment in tail:
+        if _TITLE_METADATA_SEGMENT_PATTERN.match(segment):
+            metadata_tail.append(segment)
+            continue
+        if re.fullmatch(r"[A-Za-z .'-]+,\s*[A-Z]{2}(?:,\s*United States)?", segment):
+            metadata_tail.append(segment)
+            continue
+        key = segment.lower()
+        if key in seen:
+            continue
+        cleaned_tail.append(segment)
+        seen.add(key)
+    cleaned_title = " • ".join([head, *cleaned_tail]) if cleaned_tail else head
+    title_context = " • ".join(metadata_tail)
+    return cleaned_title, title_context
 
 
 def _result_rank_key(job: JobResult) -> tuple[int, int]:
@@ -154,12 +192,27 @@ def _promotion_candidate_ok(verdicts: list) -> bool:
     return True
 
 
+def _summarize_verdicts(verdicts: list) -> str:
+    parts: list[str] = []
+    for verdict in verdicts:
+        stage = getattr(verdict, "stage", "") or "unknown"
+        passed = bool(getattr(verdict, "passed", False))
+        reason = (getattr(verdict, "reason", "") or "").strip()
+        marker = "pass" if passed else "fail"
+        if reason:
+            parts.append(f"{stage}={marker}({reason})")
+        else:
+            parts.append(f"{stage}={marker}")
+    return " | ".join(parts)
+
+
 def scrape_jobs(
     config_path: Optional[Path] = None,
     config: Optional[ScraperConfig] = None,
     mark_seen: bool = True,
     fetch_jd: bool | None = None,
     crawl: bool = True,
+    watchers: bool = True,
     respect_runtime_controls: bool = True,
     llm_enabled_override: bool | None = None,
 ) -> ScrapeRun:
@@ -255,6 +308,14 @@ def scrape_jobs(
                 logger.info("Got %d results from Crawl4AI", len(crawl_results))
                 raw_results = raw_results + crawl_results
 
+            # 1c. Run watchers
+            if watchers and config.watchers:
+                from .watchers import run_watchers
+
+                watcher_results = run_watchers(config)
+                logger.info("Got %d results from watchers", len(watcher_results))
+                raw_results = raw_results + watcher_results
+
             run.raw_count = len(raw_results)
             logger.info("Total raw results: %d", run.raw_count)
 
@@ -264,10 +325,13 @@ def scrape_jobs(
             for r in raw_results:
                 canonical = canonicalize_job_url(r.url)
                 if canonical in in_run_urls:
+                    logger.debug("Skipping in-run duplicate URL: %s", canonical)
                     continue
                 in_run_urls.add(canonical)
-                if not store.is_seen(canonical, ttl_days=config.filter.seen_ttl_days):
-                    unseen.append(r)
+                if store.is_seen(canonical, ttl_days=config.filter.seen_ttl_days):
+                    logger.debug("Skipping previously seen URL: %s", canonical)
+                    continue
+                unseen.append(r)
 
             run.dedup_count = len(unseen)
             logger.info("%d new (unseen) results after dedup", run.dedup_count)
@@ -276,24 +340,56 @@ def scrape_jobs(
             rejected_items = []  # (SearchResult, stage, reason, verdicts)
             quarantine_items = []
             # (SearchResult, score, decision, signals, verdicts, seniority, exp_years, salary, jd_text, cleaned_title)
-            for r in unseen:
+            for idx, r in enumerate(unseen, 1):
                 jd_text = None
                 if should_fetch:
                     jd_text = fetch_jd_text(r.url, max_chars=config.filter.jd_max_chars)
 
-                cleaned_title = _clean_job_title(r.title)
+                cleaned_title, title_context = _clean_job_title(r.title)
+                snippet_context = " • ".join(part for part in (r.snippet.strip(), title_context) if part)
+                jd_chars = len(jd_text or "")
+                logger.debug(
+                    "Candidate %d/%d: board=%s title=%r title_context=%r url=%s jd_chars=%d query=%r",
+                    idx,
+                    len(unseen),
+                    r.board.value,
+                    cleaned_title,
+                    title_context,
+                    r.url,
+                    jd_chars,
+                    r.query,
+                )
                 passed, verdicts, seniority, exp_years, salary, score, decision, signals = apply_filters(
                     title=cleaned_title,
                     url=r.url,
-                    snippet=r.snippet,
+                    snippet=snippet_context,
                     jd_text=jd_text,
                     board=r.board,
                     config=config.filter,
+                    skip_stages=set(r.skip_filters) if r.skip_filters else None,
+                )
+                logger.debug(
+                    "Filter outcome for %r: passed=%s decision=%s score=%s seniority=%s exp=%s salary=%s signals=%s verdicts=%s",
+                    cleaned_title,
+                    passed,
+                    decision,
+                    score,
+                    seniority.value,
+                    exp_years,
+                    salary,
+                    ", ".join(signals) if signals else "-",
+                    _summarize_verdicts(verdicts),
                 )
 
                 if not passed:
                     failing = verdicts[-1]
                     if decision == "review":
+                        logger.debug(
+                            "Quarantining %r for review: score=%s reason=%s",
+                            cleaned_title,
+                            score,
+                            failing.reason,
+                        )
                         quarantine_items.append(
                             (
                                 r,
@@ -309,18 +405,24 @@ def scrape_jobs(
                             )
                         )
                     else:
+                        logger.debug(
+                            "Rejecting %r at stage=%s reason=%s",
+                            cleaned_title,
+                            failing.stage,
+                            failing.reason,
+                        )
                         rejected_items.append((r, failing.stage, failing.reason, verdicts))
                     continue
 
                 # LLM common-sense review (after all rule-based stages)
                 if config.llm_review.enabled:
-                    lv = llm_review(cleaned_title, r.snippet, jd_text, config.llm_review)
+                    lv = llm_review(cleaned_title, snippet_context, jd_text, config.llm_review)
                     verdicts.append(lv)
                     if not lv.passed:
-                        logger.info("LLM rejected '%s': %s", r.title, lv.reason)
+                        logger.info("LLM rejected '%s': %s", cleaned_title, lv.reason)
                         rejected_items.append((r, "llm_review", lv.reason, verdicts))
                         continue
-                    logger.debug("LLM passed '%s': %s", r.title, lv.reason)
+                    logger.debug("LLM passed '%s': %s", cleaned_title, lv.reason)
 
                 job = JobResult(
                     title=cleaned_title,
@@ -334,9 +436,17 @@ def scrape_jobs(
                     jd_text=jd_text,
                     snippet=r.snippet,
                     query=r.query,
+                    source=r.source,
                     filter_verdicts=verdicts,
                 )
                 run.jobs.append(job)
+                logger.debug(
+                    "Accepted %r into run output: score=%s seniority=%s jd_chars=%d",
+                    cleaned_title,
+                    score,
+                    seniority.value,
+                    jd_chars,
+                )
 
             # 3b. Promotion pass: when strict gates under-fill, promote top review candidates
             # through an LLM check to keep quality while meeting target output volume.
@@ -374,6 +484,11 @@ def scrape_jobs(
                         lv = llm_review(cleaned_title, r.snippet, jd_text, config.llm_review)
                         promotion_verdicts.append(lv)
                         if not lv.passed:
+                            logger.debug(
+                                "Promotion LLM rejected %r: %s",
+                                cleaned_title,
+                                lv.reason,
+                            )
                             rejected_items.append((r, "llm_review_promotion", lv.reason, promotion_verdicts))
                             continue
 
@@ -390,10 +505,16 @@ def scrape_jobs(
                             jd_text=jd_text,
                             snippet=r.snippet,
                             query=r.query,
+                            source=r.source,
                             filter_verdicts=promotion_verdicts,
                         )
                     )
                     promoted_count += 1
+                    logger.debug(
+                        "Promoted review candidate %r into run output: score=%s",
+                        cleaned_title,
+                        score,
+                    )
 
                 quarantine_items = kept_quarantine
                 if promoted_count:

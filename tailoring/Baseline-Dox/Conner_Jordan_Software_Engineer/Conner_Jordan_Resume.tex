@@ -21,22 +21,62 @@
 \colorlet{heading}{black}
 \colorlet{emphasis}{SlateGrey}
 
+% Fit controls
+\newif\ifcompactresume
+\compactresumefalse
+\newif\ifprunedresume
+\prunedresumefalse
+
+\newcommand{\resumeLineSpread}{0.88}
+\newcommand{\resumeItemSep}{1pt}
+\newcommand{\resumeSectionTitleSize}{\large}
+\newcommand{\resumeCompanySize}{\large}
+\newcommand{\resumeMetaSize}{\small}
+\newcommand{\resumeBodySize}{\small}
+\newcommand{\resumeHeaderRoleSize}{\Large}
+\newcommand{\resumeSectionBeforeSpace}{2pt}
+\newcommand{\resumeSectionRuleSpace}{-4pt}
+\newcommand{\resumeSubheadingGap}{-2pt}
+\newcommand{\resumeListEndGap}{-2pt}
+\newcommand{\resumeSectionIntroGap}{8pt}
+\newcommand{\resumeSectionOutroGap}{6pt}
+\newcommand{\resumeHeaderBottomGap}{4pt}
+
 % Layout — optimized for one page
 \usepackage[margin=0.35in, top=0.08in, bottom=0.35in]{geometry}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{0pt}
 \setlength{\tabcolsep}{1pt}
-\linespread{0.88}
 \microtypesetup{protrusion=true,expansion=true}
 
+\ifcompactresume
+  \geometry{margin=0.33in, top=0.06in, bottom=0.30in}
+  \renewcommand{\resumeLineSpread}{0.86}
+  \renewcommand{\resumeItemSep}{0pt}
+  \renewcommand{\resumeSectionTitleSize}{\normalsize}
+  \renewcommand{\resumeCompanySize}{\normalsize}
+  \renewcommand{\resumeMetaSize}{\footnotesize}
+  \renewcommand{\resumeBodySize}{\footnotesize}
+  \renewcommand{\resumeHeaderRoleSize}{\large}
+  \renewcommand{\resumeSectionBeforeSpace}{1pt}
+  \renewcommand{\resumeSectionRuleSpace}{-3pt}
+  \renewcommand{\resumeSubheadingGap}{-3pt}
+  \renewcommand{\resumeListEndGap}{-4pt}
+  \renewcommand{\resumeSectionIntroGap}{5pt}
+  \renewcommand{\resumeSectionOutroGap}{4pt}
+  \renewcommand{\resumeHeaderBottomGap}{2pt}
+\fi
+
+\linespread{\resumeLineSpread}
+
 % Item spacing (tightened for one page)
-\setlist[itemize]{leftmargin=0.11in, topsep=0pt, partopsep=0pt, parsep=0pt, itemsep=1pt}
+\setlist[itemize]{leftmargin=0.11in, topsep=0pt, partopsep=0pt, parsep=0pt, itemsep=\resumeItemSep}
 
 % Section style
 \titleformat{\section}
-  {\large\bfseries\scshape\raggedright\color{heading}}
-  {}{0em}{}[\titlerule \vspace{-4pt}]
-\titlespacing*{\section}{0pt}{2pt}{0pt}
+  {\resumeSectionTitleSize\bfseries\scshape\raggedright\color{heading}}
+  {}{0em}{}[\titlerule \vspace{\resumeSectionRuleSpace}]
+\titlespacing*{\section}{0pt}{\resumeSectionBeforeSpace}{0pt}
 
 \urlstyle{same}
 \raggedbottom
@@ -45,18 +85,18 @@
 \pdfgentounicode=1
 
 % Convenience commands
-\newcommand{\resumeItem}[1]{\item{\small #1}}
+\newcommand{\resumeItem}[1]{\item{\resumeBodySize #1}}
 \newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0in,label={}]}
 \newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
 \newcommand{\resumeItemListStart}{\begin{itemize}}
-\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-2pt}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{\resumeListEndGap}}
 
 \newcommand{\resumeSubheading}[4]{%
-  \vspace{-2pt}\item
+  \vspace{\resumeSubheadingGap}\item
   \begin{tabular*}{\textwidth}[t]{l@{\extracolsep{\fill}}r}
-    \textbf{\large #1} & \textbf{\small #2} \\
-    \textit{\large #3} & \textit{\small #4} \\
-  \end{tabular*}\vspace{-2pt}
+    \textbf{\resumeCompanySize #1} & \textbf{\resumeMetaSize #2} \\
+    \textit{\resumeCompanySize #3} & \textit{\resumeMetaSize #4} \\
+  \end{tabular*}\vspace{\resumeSubheadingGap}
 }
 
 %-------------------------------------
@@ -65,7 +105,7 @@
 % Header
 \begin{center}
   {\Huge \textbf{Conner Jordan}}\\[0pt]
-  {\Large Security Engineer}\\[0pt]
+  {\resumeHeaderRoleSize Security Engineer}\\[0pt]
   \href{tel:+18059759793}{\faPhone\ +1 (805) 975-9793} \,|\, 
   \href{mailto:connercharlesjordan@gmail.com}{\faEnvelope\ connercharlesjordan@gmail.com} \,|\, 
   \faMapMarker\ San Luis Obispo, CA \\[-2pt]
@@ -74,22 +114,22 @@
   \,|\, \href{https://connerjordan.com/}{\faGlobe\ connerjordan.com}
 \end{center}
 
-\vspace{4pt}
+\vspace{\resumeHeaderBottomGap}
 
 % SUMMARY
 \section{PROFESSIONAL SUMMARY}
-\vspace{8pt}
+\vspace{\resumeSectionIntroGap}
 \resumeSubHeadingListStart
-\item {\small
+\item {\resumeBodySize
 Security/DevSecOps Engineer who ships production security services and automation (cloud + endpoints), translating requirements into deployable controls and measurable risk reduction}
 \resumeSubHeadingListEnd
-\vspace{6pt}
+\vspace{\resumeSectionOutroGap}
 
 % SKILLS
 \section{TECHNICAL SKILLS}
-\vspace{6pt}
+\vspace{\resumeSectionOutroGap}
 \resumeSubHeadingListStart
-\item {\small
+\item {\resumeBodySize
 \textbf{Languages:} Python, C, C++, TypeScript, Java, SQL, PowerShell, Bash, Swift, Rust, Go
 
 \vspace{3pt}
@@ -108,11 +148,11 @@ Security/DevSecOps Engineer who ships production security services and automatio
 \textbf{Databases:} PostgreSQL, MySQL, MongoDB, DynamoDB, SQLite, Redis, Snowflake, ClickHouse, Databricks, vector databases
 }
 \resumeSubHeadingListEnd
-\vspace{6pt}
+\vspace{\resumeSectionOutroGap}
 
 % EXPERIENCE
 \section{WORK EXPERIENCE}
-\vspace{8pt}
+\vspace{\resumeSectionIntroGap}
 \resumeSubHeadingListStart
 
 \resumeSubheading
@@ -127,7 +167,7 @@ Security/DevSecOps Engineer who ships production security services and automatio
   \resumeItem{Translated complex security requirements into deployable controls by partnering across IAM, Networking, and Endpoint teams; communicated technical architectures to both engineers and leadership to drive informed decision-making.}
   \resumeItem{Pioneered audit-ready governance for AI security tooling across UC’s developer ecosystem, including org-wide runbooks that operationalized standardized asset remediation.}
   \resumeItemListEnd
-\vspace{6pt}
+\vspace{\resumeSectionOutroGap}
 
 \resumeSubheading
   {Great Wolf Resorts}{Chicago Corporate Office (Remote)}
@@ -140,7 +180,7 @@ Security/DevSecOps Engineer who ships production security services and automatio
   \resumeItem{Built Python-based log analysis frameworks in Rapid7 using Pandas and NumPy, developing data pipelines and dynamic visualizations to detect anomalous behavior and common vulnerability patterns.}
   \resumeItem{Developed custom Python tools to analyze phishing simulation data from KnowBe4, transforming raw metrics into actionable security insights that improved organizational compliance rates by 25 percent.}
 \resumeItemListEnd
-\vspace{6pt}
+\vspace{\resumeSectionOutroGap}
 
 \resumeSubheading
   {Simple.biz}{Durham, NC (Remote)}
@@ -153,27 +193,27 @@ Security/DevSecOps Engineer who ships production security services and automatio
 \resumeItemListEnd
 
 \resumeSubHeadingListEnd
-\vspace{4pt}
+\vspace{\resumeHeaderBottomGap}
 
 
 % EDUCATION
 \section{EDUCATION}
-\vspace{8pt}
+\vspace{\resumeSectionIntroGap}
 \resumeSubHeadingListStart
   \resumeSubheading
     {California State University - Monterey Bay}{}
     {B.S., Computer Science}{}
-  \item {\small \textit{Capstone Award for Innovation }}
-  \item {\small Developed PhishFinder, a security tool comprising a Chrome extension and Python backend API that performs automated analysis of SPF, DKIM, and DMARC protocols using NLP and LLM-based classification to detect phishing attacks; awarded Most Innovative Project at the 2024 Capstone Festival.}
+  \item {\resumeBodySize \textit{Capstone Award for Innovation }}
+  \item {\resumeBodySize Developed PhishFinder, a security tool comprising a Chrome extension and Python backend API that performs automated analysis of SPF, DKIM, and DMARC protocols using NLP and LLM-based classification to detect phishing attacks; awarded Most Innovative Project at the 2024 Capstone Festival.}
 \resumeSubHeadingListEnd
-\vspace{6pt}
+\vspace{\resumeSectionOutroGap}
 
 
 % CERTIFICATIONS
 \section{CERTIFICATIONS}
 \resumeSubHeadingListStart
 \vspace{10pt}
-\item {\small \textbf{AWS Certified Cloud Practitioner} \hfill \textit{January 2025}}
+\item {\resumeBodySize \textbf{AWS Certified Cloud Practitioner} \hfill \textit{January 2025}}
 \resumeSubHeadingListEnd
 
 \end{document}

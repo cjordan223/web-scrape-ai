@@ -13,6 +13,7 @@ _SENIORITY_PATTERNS: list[tuple[re.Pattern, Seniority]] = [
     (re.compile(r"\b(?:junior|jr\.?|entry[\s-]?level|associate)\b", re.I), Seniority.junior),
     (re.compile(r"\b(?:staff)\b", re.I), Seniority.staff),
     (re.compile(r"\b(?:principal)\b", re.I), Seniority.principal),
+    (re.compile(r"\b(?:head|vice president|vp\.?|chief|ciso|cto|cio)\b", re.I), Seniority.director),
     (re.compile(r"\b(?:director)\b", re.I), Seniority.director),
     (re.compile(r"\b(?:manager|management)\b", re.I), Seniority.manager),
     (re.compile(r"\b(?:lead|team\s+lead)\b", re.I), Seniority.lead),
@@ -26,6 +27,17 @@ _EARLY_CAREER_PATTERN = re.compile(
     r"\b(?:intern|internship|new[\s-]?grad(?:uate)?|co[\s-]?op|apprentice|fellowship)\b", re.I
 )
 _NON_REMOTE_PATTERN = re.compile(r"\b(?:not\s+remote|non[\s-]?remote|must\s+be\s+on[\s-]?site)\b", re.I)
+_NON_TECH_TITLE_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\baccount executive\b", re.I), "account executive"),
+    (re.compile(r"\bcustomer success\b", re.I), "customer success"),
+    (re.compile(r"\bsales(?:\s+engineer)?\b", re.I), "sales"),
+    (re.compile(r"\bbusiness development\b", re.I), "business development"),
+    (re.compile(r"\brecruit(?:er|ing)\b", re.I), "recruiting"),
+    (re.compile(r"\btalent acquisition\b", re.I), "talent acquisition"),
+    (re.compile(r"\bmarketing\b", re.I), "marketing"),
+    (re.compile(r"\bgo[\s-]?to[\s-]?market\b", re.I), "go-to-market"),
+    (re.compile(r"\bhead of growth\b", re.I), "head of growth"),
+]
 _US_LOCATION_PATTERN = re.compile(
     r"\b(?:united states|u\.s\.a?\.?|us-based|u\.s\.-based|remote us|usa|within the us|continental us|"
     r"north america|us[\s-]?eligible|us[\s-]?remote|remote[\s,\-]+us|remote[\s,\-]+united states)\b",
@@ -72,6 +84,12 @@ _CLOSED_POSTING_PATTERN = re.compile(
     r"\b(?:job(?:\s+posting)?\s+(?:is\s+)?(?:no longer available|closed|expired)|"
     r"position\s+(?:has been filled|is no longer available|closed)|"
     r"no longer accepting applications|posting is no longer active|404|page not found)\b",
+    re.I,
+)
+_CLEARANCE_REQUIREMENT_PATTERN = re.compile(
+    r"\b(?:active|current|existing|maintain|must\s+have|must\s+be\s+able\s+to\s+obtain|"
+    r"ability\s+to\s+obtain|able\s+to\s+obtain|eligible\s+to\s+obtain|requires?|required|requirement)\b"
+    r"[^.:\n]{0,80}\b(?:security\s+clearance|clearance|secret\s+clearance|top\s+secret|ts/sci|ts-sci|polygraph)\b",
     re.I,
 )
 
@@ -184,6 +202,9 @@ def _check_url_domain(url: str, blocklist: list[str]) -> FilterVerdict:
 def _check_title_role(title: str, role_words: list[str]) -> FilterVerdict:
     """Require at least one job-role word in the title."""
     cleaned = _clean_title(title)
+    for pattern, label in _NON_TECH_TITLE_PATTERNS:
+        if pattern.search(cleaned):
+            return FilterVerdict(stage="title_role", passed=False, reason=f"non-technical title: '{label}'")
     patterns = _build_keyword_patterns(role_words)
     for word, pattern in patterns:
         if pattern.search(cleaned):
@@ -193,8 +214,9 @@ def _check_title_role(title: str, role_words: list[str]) -> FilterVerdict:
 
 def _check_seniority(title: str, exclude: list[str]) -> tuple[FilterVerdict, Seniority]:
     seniority = detect_seniority(title)
-    # Keep hard blocks for clearly over-senior or management-style roles.
+    # Hard block senior+ and management-style roles.
     if seniority in {
+        Seniority.senior,
         Seniority.staff,
         Seniority.principal,
         Seniority.manager,
@@ -231,7 +253,12 @@ def _check_blocklist(title: str, snippet: str, jd_text: str | None, blocklist: l
     combined = f"{title} {snippet} {jd_text or ''}"
     combined_lower = combined.lower()
     for term in blocklist:
-        if term.lower() in combined_lower:
+        lower_term = term.lower()
+        if lower_term == "clearance":
+            if _CLEARANCE_REQUIREMENT_PATTERN.search(combined):
+                return FilterVerdict(stage="content_blocklist", passed=False, reason="blocked: clearance requirement")
+            continue
+        if lower_term in combined_lower:
             return FilterVerdict(stage="content_blocklist", passed=False, reason=f"blocked: '{term}'")
     return FilterVerdict(stage="content_blocklist", passed=True, reason="clean")
 
@@ -432,6 +459,7 @@ def apply_filters(
     jd_text: str | None,
     board: JobBoard,
     config: FilterConfig,
+    skip_stages: set[str] | None = None,
 ) -> tuple[bool, list[FilterVerdict], Seniority, int | None, int | None, int, str, list[str]]:
     """Run all filter stages.
 
@@ -439,82 +467,114 @@ def apply_filters(
         (passed, verdicts, seniority, experience_years, salary_dollars, score, decision, signals)
     """
     verdicts: list[FilterVerdict] = []
+    _skip = skip_stages or set()
+
+    def _skipped(stage: str) -> bool:
+        if stage in _skip:
+            verdicts.append(FilterVerdict(stage=stage, passed=True, reason="skipped (watcher)"))
+            return True
+        return False
 
     # 1. URL domain blocklist
-    v = _check_url_domain(url, config.url_domain_blocklist)
-    verdicts.append(v)
-    if not v.passed:
-        return False, verdicts, Seniority.unknown, None, None, -999, "reject", []
+    if not _skipped("url_domain"):
+        v = _check_url_domain(url, config.url_domain_blocklist)
+        verdicts.append(v)
+        if not v.passed:
+            return False, verdicts, Seniority.unknown, None, None, -999, "reject", []
 
     # 1b. Board/source quality
-    v = _check_board_quality(board, title, url, config.require_known_board)
-    verdicts.append(v)
-    if not v.passed:
-        return False, verdicts, Seniority.unknown, None, None, -999, "reject", []
+    if not _skipped("source_quality"):
+        v = _check_board_quality(board, title, url, config.require_known_board)
+        verdicts.append(v)
+        if not v.passed:
+            return False, verdicts, Seniority.unknown, None, None, -999, "reject", []
 
     # 2. Title relevance (soft signal)
-    v = _check_title_relevance(title, config.title_keywords)
-    verdicts.append(v)
-    title_relevance_ok = v.passed
+    if not _skipped("title_relevance"):
+        v = _check_title_relevance(title, config.title_keywords)
+        verdicts.append(v)
+        title_relevance_ok = v.passed
+    else:
+        title_relevance_ok = True
 
     # 3. Title role word (soft signal)
-    v = _check_title_role(title, config.title_role_words)
-    verdicts.append(v)
-    title_role_ok = v.passed
+    if not _skipped("title_role"):
+        v = _check_title_role(title, config.title_role_words)
+        verdicts.append(v)
+        title_role_ok = v.passed
+        if not v.passed and "non-technical title" in v.reason:
+            return False, verdicts, Seniority.unknown, None, None, -999, "reject", []
+    else:
+        title_role_ok = True
 
     # 4. Seniority
-    v, seniority = _check_seniority(title, config.seniority_exclude)
-    verdicts.append(v)
-    if not v.passed:
-        return False, verdicts, seniority, None, None, -999, "reject", []
+    if not _skipped("seniority"):
+        v, seniority = _check_seniority(title, config.seniority_exclude)
+        verdicts.append(v)
+        if not v.passed:
+            return False, verdicts, seniority, None, None, -999, "reject", []
+    else:
+        seniority = detect_seniority(title)
+
     # 5. Internship/new-grad exclusion (hard block)
-    v = _check_early_career(title, snippet, jd_text)
-    verdicts.append(v)
-    if not v.passed:
-        return False, verdicts, seniority, None, None, -999, "reject", []
+    if not _skipped("early_career"):
+        v = _check_early_career(title, snippet, jd_text)
+        verdicts.append(v)
+        if not v.passed:
+            return False, verdicts, seniority, None, None, -999, "reject", []
 
     # 6. JD quality signal
-    v = _check_jd_quality(url, jd_text)
-    verdicts.append(v)
-    if not v.passed:
-        return False, verdicts, seniority, None, None, -999, "reject", []
+    if not _skipped("jd_quality"):
+        v = _check_jd_quality(url, jd_text)
+        verdicts.append(v)
+        if not v.passed:
+            return False, verdicts, seniority, None, None, -999, "reject", []
 
     # 6b. JD presence (soft signal — don't hard-reject, let scoring decide)
-    v = _check_jd_presence(jd_text, config.min_jd_chars)
-    verdicts.append(v)
+    if not _skipped("jd_presence"):
+        v = _check_jd_presence(jd_text, config.min_jd_chars)
+        verdicts.append(v)
 
     # 7. Experience
-    v, years = _check_experience(jd_text, config.max_experience_years)
-    verdicts.append(v)
-    if not v.passed:
-        return False, verdicts, seniority, years, None, -999, "reject", []
+    if not _skipped("experience"):
+        v, years = _check_experience(jd_text, config.max_experience_years)
+        verdicts.append(v)
+        if not v.passed:
+            return False, verdicts, seniority, years, None, -999, "reject", []
+    else:
+        years = None
 
     # 8. Content blocklist (checks title + snippet + JD)
-    v = _check_blocklist(title, snippet, jd_text, config.content_blocklist)
-    verdicts.append(v)
-    if not v.passed:
-        return False, verdicts, seniority, years, None, -999, "reject", []
-
-    # 9. Remote (only if required)
-    if config.require_remote:
-        v = _check_remote(title, snippet, jd_text, config.require_explicit_remote)
+    if not _skipped("content_blocklist"):
+        v = _check_blocklist(title, snippet, jd_text, config.content_blocklist)
         verdicts.append(v)
         if not v.passed:
             return False, verdicts, seniority, years, None, -999, "reject", []
 
+    # 9. Remote (only if required)
+    if not _skipped("remote"):
+        if config.require_remote:
+            v = _check_remote(title, snippet, jd_text, config.require_explicit_remote)
+            verdicts.append(v)
+            if not v.passed:
+                return False, verdicts, seniority, years, None, -999, "reject", []
+
     # 9b. US location guardrail
-    v = _check_location_scope(title, snippet, jd_text, url, config.require_us_location)
-    verdicts.append(v)
-    if not v.passed:
-        return False, verdicts, seniority, years, None, -999, "reject", []
+    if not _skipped("location"):
+        v = _check_location_scope(title, snippet, jd_text, url, config.require_us_location)
+        verdicts.append(v)
+        if not v.passed:
+            return False, verdicts, seniority, years, None, -999, "reject", []
 
     # 10. Salary minimum
     salary = None
-    if config.min_salary_k > 0:
-        v, salary = _check_salary(jd_text, config.min_salary_k)
-        verdicts.append(v)
-        if not v.passed:
-            return False, verdicts, seniority, years, salary, -999, "reject", []
+    if not _skipped("salary"):
+        if config.min_salary_k > 0:
+            v, salary = _check_salary(jd_text, config.min_salary_k)
+            verdicts.append(v)
+            if not v.passed:
+                return False, verdicts, seniority, years, salary, -999, "reject", []
+
     score, decision, signals = _score_job(
         title, snippet, jd_text, seniority, years, title_relevance_ok, title_role_ok, config
     )

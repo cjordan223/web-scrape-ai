@@ -7,10 +7,13 @@ const EMPTY_FIELDS = {
 };
 
 type Mode = 'input' | 'fields' | 'done';
+type InputTab = 'url' | 'text';
 
 export default function MobileIngestView() {
     const [mode, setMode] = useState<Mode>('input');
+    const [inputTab, setInputTab] = useState<InputTab>('text');
     const [urlInput, setUrlInput] = useState('');
+    const [textInput, setTextInput] = useState('');
     const [fields, setFields] = useState({ ...EMPTY_FIELDS });
     const [busy, setBusy] = useState(false);
     const [busyLabel, setBusyLabel] = useState('');
@@ -19,7 +22,7 @@ export default function MobileIngestView() {
     const [queueBusy, setQueueBusy] = useState(false);
 
     const resetAll = () => {
-        setMode('input'); setUrlInput('');
+        setMode('input'); setUrlInput(''); setTextInput('');
         setFields({ ...EMPTY_FIELDS }); setBusy(false); setBusyLabel(''); setError('');
         setCommitResult(null); setQueueBusy(false);
     };
@@ -44,6 +47,29 @@ export default function MobileIngestView() {
                 salary_k: f.salary_k != null ? String(f.salary_k) : '',
                 experience_years: f.experience_years != null ? String(f.experience_years) : '',
                 jd_text: fetchRes.text,
+            });
+            setMode('fields');
+        } catch (e: any) {
+            setError(e?.response?.data?.error || e?.message || 'Failed');
+        } finally { setBusy(false); setBusyLabel(''); }
+    };
+
+    const handleParseText = async () => {
+        const text = textInput.trim();
+        if (!text) return;
+        setBusy(true); setError(''); setBusyLabel('Parsing…');
+        try {
+            const parseRes = await api.ingestParse(text);
+            if (!parseRes.ok) { setError(parseRes.error || 'Parse failed'); return; }
+
+            const f = parseRes.fields || {};
+            setFields({
+                title: f.title || '', company: f.company || '',
+                url: f.url || '',
+                seniority: f.seniority || '', snippet: f.snippet || '',
+                salary_k: f.salary_k != null ? String(f.salary_k) : '',
+                experience_years: f.experience_years != null ? String(f.experience_years) : '',
+                jd_text: text,
             });
             setMode('fields');
         } catch (e: any) {
@@ -111,26 +137,59 @@ export default function MobileIngestView() {
         );
     }
 
-    // -- input: just a URL --
+    // -- input: URL or raw text --
     if (mode === 'input') {
+        const tabStyle = (active: boolean): React.CSSProperties => ({
+            ...ghostBtn, width: 'auto', padding: '8px 16px', minHeight: 'auto', fontSize: '.72rem',
+            background: active ? 'var(--surface-2)' : 'transparent',
+            borderColor: active ? 'var(--accent)' : 'var(--border)',
+            color: active ? 'var(--text)' : 'var(--text-secondary)',
+        });
         return (
             <div style={wrap}>
-                <div style={label}>Paste Job URL</div>
-                <input
-                    style={input}
-                    value={urlInput}
-                    onChange={e => setUrlInput(e.target.value)}
-                    placeholder="LinkedIn, Greenhouse, Ashby, Indeed…"
-                    type="url"
-                    autoFocus
-                />
-                <button
-                    style={{ ...primaryBtn, opacity: busy || !urlInput.trim() ? 0.5 : 1 }}
-                    onClick={handleFetchAndParse}
-                    disabled={busy || !urlInput.trim()}
-                >
-                    {busy ? busyLabel : 'Fetch & Parse'}
-                </button>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                    <button style={tabStyle(inputTab === 'text')} onClick={() => setInputTab('text')}>Paste Text</button>
+                    <button style={tabStyle(inputTab === 'url')} onClick={() => setInputTab('url')}>URL</button>
+                </div>
+
+                {inputTab === 'url' ? (
+                    <>
+                        <div style={label}>Job URL</div>
+                        <input
+                            style={input}
+                            value={urlInput}
+                            onChange={e => setUrlInput(e.target.value)}
+                            placeholder="LinkedIn, Greenhouse, Ashby, Indeed…"
+                            type="url"
+                            autoFocus
+                        />
+                        <button
+                            style={{ ...primaryBtn, opacity: busy || !urlInput.trim() ? 0.5 : 1 }}
+                            onClick={handleFetchAndParse}
+                            disabled={busy || !urlInput.trim()}
+                        >
+                            {busy ? busyLabel : 'Fetch & Parse'}
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <div style={label}>Paste JD Text</div>
+                        <textarea
+                            style={{ ...input, height: '240px', resize: 'vertical', lineHeight: 1.5 }}
+                            value={textInput}
+                            onChange={e => setTextInput(e.target.value)}
+                            placeholder="Paste the full job description here…"
+                            autoFocus
+                        />
+                        <button
+                            style={{ ...primaryBtn, opacity: busy || !textInput.trim() ? 0.5 : 1 }}
+                            onClick={handleParseText}
+                            disabled={busy || !textInput.trim()}
+                        >
+                            {busy ? busyLabel : 'Parse'}
+                        </button>
+                    </>
+                )}
                 {error && <div style={errStyle}>{error}</div>}
             </div>
         );
