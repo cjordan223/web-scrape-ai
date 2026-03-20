@@ -19,3 +19,6 @@ class JobItem(scrapy.Item):
     query = scrapy.Field()
     source = scrapy.Field()
     discovered_at = scrapy.Field()
+    status = scrapy.Field()
+    rejection_stage = scrapy.Field()
+    rejection_reason = scrapy.Field()
