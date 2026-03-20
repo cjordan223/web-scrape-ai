@@ -65,6 +65,7 @@ const STATUS_COLORS: Record<QALlmReviewItem['status'], string> = {
 
 export default function QAView() {
     const [jobs, setJobs] = useState<QAJob[]>([]);
+    const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [focusedId, setFocusedId] = useState<number | null>(null);
@@ -78,11 +79,13 @@ export default function QAView() {
 
     const jobsIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
     const reviewIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+    const reviewSignatureRef = useRef<string>('');
 
     const fetchJobs = useCallback(async () => {
         try {
-            const res = await api.getQAPending();
+            const res = await api.getQAPending(500);
             setJobs(res.items || []);
+            setTotal(res.total ?? (res.items || []).length);
         } catch (err) {
             console.error(err);
         } finally {
@@ -131,21 +134,21 @@ export default function QAView() {
     }, [focusedId]);
 
     useEffect(() => {
-        const completedIds = (reviewStatus?.items || [])
-            .filter((item) => item.status === 'pass' || item.status === 'fail')
-            .map((item) => item.job_id);
-        if (completedIds.length === 0) return;
-        setJobs((prev) => prev.filter((job) => !completedIds.includes(job.id)));
-        setSelected((prev) => {
-            const next = new Set(prev);
-            completedIds.forEach((id) => next.delete(id));
-            return next;
+        if (!reviewStatus) return;
+        const signature = JSON.stringify({
+            batchId: reviewStatus.batch_id,
+            running: reviewStatus.running,
+            queued: reviewStatus.summary.queued,
+            reviewing: reviewStatus.summary.reviewing,
+            completed: reviewStatus.summary.completed,
+            passed: reviewStatus.summary.passed,
+            failed: reviewStatus.summary.failed,
+            errors: reviewStatus.summary.errors,
         });
-        if (focusedId && completedIds.includes(focusedId)) {
-            setFocusedId(null);
-            setDetail(null);
-        }
-    }, [focusedId, reviewStatus]);
+        if (signature === reviewSignatureRef.current) return;
+        reviewSignatureRef.current = signature;
+        fetchJobs();
+    }, [fetchJobs, reviewStatus]);
 
     const toggle = (id: number) => {
         setSelected((prev) => {
@@ -162,6 +165,7 @@ export default function QAView() {
 
     const removeFromList = (ids: number[]) => {
         setJobs((prev) => prev.filter((job) => !ids.includes(job.id)));
+        setTotal((prev) => Math.max(0, prev - ids.length));
         setSelected((prev) => {
             const next = new Set(prev);
             ids.forEach((id) => next.delete(id));
@@ -214,7 +218,14 @@ export default function QAView() {
     };
 
     const queueTargetIds = selected.size > 0 ? Array.from(selected) : jobs.map((job) => job.id);
-    const trackerVisible = Boolean(reviewStatus && reviewStatus.summary.total > 0);
+    const trackerVisible = Boolean(
+        reviewStatus
+        && (
+            reviewStatus.running
+            || reviewStatus.summary.queued > 0
+            || reviewStatus.summary.reviewing > 0
+        ),
+    );
     const progressPercent = reviewStatus?.summary.total
         ? Math.round((reviewStatus.summary.completed / reviewStatus.summary.total) * 100)
         : 0;
@@ -243,7 +254,7 @@ export default function QAView() {
                         textTransform: 'uppercase',
                         letterSpacing: '.1em',
                     }}>
-                        QA Triage ({jobs.length} pending)
+                        QA Triage ({total} pending)
                     </span>
                 </div>
 
@@ -491,7 +502,7 @@ export default function QAView() {
                             fontFamily: 'var(--font-mono)',
                             fontSize: '.78rem',
                         }}>
-                            No pending jobs — scraper-accepted jobs appear here
+                            No pending jobs — new scrape, rescue, and ingest jobs land here before tailoring
                         </div>
                     ) : jobs.map((job) => {
                         const isFocused = focusedId === job.id;

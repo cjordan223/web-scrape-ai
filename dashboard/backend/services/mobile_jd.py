@@ -12,6 +12,7 @@ from pathlib import Path
 import Vision
 from Cocoa import NSURL
 from CoreFoundation import CFRunLoopGetCurrent, CFRunLoopRunInMode, kCFRunLoopDefaultMode
+from services.audit import log_state_change
 
 MOBILE_JD_DIR = Path(__file__).resolve().parents[3] / "tailoring" / "mobile-jd"
 
@@ -91,12 +92,22 @@ def scan_and_process(db_path: str | None = None) -> dict:
                 """INSERT INTO results
                    (url, title, board, seniority, experience_years, salary_k, score, decision,
                     snippet, query, jd_text, filter_verdicts, run_id, created_at)
-                   VALUES (?, ?, ?, NULL, NULL, NULL, NULL, 'accept', ?, 'mobile-ingest', ?, NULL, 'mobile-ingest', ?)
+                   VALUES (?, ?, ?, NULL, NULL, NULL, NULL, 'qa_pending', ?, 'mobile-ingest', ?, NULL, 'mobile-ingest', ?)
                    ON CONFLICT(url, run_id) DO NOTHING""",
                 (url, title, company, jd_text[:200], jd_text, now),
             )
-            conn.commit()
             job_id = cur.lastrowid if cur.rowcount > 0 else None
+            if job_id is not None:
+                log_state_change(
+                    conn,
+                    job_id=job_id,
+                    job_url=url,
+                    old_state=None,
+                    new_state="qa_pending",
+                    action="ingest_mobile",
+                    detail={"query": "mobile-ingest", "folder": entry.name},
+                )
+            conn.commit()
             conn.close()
         except Exception as e:
             results.append({"folder": entry.name, "ok": False, "error": str(e)})

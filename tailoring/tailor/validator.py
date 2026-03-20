@@ -42,6 +42,7 @@ class ResumeFitMetrics:
     suspicious_single_word_lines: list[str] = field(default_factory=list)
     render_inspection_ok: bool = False
     inspection_error: str | None = None
+    page_fill_ratio: float | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -51,6 +52,7 @@ class ResumeFitMetrics:
             "suspicious_single_word_lines": list(self.suspicious_single_word_lines),
             "render_inspection_ok": self.render_inspection_ok,
             "inspection_error": self.inspection_error,
+            "page_fill_ratio": self.page_fill_ratio,
         }
 
 
@@ -149,6 +151,13 @@ def _resolve_external_binary(binary_name: str, env_var: str) -> str | None:
     )
 
 
+def _strip_xml_namespaces(root: ET.Element) -> ET.Element:
+    for elem in root.iter():
+        if isinstance(elem.tag, str) and "}" in elem.tag:
+            elem.tag = elem.tag.split("}", 1)[1]
+    return root
+
+
 def inspect_resume_pdf_fit(pdf_path: Path) -> ResumeFitMetrics:
     """Inspect rendered resume pagination and line-wrapping diagnostics."""
     metrics = ResumeFitMetrics()
@@ -185,7 +194,6 @@ def inspect_resume_pdf_fit(pdf_path: Path) -> ResumeFitMetrics:
         metrics.inspection_error = "pdfinfo output missing page count"
         return metrics
     metrics.page_count = int(m.group(1))
-    metrics.render_inspection_ok = True
 
     pdftotext_bin = _resolve_external_binary("pdftotext", "PDFTOTEXT_BIN")
     if not pdftotext_bin:
@@ -216,9 +224,15 @@ def inspect_resume_pdf_fit(pdf_path: Path) -> ResumeFitMetrics:
         metrics.inspection_error = f"pdftotext XML parse failed: {exc}"
         logger.warning("Could not parse pdftotext bbox output for %s: %s", pdf_path, exc)
         return metrics
+    root = _strip_xml_namespaces(root)
+
+    pages = root.findall(".//page")
+    if not pages:
+        metrics.inspection_error = "pdftotext XML missing page elements"
+        return metrics
 
     suspicious: list[str] = []
-    for page_index, page in enumerate(root.findall(".//page"), start=1):
+    for page_index, page in enumerate(pages, start=1):
         if page_index == 2:
             metrics.page_2_word_count = len([
                 word.text.strip()
@@ -245,6 +259,22 @@ def inspect_resume_pdf_fit(pdf_path: Path) -> ResumeFitMetrics:
 
     metrics.suspicious_single_word_lines = suspicious[:5]
     metrics.has_suspicious_single_word_lines = bool(suspicious)
+
+    # Compute page 1 fill ratio from bounding box data
+    page1 = next(iter(root.findall(".//page")), None)
+    if page1 is not None:
+        page_height = float(page1.attrib.get("height", "0") or 0)
+        if page_height > 0:
+            max_y = 0.0
+            for word in page1.findall(".//word"):
+                y_max = float(word.attrib.get("yMax", "0") or 0)
+                if y_max > max_y:
+                    max_y = y_max
+            if max_y > 0:
+                metrics.page_fill_ratio = round(max_y / page_height, 4)
+
+    metrics.render_inspection_ok = True
+
     return metrics
 
 
@@ -262,6 +292,8 @@ def validate_resume(tex_path: Path) -> ValidationResult:
     else:
         fit_metrics = inspect_resume_pdf_fit(pdf)
         metrics.update(fit_metrics.as_dict())
+        if fit_metrics.inspection_error:
+            failures.append(f"render inspection incomplete ({fit_metrics.inspection_error})")
         if fit_metrics.page_count != cfg.RESUME_TARGET_PAGES:
             if fit_metrics.page_count is None and fit_metrics.inspection_error:
                 failures.append(
@@ -273,6 +305,23 @@ def validate_resume(tex_path: Path) -> ValidationResult:
                     f"(page 2 words: {fit_metrics.page_2_word_count}, "
                     f"widow-like lines: {'yes' if fit_metrics.has_suspicious_single_word_lines else 'no'})"
                 )
+
+        if (
+            fit_metrics.inspection_error is None
+            and fit_metrics.page_fill_ratio is None
+            and fit_metrics.page_count == cfg.RESUME_TARGET_PAGES
+        ):
+            failures.append("page fill ratio unavailable")
+
+        if (
+            fit_metrics.page_fill_ratio is not None
+            and fit_metrics.page_count == cfg.RESUME_TARGET_PAGES
+            and fit_metrics.page_fill_ratio < cfg.RESUME_MIN_FILL_RATIO
+        ):
+            failures.append(
+                f"page underfilled: {fit_metrics.page_fill_ratio:.1%} vertical fill, "
+                f"need ≥{cfg.RESUME_MIN_FILL_RATIO:.0%}"
+            )
 
     # Gate 2: Bullet count
     bullets = _count_resume_bullets(tex)

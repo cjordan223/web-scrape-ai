@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../../api';
 
 interface QAJob {
@@ -55,6 +55,7 @@ const STATUS_COLORS: Record<QALlmReviewItem['status'], string> = {
 
 export default function MobileQAView() {
     const [jobs, setJobs] = useState<QAJob[]>([]);
+    const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [expanded, setExpanded] = useState<number | null>(null);
@@ -65,11 +66,14 @@ export default function MobileQAView() {
     const [scanMsg, setScanMsg] = useState('');
     const [reviewStatus, setReviewStatus] = useState<QALlmReviewStatus | null>(null);
     const [reviewError, setReviewError] = useState('');
+    const [undoToast, setUndoToast] = useState<{ ids: number[]; action: 'approve' | 'reject'; timer: ReturnType<typeof setTimeout> } | null>(null);
+    const reviewSignatureRef = useRef('');
 
     const fetchJobs = useCallback(async () => {
         try {
-            const res = await api.getQAPending();
+            const res = await api.getQAPending(500);
             setJobs(res.items || []);
+            setTotal(res.total ?? (res.items || []).length);
         } catch {
             // ignore
         } finally {
@@ -111,21 +115,21 @@ export default function MobileQAView() {
     }, [expanded]);
 
     useEffect(() => {
-        const completedIds = (reviewStatus?.items || [])
-            .filter((item) => item.status === 'pass' || item.status === 'fail')
-            .map((item) => item.job_id);
-        if (completedIds.length === 0) return;
-        setJobs((prev) => prev.filter((job) => !completedIds.includes(job.id)));
-        setSelected((prev) => {
-            const next = new Set(prev);
-            completedIds.forEach((id) => next.delete(id));
-            return next;
+        if (!reviewStatus) return;
+        const signature = JSON.stringify({
+            running: reviewStatus.running,
+            queued: reviewStatus.summary.queued,
+            reviewing: reviewStatus.summary.reviewing,
+            completed: reviewStatus.summary.completed,
+            passed: reviewStatus.summary.passed,
+            failed: reviewStatus.summary.failed,
+            errors: reviewStatus.summary.errors,
+            activeJob: reviewStatus.active_job?.job_id ?? null,
         });
-        if (expanded && completedIds.includes(expanded)) {
-            setExpanded(null);
-            setDetail(null);
-        }
-    }, [expanded, reviewStatus]);
+        if (signature === reviewSignatureRef.current) return;
+        reviewSignatureRef.current = signature;
+        fetchJobs();
+    }, [fetchJobs, reviewStatus]);
 
     const toggle = (id: number) => {
         setSelected((prev) => {
@@ -137,6 +141,7 @@ export default function MobileQAView() {
 
     const removeFromList = (ids: number[]) => {
         setJobs((prev) => prev.filter((job) => !ids.includes(job.id)));
+        setTotal((prev) => Math.max(0, prev - ids.length));
         setSelected((prev) => {
             const next = new Set(prev);
             ids.forEach((id) => next.delete(id));
@@ -148,12 +153,31 @@ export default function MobileQAView() {
         }
     };
 
+    const showUndoToast = (ids: number[], action: 'approve' | 'reject') => {
+        if (undoToast) clearTimeout(undoToast.timer);
+        const timer = setTimeout(() => setUndoToast(null), 6000);
+        setUndoToast({ ids, action, timer });
+    };
+
+    const handleUndo = async () => {
+        if (!undoToast) return;
+        clearTimeout(undoToast.timer);
+        const { ids, action } = undoToast;
+        setUndoToast(null);
+        try {
+            if (action === 'approve') await api.undoApproveQA(ids);
+            else await api.undoRejectQA(ids);
+            fetchJobs();
+        } catch { /* ignore */ }
+    };
+
     const handleApprove = async (ids: number[]) => {
         if (!ids.length) return;
         setBusy('approve');
         try {
             await api.approveQA(ids);
             removeFromList(ids);
+            showUndoToast(ids, 'approve');
         } catch {
             // ignore
         } finally {
@@ -167,6 +191,7 @@ export default function MobileQAView() {
         try {
             await api.rejectQA(ids);
             removeFromList(ids);
+            showUndoToast(ids, 'reject');
         } catch {
             // ignore
         } finally {
@@ -244,7 +269,14 @@ export default function MobileQAView() {
     };
 
     const queueTargetIds = selected.size > 0 ? Array.from(selected) : jobs.map((job) => job.id);
-    const trackerVisible = Boolean(reviewStatus && reviewStatus.summary.total > 0);
+    const trackerVisible = Boolean(
+        reviewStatus
+        && (
+            reviewStatus.running
+            || reviewStatus.summary.queued > 0
+            || reviewStatus.summary.reviewing > 0
+        ),
+    );
     const progressPercent = reviewStatus?.summary.total
         ? Math.round((reviewStatus.summary.completed / reviewStatus.summary.total) * 100)
         : 0;
@@ -252,8 +284,14 @@ export default function MobileQAView() {
     return (
         <div style={{ padding: '12px 16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <span style={hdr}>QA Triage ({jobs.length})</span>
+                <span style={hdr}>QA Triage ({total})</span>
                 <div style={{ display: 'flex', gap: '6px' }}>
+                    <button onClick={() => {
+                        if (selected.size === jobs.length) setSelected(new Set());
+                        else setSelected(new Set(jobs.map(j => j.id)));
+                    }} disabled={jobs.length === 0} style={ghostBtn}>
+                        {selected.size === jobs.length && jobs.length > 0 ? 'Deselect' : 'Select All'}
+                    </button>
                     <button onClick={() => handleLlmReview(jobs.map((job) => job.id))} disabled={!!busy || jobs.length === 0} style={ghostBtn}>
                         {busy === 'llm-review' && selected.size === 0 ? 'Queueing...' : 'Queue All'}
                     </button>
@@ -444,7 +482,7 @@ export default function MobileQAView() {
 
             {!loading && jobs.length === 0 && (
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.78rem', color: 'var(--text-secondary)', padding: '40px 0', textAlign: 'center' }}>
-                    No pending jobs
+                    No pending jobs. New scrape and ingest jobs land here before they become ready.
                 </div>
             )}
 
@@ -534,6 +572,46 @@ export default function MobileQAView() {
                     </div>
                 );
             })}
+
+            {undoToast && (
+                <div style={{
+                    position: 'fixed',
+                    bottom: '72px',
+                    left: '16px',
+                    right: '16px',
+                    background: 'var(--surface-2, #333)',
+                    color: 'var(--text)',
+                    borderRadius: '8px',
+                    padding: '12px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '.75rem',
+                    zIndex: 100,
+                    boxShadow: '0 4px 12px rgba(0,0,0,.3)',
+                }}>
+                    <span>
+                        {undoToast.ids.length} job{undoToast.ids.length > 1 ? 's' : ''}{' '}
+                        {undoToast.action === 'approve' ? 'approved' : 'rejected'}
+                    </span>
+                    <button
+                        onClick={handleUndo}
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--accent)',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '.75rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            padding: '4px 8px',
+                        }}
+                    >
+                        Undo
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

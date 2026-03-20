@@ -10,6 +10,7 @@ KEEP UNDER ~1700 chars so it fits comfortably within the stage budgets.
 -->
 I am strongest at the intersection of:
 - Security engineering
+- Application security (SAST/DAST/SCA, secure SDLC, pentesting)
 - Automation
 - Cloud / containerized delivery
 - Data integration and correlation
@@ -26,6 +27,7 @@ I consistently contribute by:
 
 What I bring to a team:
 - Security Engineering: I build and operate production security systems. I focus on deployable controls and measurable risk reduction. I think in terms of remediation, reliability, and operational fit.
+- Application Security: I pioneered Checkmarx SAST integration into CI/CD pipelines. I do hands-on pentesting with Burp Suite, ZAP, Nmap, and other offensive tools. I understand secure SDLC from code review through production deployment.
 - Automation and DevSecOps: I automate high-friction workflows with Python and PowerShell. I build CI/CD-oriented workflows and operational tooling. I care about repeatability, maintainability, and handoff quality.
 - Cloud / Platform: I deliver containerized services and internal tools in cloud environments. I work at the intersection of infrastructure, security, and application engineering. I design with operational realities in mind.
 - Security Data and Analytics: I integrate multiple data sources and reconcile drift/inconsistency. I build pipelines and tooling that improve visibility and decision quality. I value metrics and actionable reporting over noisy dashboards.

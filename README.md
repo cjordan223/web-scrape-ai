@@ -10,7 +10,7 @@ This repo combines three systems that work together:
 ## Repo Layout
 
 ```text
-/Users/conner/Documents/SearXNG
+/Users/conner/Documents/JobForge
 ├── docker-compose.yml
 ├── settings.yml
 ├── dashboard/
@@ -33,7 +33,7 @@ This repo combines three systems that work together:
 ### 1) Start SearXNG
 
 ```bash
-cd /Users/conner/Documents/SearXNG
+cd /Users/conner/Documents/JobForge
 docker compose up -d
 curl "http://localhost:8888/search?q=test&format=json"
 ```
@@ -51,7 +51,7 @@ python -m job_scraper stats
 ### 3) Start dashboard
 
 ```bash
-cd /Users/conner/Documents/SearXNG
+cd /Users/conner/Documents/JobForge
 source venv/bin/activate
 python dashboard/backend/server.py
 ```

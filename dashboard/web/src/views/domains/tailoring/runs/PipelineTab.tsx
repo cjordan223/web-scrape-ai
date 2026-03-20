@@ -140,7 +140,7 @@ export default function PipelineTab({ runner, runs }: Props) {
                                 <span>{traces.length} events</span>
                             </div>
                         </div>
-                        <button className="btn btn-success btn-sm" onClick={() => navigate('/tailoring/outputs/packages')}>
+                        <button className="btn btn-success btn-sm" onClick={() => navigate('/pipeline/packages')}>
                             Package Review
                         </button>
                     </div>

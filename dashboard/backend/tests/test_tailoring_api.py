@@ -37,6 +37,7 @@ class TestTailoringAPI(unittest.TestCase):
             )
             """
         )
+        conn.execute("CREATE UNIQUE INDEX idx_results_url_run ON results(url, run_id)")
         if with_approved_jd_text:
             conn.execute("ALTER TABLE results ADD COLUMN approved_jd_text TEXT")
         conn.commit()
@@ -209,6 +210,32 @@ class TestTailoringAPI(unittest.TestCase):
                 self.assertEqual(resp.status_code, 422)
                 self.assertFalse(resp.json()["ok"])
                 self.assertEqual(resp.json()["error"], compile_error)
+
+                fake_regen = {
+                    "ok": True,
+                    "validation": {
+                        "passed": True,
+                        "failures": [],
+                        "metrics": {"char_ratio": 0.95},
+                    },
+                }
+
+                class FakeCompletedProcess:
+                    def __init__(self, stdout: str):
+                        self.returncode = 0
+                        self.stdout = stdout
+                        self.stderr = ""
+
+                with patch("app._resolve_llm_runtime", return_value={
+                    "chat_url": "http://127.0.0.1:1234/v1/chat/completions",
+                    "models_url": "http://127.0.0.1:1234/v1/models",
+                    "selected_model": "test-model",
+                }), patch("app.subprocess.run", return_value=FakeCompletedProcess(json.dumps(fake_regen))), patch("app._compile_tex_in_place", return_value=(True, None)):
+                    resp = client.post(f"/api/packages/{slug}/regenerate/cover")
+                self.assertEqual(resp.status_code, 200)
+                self.assertTrue(resp.json()["ok"])
+                self.assertEqual(resp.json()["pdf_name"], "Conner_Jordan_Cover_Letter.pdf")
+                self.assertIn("detail", resp.json())
             finally:
                 server.TAILORING_OUTPUT_DIR = old
 
@@ -306,6 +333,226 @@ class TestTailoringAPI(unittest.TestCase):
             finally:
                 server.DB_PATH = old_db
 
+    def test_workflow_schema_migrates_legacy_decisions(self):
+        with tempfile.TemporaryDirectory() as td:
+            db_path = Path(td) / "jobs.db"
+            self._create_results_db(db_path, with_approved_jd_text=False)
+            self._insert_result(
+                db_path,
+                job_id=1,
+                title="Legacy Accept",
+                url="https://example.com/jobs/1",
+                decision="accept",
+            )
+            self._insert_result(
+                db_path,
+                job_id=2,
+                title="Legacy Manual",
+                url="manual://ingest/2",
+                decision="manual",
+            )
+            self._insert_result(
+                db_path,
+                job_id=3,
+                title="Legacy Approved",
+                url="manual://ingest/3",
+                decision="manual_approved",
+            )
+
+            old_db = server.DB_PATH
+            server.DB_PATH = str(db_path)
+            client = TestClient(server.app)
+            try:
+                qa_resp = client.get("/api/tailoring/qa")
+                ready_resp = client.get("/api/tailoring/ready")
+                self.assertEqual(qa_resp.status_code, 200)
+                self.assertEqual(ready_resp.status_code, 200)
+                self.assertEqual({item["id"] for item in qa_resp.json()["items"]}, {1, 2})
+                self.assertEqual([item["id"] for item in ready_resp.json()["items"]], [3])
+
+                conn = sqlite3.connect(db_path)
+                rows = conn.execute("SELECT id, decision FROM results ORDER BY id").fetchall()
+                conn.close()
+                self.assertEqual(
+                    rows,
+                    [
+                        (1, "qa_pending"),
+                        (2, "qa_pending"),
+                        (3, "qa_approved"),
+                    ],
+                )
+            finally:
+                server.DB_PATH = old_db
+
+    def test_tailoring_run_and_queue_require_qa_approval(self):
+        with tempfile.TemporaryDirectory() as td:
+            db_path = Path(td) / "jobs.db"
+            self._create_results_db(db_path, with_approved_jd_text=False)
+            self._insert_result(
+                db_path,
+                job_id=10,
+                title="Pending Job",
+                url="https://example.com/jobs/10",
+                decision="qa_pending",
+            )
+
+            old_db = server.DB_PATH
+            server.DB_PATH = str(db_path)
+            client = TestClient(server.app)
+            try:
+                queue_resp = client.post("/api/tailoring/queue", json={"jobs": [{"job_id": 10}]})
+                run_resp = client.post("/api/tailoring/run", json={"job_id": 10, "skip_analysis": False})
+
+                self.assertEqual(queue_resp.status_code, 409)
+                self.assertEqual(queue_resp.json()["decision"], "qa_pending")
+                self.assertEqual(run_resp.status_code, 409)
+                self.assertEqual(run_resp.json()["decision"], "qa_pending")
+            finally:
+                server.DB_PATH = old_db
+
+    def test_tailoring_queue_detects_duplicate_open_jobs(self):
+        with tempfile.TemporaryDirectory() as td:
+            db_path = Path(td) / "jobs.db"
+            self._create_results_db(db_path, with_approved_jd_text=False)
+            self._insert_result(
+                db_path,
+                job_id=20,
+                title="Approved Job",
+                url="https://example.com/jobs/20",
+                decision="qa_approved",
+            )
+
+            old_db = server.DB_PATH
+            server.DB_PATH = str(db_path)
+            client = TestClient(server.app)
+            try:
+                with patch.object(server, "_process_tailoring_queue", return_value=None):
+                    first = client.post("/api/tailoring/queue", json={"jobs": [{"job_id": 20}]})
+                    second = client.post("/api/tailoring/queue", json={"jobs": [{"job_id": 20}]})
+
+                self.assertEqual(first.status_code, 200)
+                self.assertEqual(first.json()["queued"], 1)
+                self.assertEqual(second.status_code, 200)
+                self.assertEqual(second.json()["queued"], 0)
+                self.assertEqual(len(second.json()["duplicates"]), 1)
+                self.assertEqual(second.json()["duplicates"][0]["job_id"], 20)
+
+                conn = sqlite3.connect(db_path)
+                row = conn.execute(
+                    "SELECT COUNT(*), MIN(status), MAX(status) FROM tailoring_queue_items WHERE job_id = ?",
+                    (20,),
+                ).fetchone()
+                conn.close()
+                self.assertEqual(row, (1, "queued", "queued"))
+            finally:
+                server.DB_PATH = old_db
+
+    def test_tailoring_queue_reconciles_stale_running_items(self):
+        with tempfile.TemporaryDirectory() as td:
+            db_path = Path(td) / "jobs.db"
+            self._create_results_db(db_path, with_approved_jd_text=False)
+            self._insert_result(
+                db_path,
+                job_id=30,
+                title="Approved Job",
+                url="https://example.com/jobs/30",
+                decision="qa_approved",
+            )
+
+            old_db = server.DB_PATH
+            old_runner = dict(server._TAILORING_RUNNER)
+            server.DB_PATH = str(db_path)
+            server._TAILORING_RUNNER.update(
+                {
+                    "proc": None,
+                    "log_handle": None,
+                    "job": None,
+                    "queue_item_id": None,
+                    "started_at": None,
+                    "ended_at": None,
+                    "exit_code": None,
+                    "log_path": None,
+                    "cmd": None,
+                    "stop_reason": None,
+                }
+            )
+            server._ensure_workflow_schema(force=True)
+
+            conn = sqlite3.connect(db_path)
+            conn.execute(
+                """
+                INSERT INTO tailoring_queue_items (
+                    job_id, skip_analysis, status, created_at, updated_at, started_at
+                ) VALUES (?, ?, 'running', ?, ?, ?)
+                """,
+                (30, 0, "2026-03-14T00:00:00Z", "2026-03-14T00:00:00Z", "2026-03-14T00:00:10Z"),
+            )
+            conn.commit()
+            conn.close()
+
+            client = TestClient(server.app)
+            try:
+                resp = client.get("/api/tailoring/queue")
+                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(resp.json()["count"], 0)
+                self.assertIsNone(resp.json()["active_item"])
+
+                conn = sqlite3.connect(db_path)
+                row = conn.execute(
+                    "SELECT status, error, finished_at FROM tailoring_queue_items WHERE job_id = ?",
+                    (30,),
+                ).fetchone()
+                conn.close()
+                self.assertEqual(row[0], "failed")
+                self.assertIn("state was lost", row[1])
+                self.assertIsNotNone(row[2])
+            finally:
+                server.DB_PATH = old_db
+                server._TAILORING_RUNNER.clear()
+                server._TAILORING_RUNNER.update(old_runner)
+
+    def test_manual_ingest_commit_creates_qa_pending_job_and_audit_row(self):
+        with tempfile.TemporaryDirectory() as td:
+            db_path = Path(td) / "jobs.db"
+            self._create_results_db(db_path, with_approved_jd_text=False)
+
+            old_db = server.DB_PATH
+            server.DB_PATH = str(db_path)
+            client = TestClient(server.app)
+            try:
+                resp = client.post(
+                    "/api/tailoring/ingest/commit",
+                    json={
+                        "title": "Manual Security Job",
+                        "company": "ExampleCo",
+                        "jd_text": "Detailed job description",
+                        "snippet": "Short summary",
+                    },
+                )
+                self.assertEqual(resp.status_code, 200)
+                payload = resp.json()
+                self.assertTrue(payload["ok"])
+
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    "SELECT id, decision, query, url FROM results WHERE id = ?",
+                    (payload["job_id"],),
+                ).fetchone()
+                log_row = conn.execute(
+                    "SELECT action, new_state FROM job_state_log WHERE job_id = ? ORDER BY id DESC LIMIT 1",
+                    (payload["job_id"],),
+                ).fetchone()
+                conn.close()
+
+                self.assertEqual(row["decision"], "qa_pending")
+                self.assertEqual(row["query"], "manual-ingest")
+                self.assertTrue(str(row["url"]).startswith("manual://ingest/"))
+                self.assertEqual(log_row["action"], "ingest_manual")
+                self.assertEqual(log_row["new_state"], "qa_pending")
+            finally:
+                server.DB_PATH = old_db
+
     def test_qa_approve_polishes_and_persists_cleaned_jd(self):
         with tempfile.TemporaryDirectory() as td:
             db_path = Path(td) / "jobs.db"
@@ -327,7 +574,7 @@ class TestTailoringAPI(unittest.TestCase):
                     None,
                     None,
                     None,
-                    "accept",
+                    "qa_pending",
                     "Old snippet",
                     None,
                     "About us: We are amazing. Follow us on LinkedIn. What You'll Do Build detections. "
@@ -442,7 +689,7 @@ class TestTailoringAPI(unittest.TestCase):
                     None,
                     None,
                     None,
-                    "accept",
+                    "qa_pending",
                     "Security role",
                     None,
                     "Build detections, harden CI, and support cloud security reviews.",
@@ -610,7 +857,7 @@ class TestTailoringAPI(unittest.TestCase):
                     None,
                     None,
                     None,
-                    "accept",
+                    "qa_pending",
                     "Security role",
                     None,
                     "Review pipelines and cloud controls.",
@@ -692,7 +939,7 @@ class TestTailoringAPI(unittest.TestCase):
                 conn = sqlite3.connect(db_path)
                 row = conn.execute("SELECT decision FROM results WHERE id = 1").fetchone()
                 conn.close()
-                self.assertEqual(row[0], "accept")
+                self.assertEqual(row[0], "qa_pending")
             finally:
                 with server._QA_LLM_REVIEW_LOCK:
                     thread = server._QA_LLM_REVIEW_RUNNER.get("thread")
@@ -737,7 +984,7 @@ class TestTailoringAPI(unittest.TestCase):
                         1,
                         "manual://ingest/1234",
                         "Manual Ingest Job",
-                        "manual",
+                        "qa_pending",
                         None,
                         None,
                         None,
@@ -759,7 +1006,7 @@ class TestTailoringAPI(unittest.TestCase):
                         None,
                         None,
                         None,
-                        "accept",
+                        "qa_pending",
                         "Mobile job",
                         "mobile-ingest",
                         "Mobile body",
@@ -976,7 +1223,7 @@ class TestTailoringAPI(unittest.TestCase):
                 self.assertEqual(package_detail.status_code, 200)
                 self.assertEqual(package_detail.json()["summary"]["applied"]["id"], application_id)
 
-                recent_jobs = client.get("/api/tailoring/jobs/recent")
+                recent_jobs = client.get("/api/tailoring/ready")
                 self.assertEqual(recent_jobs.status_code, 200)
                 self.assertEqual(recent_jobs.json()["items"][0]["applied"]["id"], application_id)
 

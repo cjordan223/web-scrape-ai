@@ -51,7 +51,7 @@ def select(limit: int = typer.Option(20, help="Number of recent jobs to show")):
     """Browse recent jobs and pick one to tailor."""
     jobs = list_recent_jobs(limit)
     if not jobs:
-        typer.echo("No jobs found in database.")
+        typer.echo("No QA-approved jobs found in database.")
         raise typer.Exit(1)
 
     typer.echo(f"\n{'ID':>5}  {'Board':<14} {'Seniority':<10} Title")
@@ -75,7 +75,11 @@ def run(
     from .validator import validate_resume, validate_cover_letter
 
     # Select job
-    job = select_job(job_id)
+    try:
+        job = select_job(job_id)
+    except ValueError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(1)
     typer.echo(f"\nTailoring for: {job.title}")
     typer.echo(f"Company: {job.company}")
     typer.echo(f"URL: {job.url}")

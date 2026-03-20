@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { api } from '../../api';
+import { safePdfName } from '../domains/tailoring/outputs/shared';
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:8899/api' : '/api';
 
@@ -78,16 +79,20 @@ export default function MobileDocsView() {
     const [expanded, setExpanded] = useState<string | null>(null);
     const [runnerLabel, setRunnerLabel] = useState('');
 
-    const load = () => {
+    const load = useCallback(() => {
         setLoading(true);
         Promise.all([
             api.getPackages().then((items: any[]) => setPackages(items.map(parsePackage))).catch(() => setPackages([])),
             api.getAppliedList().then((res: any) => setApplied((res.items || []).map(parseApplied))).catch(() => setApplied([])),
-            api.getTailoringRunnerStatus().then((d) => setRunnerLabel(d.running ? `Tailoring job #${d.job_id}...` : '')).catch(() => setRunnerLabel('')),
+            api.getTailoringRunnerStatus().then((d) => setRunnerLabel(d.running ? `Tailoring job #${d.job?.id || d.active_item?.job_id}...` : '')).catch(() => setRunnerLabel('')),
         ]).finally(() => setLoading(false));
-    };
+    }, []);
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => {
+        load();
+        const id = setInterval(load, 15000);
+        return () => clearInterval(id);
+    }, [load]);
 
     const packageArtifactUrl = (slug: string, file: string) =>
         `${API_BASE}/tailoring/runs/${encodeURIComponent(slug)}/artifact/${encodeURIComponent(file)}`;
@@ -183,14 +188,14 @@ export default function MobileDocsView() {
                         {expanded === key && (
                             <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
                                 {item.hasResume ? (
-                                    <a href={packageArtifactUrl(item.slug, 'Conner_Jordan_Resume.pdf')} target="_blank" rel="noopener" style={openBtn}>
+                                    <a href={packageArtifactUrl(item.slug, 'Conner_Jordan_Resume.pdf')} download={safePdfName(item.company, item.title, item.slug, 'resume')} target="_blank" rel="noopener" style={openBtn}>
                                         Open Resume PDF
                                     </a>
                                 ) : (
                                     <span style={{ ...openBtn, opacity: 0.4 }}>No Resume PDF</span>
                                 )}
                                 {item.hasCover ? (
-                                    <a href={packageArtifactUrl(item.slug, 'Conner_Jordan_Cover_Letter.pdf')} target="_blank" rel="noopener" style={openBtn}>
+                                    <a href={packageArtifactUrl(item.slug, 'Conner_Jordan_Cover_Letter.pdf')} download={safePdfName(item.company, item.title, item.slug, 'cover')} target="_blank" rel="noopener" style={openBtn}>
                                         Open Cover Letter PDF
                                     </a>
                                 ) : (
@@ -225,14 +230,14 @@ export default function MobileDocsView() {
                         {expanded === key && (
                             <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
                                 {item.hasResume ? (
-                                    <a href={appliedArtifactUrl(item.id, 'Conner_Jordan_Resume.pdf')} target="_blank" rel="noopener" style={openBtn}>
+                                    <a href={appliedArtifactUrl(item.id, 'Conner_Jordan_Resume.pdf')} download={safePdfName(item.company, item.title, String(item.id), 'resume')} target="_blank" rel="noopener" style={openBtn}>
                                         Open Submitted Resume
                                     </a>
                                 ) : (
                                     <span style={{ ...openBtn, opacity: 0.4 }}>No Resume PDF</span>
                                 )}
                                 {item.hasCover ? (
-                                    <a href={appliedArtifactUrl(item.id, 'Conner_Jordan_Cover_Letter.pdf')} target="_blank" rel="noopener" style={openBtn}>
+                                    <a href={appliedArtifactUrl(item.id, 'Conner_Jordan_Cover_Letter.pdf')} download={safePdfName(item.company, item.title, String(item.id), 'cover')} target="_blank" rel="noopener" style={openBtn}>
                                         Open Submitted Cover Letter
                                     </a>
                                 ) : (

@@ -58,7 +58,8 @@ CREATE TABLE IF NOT EXISTS runs (
     filtered_count INTEGER DEFAULT 0,
     error_count INTEGER DEFAULT 0,
     errors TEXT,
-    status TEXT NOT NULL DEFAULT 'running'
+    status TEXT NOT NULL DEFAULT 'running',
+    trigger_source TEXT NOT NULL DEFAULT 'scheduled'
 );
 
 CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs(started_at);
@@ -122,6 +123,40 @@ CREATE INDEX IF NOT EXISTS idx_applied_applications_status ON applied_applicatio
 CREATE INDEX IF NOT EXISTS idx_applied_applications_applied_at ON applied_applications(applied_at);
 CREATE INDEX IF NOT EXISTS idx_applied_applications_updated_at ON applied_applications(updated_at);
 
+CREATE TABLE IF NOT EXISTS job_state_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER,
+    job_url TEXT,
+    old_state TEXT,
+    new_state TEXT,
+    action TEXT NOT NULL,
+    source TEXT DEFAULT 'dashboard',
+    detail TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_state_log_job_id ON job_state_log(job_id);
+CREATE INDEX IF NOT EXISTS idx_state_log_created_at ON job_state_log(created_at);
+
+CREATE TABLE IF NOT EXISTS tailoring_queue_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER NOT NULL,
+    skip_analysis INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'queued',
+    run_slug TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    started_at TEXT,
+    finished_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_tailoring_queue_items_status_id ON tailoring_queue_items(status, id);
+CREATE INDEX IF NOT EXISTS idx_tailoring_queue_items_job_id ON tailoring_queue_items(job_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tailoring_queue_items_open_job
+ON tailoring_queue_items(job_id)
+WHERE status IN ('queued', 'running');
+
 CREATE TABLE IF NOT EXISTS applied_snapshots (
     application_id INTEGER PRIMARY KEY REFERENCES applied_applications(id) ON DELETE CASCADE,
     meta TEXT,
@@ -136,6 +171,54 @@ CREATE TABLE IF NOT EXISTS applied_snapshots (
     llm_trace TEXT,
     created_at TEXT NOT NULL
 );
+
+CREATE TRIGGER IF NOT EXISTS protect_applied_results_before_update
+BEFORE UPDATE ON results
+FOR EACH ROW
+WHEN EXISTS (
+    SELECT 1
+    FROM applied_applications aa
+    WHERE aa.job_id = OLD.id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'Applied job rows are protected from inventory writes');
+END;
+
+CREATE TRIGGER IF NOT EXISTS protect_applied_results_before_delete
+BEFORE DELETE ON results
+FOR EACH ROW
+WHEN EXISTS (
+    SELECT 1
+    FROM applied_applications aa
+    WHERE aa.job_id = OLD.id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'Applied job rows are protected from inventory writes');
+END;
+
+CREATE TRIGGER IF NOT EXISTS protect_applied_queue_before_insert
+BEFORE INSERT ON tailoring_queue_items
+FOR EACH ROW
+WHEN EXISTS (
+    SELECT 1
+    FROM applied_applications aa
+    WHERE aa.job_id = NEW.job_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'Applied jobs cannot be re-queued');
+END;
+
+CREATE TRIGGER IF NOT EXISTS protect_applied_queue_before_update
+BEFORE UPDATE ON tailoring_queue_items
+FOR EACH ROW
+WHEN EXISTS (
+    SELECT 1
+    FROM applied_applications aa
+    WHERE aa.job_id = COALESCE(NEW.job_id, OLD.job_id)
+)
+BEGIN
+    SELECT RAISE(ABORT, 'Applied jobs cannot be re-queued');
+END;
 """
 
 
@@ -163,6 +246,105 @@ class JobStore:
         if "source" not in cols:
             self._conn.execute("ALTER TABLE results ADD COLUMN source TEXT DEFAULT ''")
             self._conn.commit()
+        run_cols = {row[1] for row in self._conn.execute("PRAGMA table_info(runs)")}
+        if "trigger_source" not in run_cols:
+            self._conn.execute("ALTER TABLE runs ADD COLUMN trigger_source TEXT NOT NULL DEFAULT 'scheduled'")
+            self._conn.commit()
+
+        # Ensure job_state_log table exists for existing DBs
+        existing_tables = {
+            row[0]
+            for row in self._conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        if "job_state_log" not in existing_tables:
+            self._conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS job_state_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id INTEGER,
+                    job_url TEXT,
+                    old_state TEXT,
+                    new_state TEXT,
+                    action TEXT NOT NULL,
+                    source TEXT DEFAULT 'dashboard',
+                    detail TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_state_log_job_id ON job_state_log(job_id);
+                CREATE INDEX IF NOT EXISTS idx_state_log_created_at ON job_state_log(created_at);
+                """
+            )
+        if "tailoring_queue_items" not in existing_tables:
+            self._conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS tailoring_queue_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id INTEGER NOT NULL,
+                    skip_analysis INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'queued',
+                    run_slug TEXT,
+                    error TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    started_at TEXT,
+                    finished_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_tailoring_queue_items_status_id ON tailoring_queue_items(status, id);
+                CREATE INDEX IF NOT EXISTS idx_tailoring_queue_items_job_id ON tailoring_queue_items(job_id);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_tailoring_queue_items_open_job
+                ON tailoring_queue_items(job_id)
+                WHERE status IN ('queued', 'running');
+                """
+            )
+        self._conn.execute(
+            """
+            UPDATE results
+            SET decision = CASE
+                WHEN decision IN ('accept', 'manual') THEN 'qa_pending'
+                WHEN decision = 'manual_approved' THEN 'qa_approved'
+                ELSE decision
+            END
+            WHERE decision IN ('accept', 'manual', 'manual_approved')
+            """
+        )
+        self._conn.commit()
+
+    @staticmethod
+    def _normalize_result_decision(decision: str | None) -> str | None:
+        if decision in {"accept", "manual"}:
+            return "qa_pending"
+        if decision == "manual_approved":
+            return "qa_approved"
+        return decision
+
+    def _log_state_change(
+        self,
+        *,
+        job_id: int | None,
+        job_url: str | None,
+        old_state: str | None,
+        new_state: str | None,
+        action: str,
+        detail: dict | None = None,
+    ) -> None:
+        detail_json = json.dumps(detail) if detail else None
+        self._conn.execute(
+            """
+            INSERT INTO job_state_log (job_id, job_url, old_state, new_state, action, source, detail, created_at)
+            VALUES (?, ?, ?, ?, ?, 'scraper', ?, ?)
+            """,
+            (
+                job_id,
+                job_url,
+                old_state,
+                new_state,
+                action,
+                detail_json,
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
 
     # --- Dedup ---
 
@@ -209,6 +391,7 @@ class JobStore:
         now = datetime.now(timezone.utc).isoformat()
         verdicts_json = json.dumps([v.model_dump() for v in job.filter_verdicts])
         url = canonicalize_job_url(job.url)
+        decision = self._normalize_result_decision(job.decision)
         cur = self._conn.execute(
             """INSERT INTO results
                (url, title, board, seniority, experience_years, salary_k, score, decision, snippet, query, jd_text, filter_verdicts, source, run_id, created_at)
@@ -216,10 +399,19 @@ class JobStore:
                ON CONFLICT(url, run_id) DO NOTHING""",
             (
                 url, job.title, job.board.value, job.seniority.value,
-                job.experience_years, job.salary_k, job.score, job.decision,
+                job.experience_years, job.salary_k, job.score, decision,
                 job.snippet, job.query, job.jd_text, verdicts_json, source, run_id, now,
             ),
         )
+        if cur.rowcount > 0:
+            self._log_state_change(
+                job_id=cur.lastrowid,
+                job_url=url,
+                old_state=None,
+                new_state=decision,
+                action="ingest_scrape",
+                detail={"run_id": run_id, "source": source or job.source or "", "query": job.query},
+            )
         if commit:
             self._conn.commit()
         return cur.rowcount > 0
@@ -300,11 +492,11 @@ class JobStore:
 
     # --- Runs ---
 
-    def start_run(self, run_id: str) -> None:
+    def start_run(self, run_id: str, *, trigger_source: str = "scheduled") -> None:
         now = datetime.now(timezone.utc).isoformat()
         self._conn.execute(
-            "INSERT INTO runs (run_id, started_at, status) VALUES (?, ?, 'running')",
-            (run_id, now),
+            "INSERT INTO runs (run_id, started_at, status, trigger_source) VALUES (?, ?, 'running', ?)",
+            (run_id, now, trigger_source),
         )
         self._conn.commit()
 
@@ -338,10 +530,16 @@ class JobStore:
         )
         self._conn.commit()
 
-    def latest_run_started_at(self) -> str | None:
-        row = self._conn.execute(
-            "SELECT started_at FROM runs ORDER BY started_at DESC LIMIT 1"
-        ).fetchone()
+    def latest_run_started_at(self, *, trigger_source: str | None = None) -> str | None:
+        if trigger_source:
+            row = self._conn.execute(
+                "SELECT started_at FROM runs WHERE trigger_source = ? ORDER BY started_at DESC LIMIT 1",
+                (trigger_source,),
+            ).fetchone()
+        else:
+            row = self._conn.execute(
+                "SELECT started_at FROM runs ORDER BY started_at DESC LIMIT 1"
+            ).fetchone()
         return row["started_at"] if row else None
 
     def recent_results(self, limit: int = 50) -> list[dict]:

@@ -56,6 +56,45 @@ class TestResumeFitInspection(unittest.TestCase):
         self.assertTrue(metrics.has_suspicious_single_word_lines)
         self.assertEqual(metrics.suspicious_single_word_lines, ["Festival."])
 
+    def test_inspect_resume_pdf_fit_handles_namespaced_xhtml_bbox_output(self):
+        bbox_xml = """<!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml">
+<body><doc>
+  <page width="612.000000" height="792.000000">
+    <flow>
+      <block>
+        <line xMin="10" yMin="700" yMax="710"><word xMin="10" yMin="700" xMax="80" yMax="710">Dense</word></line>
+        <line xMin="10" yMin="740" yMax="760"><word xMin="10" yMin="740" xMax="80" yMax="760">Footer</word></line>
+      </block>
+    </flow>
+  </page>
+</doc></body></html>"""
+
+        with tempfile.TemporaryDirectory() as td:
+            pdf_path = Path(td) / "resume.pdf"
+            pdf_path.write_text("stub", encoding="utf-8")
+            with patch(
+                "tailor.validator.subprocess.run",
+                side_effect=[
+                    subprocess.CompletedProcess(
+                        args=["pdfinfo", str(pdf_path)],
+                        returncode=0,
+                        stdout="Pages:           1\n",
+                        stderr="",
+                    ),
+                    subprocess.CompletedProcess(
+                        args=["pdftotext", "-bbox-layout", str(pdf_path), "-"],
+                        returncode=0,
+                        stdout=bbox_xml,
+                        stderr="",
+                    ),
+                ],
+            ):
+                metrics = inspect_resume_pdf_fit(pdf_path)
+
+        self.assertTrue(metrics.render_inspection_ok)
+        self.assertEqual(metrics.page_count, 1)
+        self.assertEqual(metrics.page_fill_ratio, round(760 / 792, 4))
+
     def test_inspect_resume_pdf_fit_uses_env_override_for_poppler_tools(self):
         bbox_xml = """<doc>
   <page width="612.000000" height="792.000000">
@@ -140,6 +179,28 @@ class TestResumeValidation(unittest.TestCase):
             any("Simple.biz bullet count 2, expected 3-3 in pruned mode" in failure for failure in result.failures)
         )
 
+    def test_validate_resume_fails_when_page_underfilled(self):
+        baseline = cfg.RESUME_TEX.read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as td:
+            tex_path = Path(td) / "Conner_Jordan_Resume.tex"
+            tex_path.write_text(baseline, encoding="utf-8")
+
+            with (
+                patch("tailor.validator.compile_tex", return_value=tex_path.with_suffix(".pdf")),
+                patch(
+                    "tailor.validator.inspect_resume_pdf_fit",
+                    return_value=ResumeFitMetrics(
+                        page_count=1,
+                        page_fill_ratio=0.83,
+                        render_inspection_ok=True,
+                    ),
+                ),
+            ):
+                result = validate_resume(tex_path)
+
+        self.assertFalse(result.passed)
+        self.assertTrue(any("page underfilled" in failure for failure in result.failures))
+
     def test_validate_resume_reports_fit_inspection_error_clearly(self):
         baseline = cfg.RESUME_TEX.read_text(encoding="utf-8")
         with tempfile.TemporaryDirectory() as td:
@@ -157,6 +218,27 @@ class TestResumeValidation(unittest.TestCase):
 
         self.assertFalse(result.passed)
         self.assertIn("rendered page count unavailable (pdfinfo not found)", str(result))
+
+    def test_validate_resume_fails_when_render_inspection_incomplete_on_single_page(self):
+        baseline = cfg.RESUME_TEX.read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as td:
+            tex_path = Path(td) / "Conner_Jordan_Resume.tex"
+            tex_path.write_text(baseline, encoding="utf-8")
+
+            with (
+                patch("tailor.validator.compile_tex", return_value=tex_path.with_suffix(".pdf")),
+                patch(
+                    "tailor.validator.inspect_resume_pdf_fit",
+                    return_value=ResumeFitMetrics(
+                        page_count=1,
+                        inspection_error="pdftotext XML missing page elements",
+                    ),
+                ),
+            ):
+                result = validate_resume(tex_path)
+
+        self.assertFalse(result.passed)
+        self.assertIn("render inspection incomplete", str(result))
 
 
 if __name__ == "__main__":

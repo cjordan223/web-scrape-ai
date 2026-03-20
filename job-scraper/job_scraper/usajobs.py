@@ -44,6 +44,13 @@ _AGENCIES = {
     "OC": "NOAA",            # under DOC
     "AF": "Air Force",
     "NS": "NSF",
+    "IN10": "NPS",           # National Park Service (under DOI)
+    "IN06": "BLM",           # Bureau of Land Management (under DOI)
+    "AG96": "USFS",          # US Forest Service (under USDA)
+    "IN08": "USFWS",         # US Fish & Wildlife Service (under DOI)
+    "IN07": "USGS",          # US Geological Survey (under DOI)
+    "DN": "DOE",             # Dept of Energy
+    "IN": "DOI",             # Dept of Interior (broad)
 }
 
 # Clearance keywords to reject (no clearance pathway)
@@ -77,7 +84,7 @@ def _build_queries(w: WatcherConfig) -> list[dict[str, str]]:
         remote     — "true" to add a remote-only query variant
     """
     series = w.params.get("series", ";".join(_SERIES.keys()))
-    keywords = w.params.get("keywords", "cybersecurity;software engineer;platform engineer;cloud security;DevSecOps")
+    keywords = w.params.get("keywords", "cybersecurity;software engineer;platform engineer;cloud security;DevSecOps;IT specialist;information security;systems engineer")
     days = w.params.get("days", "14")
     agencies = w.params.get("agencies", "")
     want_remote = w.params.get("remote", "true").lower() == "true"

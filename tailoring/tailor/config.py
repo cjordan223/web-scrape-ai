@@ -56,6 +56,7 @@ COVER_CHAR_TOLERANCE = 0.15  # ±15% body text vs baseline
 MAX_RETRIES = 3  # full pipeline retries (strategy + draft + QA) per document
 
 RESUME_TARGET_PAGES = 1
+RESUME_MIN_FILL_RATIO = 0.85  # page 1 must be ≥85% filled vertically
 RESUME_COMPACT_MODE_ENABLED = True
 RESUME_FIT_MAX_STAGES = 3
 RESUME_COMPANIES = [

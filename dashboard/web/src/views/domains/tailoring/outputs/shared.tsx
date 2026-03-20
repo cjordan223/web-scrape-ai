@@ -3,6 +3,17 @@ import { ExternalLink } from 'lucide-react';
 
 export type ContextTab = 'overview' | 'strategy' | 'jd';
 
+/** Build a safe PDF filename from company + title for download (plain, no auto-generated look). */
+export function safePdfName(company: string | undefined | null, title: string | undefined | null, fallback: string, kind: 'resume' | 'cover'): string {
+    const sanit = (s: string) =>
+        s.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_').replace(/-+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '').trim().slice(0, 40) || '';
+    const c = sanit(String(company || '').trim());
+    const t = sanit(String(title || '').trim());
+    const suffix = c && t ? `${c}_${t}` : (c || t || fallback);
+    const base = kind === 'resume' ? 'Conner_Jordan_Resume' : 'Conner_Jordan_Cover_Letter';
+    return `${base}_${suffix}.pdf`;
+}
+
 export function timeAgo(isoDate: string | undefined | null) {
     if (!isoDate) return 'Never';
     const d = new Date(isoDate);
@@ -94,7 +105,7 @@ function statusColors(status?: string) {
     };
 }
 
-function StrategyCard({ label, data }: { label: string; data: any }) {
+export function StrategyCard({ label, data }: { label: string; data: any }) {
     if (!data) {
         return (
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -211,7 +222,7 @@ function StrategyCard({ label, data }: { label: string; data: any }) {
     );
 }
 
-function JdDisplay({ text }: { text: string }) {
+export function JdDisplay({ text }: { text: string }) {
     if (!text) {
         return <div style={{ ...S.fieldValue, color: 'var(--text-secondary)' }}>No JD available</div>;
     }
@@ -281,6 +292,7 @@ type DetailContextSectionProps = {
     coverStrategy: any;
     jobContext: any;
     emptyNote?: string;
+    showTabsAndBody?: boolean;
 };
 
 export function DetailContextSection({
@@ -298,6 +310,7 @@ export function DetailContextSection({
     coverStrategy,
     jobContext,
     emptyNote,
+    showTabsAndBody = true,
 }: DetailContextSectionProps) {
     const overviewKeyRequirements = coerceStringList(analysis?.key_requirements);
     const overviewEmphasisAreas = coerceStringList(resumeStrategy?.emphasis_areas);
@@ -323,13 +336,29 @@ export function DetailContextSection({
                         }}>
                             {companyName && <span>{companyName}</span>}
                             {jobUrl && (
-                                <>
-                                    {companyName && <span style={{ opacity: 0.3 }}>&middot;</span>}
-                                    <a href={jobUrl} target="_blank" rel="noreferrer"
-                                        style={{ color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                        JD <ExternalLink size={10} />
-                                    </a>
-                                </>
+                                <a
+                                    href={jobUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '3px 8px',
+                                        borderRadius: 999,
+                                        border: '1px solid var(--border-bright)',
+                                        background: 'var(--surface-2)',
+                                        fontSize: '.7rem',
+                                        fontFamily: 'var(--font-mono)',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '.08em',
+                                        color: 'var(--accent)',
+                                        textDecoration: 'none',
+                                    }}
+                                >
+                                    JD Link
+                                    <ExternalLink size={10} />
+                                </a>
                             )}
                             {status && (
                                 <>
@@ -348,38 +377,41 @@ export function DetailContextSection({
                     {badges}
                 </div>
 
-                <div style={{
-                    display: 'flex', gap: '0', padding: '0 20px', marginTop: '10px',
-                }}>
-                    {([
-                        { key: 'overview' as ContextTab, label: 'Overview' },
-                        { key: 'strategy' as ContextTab, label: 'Strategy' },
-                        { key: 'jd' as ContextTab, label: 'Full JD' },
-                    ]).map((tab) => (
-                        <button
-                            key={tab.key}
-                            onClick={() => onContextTabChange(tab.key)}
-                            style={{
-                                padding: '6px 14px', fontSize: '.72rem', fontFamily: 'var(--font-mono)',
-                                fontWeight: contextTab === tab.key ? 600 : 400,
-                                color: contextTab === tab.key ? 'var(--accent)' : 'var(--text-secondary)',
-                                background: 'transparent', border: 'none', cursor: 'pointer',
-                                borderBottom: contextTab === tab.key ? '2px solid var(--accent)' : '2px solid transparent',
-                                transition: 'color .1s',
-                            }}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
+                {showTabsAndBody && (
+                    <div style={{
+                        display: 'flex', gap: '0', padding: '0 20px', marginTop: '10px',
+                    }}>
+                        {([
+                            { key: 'overview' as ContextTab, label: 'Overview' },
+                            { key: 'strategy' as ContextTab, label: 'Strategy' },
+                            { key: 'jd' as ContextTab, label: 'Full JD' },
+                        ]).map((tab) => (
+                            <button
+                                key={tab.key}
+                                onClick={() => onContextTabChange(tab.key)}
+                                style={{
+                                    padding: '6px 14px', fontSize: '.72rem', fontFamily: 'var(--font-mono)',
+                                    fontWeight: contextTab === tab.key ? 600 : 400,
+                                    color: contextTab === tab.key ? 'var(--accent)' : 'var(--text-secondary)',
+                                    background: 'transparent', border: 'none', cursor: 'pointer',
+                                    borderBottom: contextTab === tab.key ? '2px solid var(--accent)' : '2px solid transparent',
+                                    transition: 'color .1s',
+                                }}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
 
-            <div style={{
-                flexShrink: 0, overflow: 'auto',
-                maxHeight: contextTab === 'overview' ? '180px' : '300px',
-                borderBottom: '1px solid var(--border)', background: 'var(--surface-2)',
-                padding: '12px 20px',
-            }}>
+            {showTabsAndBody && (
+                <div style={{
+                    flexShrink: 0, overflow: 'auto',
+                    maxHeight: contextTab === 'overview' ? '180px' : '300px',
+                    borderBottom: '1px solid var(--border)', background: 'var(--surface-2)',
+                    padding: '12px 20px',
+                }}>
                 {contextTab === 'overview' && (
                     <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
                         {analysis && (
@@ -460,10 +492,290 @@ export function DetailContextSection({
                     </div>
                 )}
 
-                {contextTab === 'jd' && (
-                    <JdDisplay text={jobContext?.jd_text || jobContext?.snippet || ''} />
-                )}
-            </div>
+                    {contextTab === 'jd' && (
+                        <JdDisplay text={jobContext?.jd_text || jobContext?.snippet || ''} />
+                    )}
+                </div>
+            )}
         </>
+    );
+}
+
+// ═════════ Helpers for richer briefing/strategy views ═════════
+
+type CompanyContext = {
+    what_they_build?: string;
+    engineering_challenges?: string;
+    company_type?: string;
+    cover_letter_hook?: string;
+};
+
+type Requirement = {
+    jd_requirement?: string;
+    matched_category?: string;
+    matched_skills?: string | string[];
+    evidence?: string;
+    priority?: string;
+};
+
+export function CompanyContextCard({ context }: { context?: CompanyContext | string }) {
+    if (!context) return null;
+
+    if (typeof context === 'string') {
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={S.sectionLabel}>Company Context</div>
+                <div style={S.fieldValue}>{context}</div>
+            </div>
+        );
+    }
+
+    const { what_they_build, engineering_challenges, company_type, cover_letter_hook } = context;
+    const hasAny = what_they_build || engineering_challenges || company_type || cover_letter_hook;
+    if (!hasAny) return null;
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={S.sectionLabel}>Company Context</div>
+            {what_they_build && (
+                <div>
+                    <div style={S.fieldLabel}>What they build</div>
+                    <div style={S.fieldValue}>{what_they_build}</div>
+                </div>
+            )}
+            {engineering_challenges && (
+                <div>
+                    <div style={S.fieldLabel}>Engineering challenges</div>
+                    <div style={S.fieldValue}>{engineering_challenges}</div>
+                </div>
+            )}
+            {(company_type || cover_letter_hook) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {company_type && (
+                        <div style={{ ...S.fieldValue, fontSize: '.7rem', color: 'var(--text-secondary)' }}>
+                            <span style={{ fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '.08em', fontSize: '.6rem' }}>
+                                Company type:
+                            </span>{' '}
+                            {company_type}
+                        </div>
+                    )}
+                    {cover_letter_hook && (
+                        <div>
+                            <div style={S.fieldLabel}>Cover letter hook</div>
+                            <div style={S.fieldValue}>{cover_letter_hook}</div>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+export function RequirementsTable({ requirements }: { requirements?: unknown }) {
+    const rows = coerceObjectList(requirements).map((r) => r as Requirement);
+    if (!rows.length) return null;
+
+    const priorityColor = (p?: string) => {
+        const v = (p || '').toLowerCase();
+        if (v === 'high') return { background: 'rgba(217,79,79,.12)', color: 'var(--red)' };
+        if (v === 'medium') return { background: 'rgba(200,144,42,.12)', color: 'var(--amber)' };
+        if (v === 'low') return { background: 'rgba(75,142,240,.12)', color: 'var(--accent)' };
+        return { background: 'rgba(255,255,255,.04)', color: 'var(--text-secondary)' };
+    };
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={S.sectionLabel}>Requirements Match</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.65rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                Matched JD requirements ({rows.length})
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {rows.map((req, idx) => {
+                    const skills = coerceStringList(req.matched_skills);
+                    const prio = (req.priority || '').toLowerCase();
+                    return (
+                        <div
+                            key={idx}
+                            style={{
+                                borderRadius: 3,
+                                border: '1px solid var(--border)',
+                                background: 'var(--surface-3)',
+                                padding: '8px 9px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '4px',
+                            }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                                <div style={{ fontSize: '.75rem', fontWeight: 500, color: 'var(--text)' }}>
+                                    {req.jd_requirement || 'Unlabeled requirement'}
+                                </div>
+                                {req.priority && (
+                                    <span
+                                        style={{
+                                            ...priorityColor(req.priority),
+                                            fontFamily: 'var(--font-mono)',
+                                            fontSize: '.6rem',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '.08em',
+                                            padding: '1px 6px',
+                                            borderRadius: 2,
+                                            flexShrink: 0,
+                                            whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        {prio || req.priority}
+                                    </span>
+                                )}
+                            </div>
+                            {(req.matched_category || skills.length > 0) && (
+                                <div style={{ fontSize: '.7rem', color: 'var(--text-secondary)' }}>
+                                    {req.matched_category && (
+                                        <>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.6rem', textTransform: 'uppercase', letterSpacing: '.08em' }}>
+                                                Category:
+                                            </span>{' '}
+                                            {req.matched_category}
+                                        </>
+                                    )}
+                                    {skills.length > 0 && (
+                                        <div style={{ marginTop: '2px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                            {skills.map((s, i) => (
+                                                <span
+                                                    key={i}
+                                                    style={{
+                                                        fontFamily: 'var(--font-mono)',
+                                                        fontSize: '.6rem',
+                                                        padding: '1px 5px',
+                                                        borderRadius: 2,
+                                                        background: 'rgba(75,142,240,.08)',
+                                                        border: '1px solid rgba(75,142,240,.25)',
+                                                        color: 'var(--accent)',
+                                                    }}
+                                                >
+                                                    {s}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            {req.evidence && (
+                                <div
+                                    style={{
+                                        fontSize: '.7rem',
+                                        lineHeight: 1.45,
+                                        color: 'var(--text)',
+                                        marginTop: '2px',
+                                        borderLeft: '2px solid var(--border-bright)',
+                                        paddingLeft: '8px',
+                                    }}
+                                >
+                                    {req.evidence}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+export function BriefingPanel({
+    analysis,
+}: {
+    analysis: any;
+}) {
+    if (!analysis) {
+        return (
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.76rem', color: 'var(--text-secondary)' }}>
+                No analysis data available for this package.
+            </div>
+        );
+    }
+
+    const requirements = analysis.requirements;
+    const toneNotes = analysis.tone_notes;
+    const summaryAngle = analysis.summary_angle;
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <CompanyContextCard context={analysis.company_context} />
+
+            <RequirementsTable requirements={requirements} />
+
+            {(summaryAngle || toneNotes) && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 1fr)', gap: '14px' }}>
+                    {summaryAngle && (
+                        <div>
+                            <div style={S.sectionLabel}>Positioning Summary</div>
+                            <div style={S.fieldValue}>{summaryAngle}</div>
+                        </div>
+                    )}
+                    {toneNotes && (
+                        <div>
+                            <div style={S.sectionLabel}>Tone Notes</div>
+                            <div style={{ ...S.fieldValue, fontSize: '.72rem', color: 'var(--text-secondary)' }}>{toneNotes}</div>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+export function DocumentsSideBySide({
+    resumePdfUrl,
+    coverPdfUrl,
+    resumeDownloadName,
+    coverDownloadName,
+}: {
+    resumePdfUrl: string;
+    coverPdfUrl: string;
+    resumeDownloadName?: string;
+    coverDownloadName?: string;
+}) {
+    return (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', height: '100%' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)', flexShrink: 0 }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.7rem', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--text-secondary)' }}>
+                        Resume
+                    </span>
+                    <a
+                        className="btn btn-ghost btn-sm"
+                        style={{ fontSize: '.68rem', pointerEvents: resumePdfUrl ? 'auto' : 'none', opacity: resumePdfUrl ? 1 : 0.45 }}
+                        href={resumePdfUrl || undefined}
+                        download={resumeDownloadName ?? 'Conner_Jordan_Resume.pdf'}
+                    >
+                        Download PDF
+                    </a>
+                </div>
+                <iframe
+                    src={resumePdfUrl ? `${resumePdfUrl}#pagemode=none&view=Fit` : ''}
+                    style={{ width: '100%', border: 'none', flex: 1, background: '#525659' }}
+                />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)', flexShrink: 0 }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.7rem', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--text-secondary)' }}>
+                        Cover Letter
+                    </span>
+                    <a
+                        className="btn btn-ghost btn-sm"
+                        style={{ fontSize: '.68rem', pointerEvents: coverPdfUrl ? 'auto' : 'none', opacity: coverPdfUrl ? 1 : 0.45 }}
+                        href={coverPdfUrl || undefined}
+                        download={coverDownloadName ?? 'Conner_Jordan_Cover_Letter.pdf'}
+                    >
+                        Download PDF
+                    </a>
+                </div>
+                <iframe
+                    src={coverPdfUrl ? `${coverPdfUrl}#pagemode=none&view=Fit` : ''}
+                    style={{ width: '100%', border: 'none', flex: 1, background: '#525659' }}
+                />
+            </div>
+        </div>
     );
 }

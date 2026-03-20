@@ -250,7 +250,7 @@ def scrape_jobs(
         interval_minutes = controls.get("schedule_interval_minutes")
         if isinstance(interval_minutes, int) and interval_minutes > 0:
             with JobStore() as schedule_store:
-                last_started_at = schedule_store.latest_run_started_at()
+                last_started_at = schedule_store.latest_run_started_at(trigger_source="scheduled")
             if last_started_at:
                 try:
                     last_dt = datetime.fromisoformat(last_started_at.replace("Z", "+00:00"))
@@ -288,11 +288,12 @@ def scrape_jobs(
         config.filter.target_max_results,
     )
     run_id = uuid.uuid4().hex[:12]
+    trigger_source = "scheduled" if respect_runtime_controls else "manual"
 
     run = ScrapeRun(run_id=run_id)
 
     with JobStore() as store:
-        store.start_run(run_id)
+        store.start_run(run_id, trigger_source=trigger_source)
 
         try:
             # 1. Execute queries

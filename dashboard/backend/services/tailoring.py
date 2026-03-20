@@ -9,6 +9,28 @@ globals().update({k: v for k, v in _app.__dict__.items() if not k.startswith("__
 def _sync_app_state() -> None:
     globals().update({k: v for k, v in _app.__dict__.items() if not k.startswith("__")})
 
+
+def _ready_job_for_tailoring(job_id: int) -> tuple[dict | None, JSONResponse | None]:
+    job = _get_job_context(job_id)
+    if not job:
+        return None, JSONResponse({"ok": False, "error": f"Job {job_id} not found"}, 404)
+    if not _job_is_qa_ready(job.get("decision")):
+        return None, JSONResponse(
+            {
+                "ok": False,
+                "error": f"Job {job_id} is not ready for tailoring",
+                "decision": job.get("decision"),
+            },
+            409,
+        )
+    return {
+        "id": int(job["id"]),
+        "title": job.get("title"),
+        "created_at": job.get("created_at"),
+        "url": job.get("url"),
+    }, None
+
+
 def tailoring_runner_status(lines: int = Query(80, ge=0, le=500)):
     _sync_app_state()
     return _tailoring_runner_snapshot(log_lines=lines)
@@ -30,8 +52,7 @@ def tailoring_runner_stop(payload: dict | None = Body(None)):
     had_running = proc is not None and proc.poll() is None
     cleared = 0
     if clear_queue:
-        cleared = len(_app._TAILORING_QUEUE)
-        _app._TAILORING_QUEUE.clear()
+        cleared = _cancel_tailoring_queue_items(statuses=("queued",), reason="Cleared from dashboard.")
 
     if not had_running:
         return {
@@ -43,6 +64,7 @@ def tailoring_runner_stop(payload: dict | None = Body(None)):
         }
 
     try:
+        _app._TAILORING_RUNNER["stop_reason"] = "Tailoring run stopped from dashboard."
         proc.terminate()
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"Failed to signal terminate: {e}"}, 500)
@@ -64,13 +86,66 @@ def tailoring_runner_stop(payload: dict | None = Body(None)):
     }
 
 
-def tailoring_recent_jobs(
-    limit: int = Query(25, ge=1, le=100),
+def tailoring_ready_jobs(
+    limit: int = Query(200, ge=1, le=500),
     max_age_hours: int | None = Query(None, ge=1, le=24 * 30),
 ):
     _sync_app_state()
     items = _recent_jobs(limit=limit, max_age_hours=max_age_hours)
-    return {"items": items, "count": len(items)}
+    conn = get_db()
+    try:
+        clauses = [
+            "decision = 'qa_approved'",
+            "NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)",
+        ]
+        params: list = []
+        if max_age_hours is not None:
+            clauses.append("julianday(created_at) >= julianday('now', ?)")
+            params.append(f"-{int(max_age_hours)} hours")
+        where = "WHERE " + " AND ".join(clauses)
+        total = conn.execute(f"SELECT COUNT(*) FROM results {where}", tuple(params)).fetchone()[0]
+    finally:
+        conn.close()
+    return {"items": items, "count": len(items), "total": total}
+
+
+def tailoring_recent_jobs(
+    limit: int = Query(200, ge=1, le=500),
+    max_age_hours: int | None = Query(None, ge=1, le=24 * 30),
+):
+    _sync_app_state()
+    return tailoring_ready_jobs(limit=limit, max_age_hours=max_age_hours)
+
+
+def tailoring_rejected_jobs(
+    limit: int = Query(200, ge=1, le=500),
+    max_age_hours: int | None = Query(None, ge=1, le=24 * 30),
+):
+    _sync_app_state()
+    conn = get_db()
+    try:
+        clauses = [
+            "decision = 'qa_rejected'",
+            "NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)",
+        ]
+        params: list = []
+        if max_age_hours is not None:
+            clauses.append("julianday(created_at) >= julianday('now', ?)")
+            params.append(f"-{int(max_age_hours)} hours")
+        where = "WHERE " + " AND ".join(clauses)
+        total = conn.execute(f"SELECT COUNT(*) FROM results {where}", tuple(params)).fetchone()[0]
+        query_params = [*params, max(1, min(int(limit), 500))]
+        rows = conn.execute(
+            f"""SELECT id, title, created_at, url, snippet, board, seniority
+                FROM results {where}
+                ORDER BY id DESC
+                LIMIT ?""",
+            tuple(query_params),
+        ).fetchall()
+        items = [dict(r) for r in rows]
+        return {"items": items, "count": len(items), "total": total}
+    finally:
+        conn.close()
 
 
 
@@ -136,22 +211,27 @@ def tailoring_run_job(payload: dict = Body(...)):
     if not isinstance(job_id, int):
         return JSONResponse({"ok": False, "error": "job_id must be an integer"}, 400)
 
-    job = _get_job_context(job_id)
-    if not job:
-        return JSONResponse({"ok": False, "error": f"Job {job_id} not found"}, 404)
+    if _app._TAILORING_RUNNER.get("proc") is not None and _app._TAILORING_RUNNER["proc"].poll() is None:
+        return JSONResponse({"ok": False, "error": "A tailoring run is already in progress", "runner": _tailoring_runner_snapshot()}, 409)
 
-    ok, data = _start_tailoring_run(
-        {
-            "id": int(job["id"]),
-            "title": job.get("title"),
-            "created_at": job.get("created_at"),
-            "url": job.get("url"),
-        },
-        skip_analysis=skip_analysis,
-    )
-    if not ok:
-        return JSONResponse(data, 409 if "in progress" in (data.get("error") or "") else 500)
-    return data
+    job, error = _ready_job_for_tailoring(job_id)
+    if error:
+        return error
+
+    added, duplicates = _enqueue_tailoring_queue_items([{"job": job, "skip_analysis": skip_analysis}])
+    if duplicates:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": f"Job {job_id} is already queued or running",
+                "existing": duplicates[0],
+                "runner": _tailoring_runner_snapshot(),
+            },
+            409,
+        )
+    if added and _app._TAILORING_RUNNER.get("proc") is None:
+        _app._process_tailoring_queue()
+    return {"ok": True, "queued": len(added), "item": added[0] if added else None, "runner": _tailoring_runner_snapshot()}
 
 
 
@@ -171,17 +251,30 @@ def tailoring_run_latest(payload: dict | None = Body(None)):
         except (TypeError, ValueError):
             return JSONResponse({"ok": False, "error": "max_age_hours must be an integer"}, 400)
 
+    if _app._TAILORING_RUNNER.get("proc") is not None and _app._TAILORING_RUNNER["proc"].poll() is None:
+        return JSONResponse({"ok": False, "error": "A tailoring run is already in progress", "runner": _tailoring_runner_snapshot()}, 409)
+
     job = _latest_job(max_age_hours=max_age_hours)
     if not job:
-        msg = "No jobs found"
+        msg = "No ready jobs found"
         if max_age_hours is not None:
-            msg = f"No jobs found in last {max_age_hours} hours"
+            msg = f"No ready jobs found in last {max_age_hours} hours"
         return JSONResponse({"ok": False, "error": msg}, 404)
 
-    ok, data = _start_tailoring_run(job, skip_analysis=skip_analysis)
-    if not ok:
-        return JSONResponse(data, 409 if "in progress" in (data.get("error") or "") else 500)
-    return data
+    added, duplicates = _enqueue_tailoring_queue_items([{"job": job, "skip_analysis": skip_analysis}])
+    if duplicates:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": f"Job {job['id']} is already queued or running",
+                "existing": duplicates[0],
+                "runner": _tailoring_runner_snapshot(),
+            },
+            409,
+        )
+    if added and _app._TAILORING_RUNNER.get("proc") is None:
+        _app._process_tailoring_queue()
+    return {"ok": True, "queued": len(added), "item": added[0] if added else None, "runner": _tailoring_runner_snapshot()}
 
 
 
@@ -191,46 +284,63 @@ def tailoring_queue_add(payload: dict = Body(...)):
     if not jobs or not isinstance(jobs, list):
         return JSONResponse({"ok": False, "error": "jobs must be a non-empty array"}, 400)
 
-    added = []
+    queue_items = []
     for item in jobs:
         job_id = item.get("job_id")
         if not isinstance(job_id, int):
             return JSONResponse({"ok": False, "error": f"Invalid job_id: {job_id}"}, 400)
-        job = _get_job_context(job_id)
-        if not job:
-            return JSONResponse({"ok": False, "error": f"Job {job_id} not found"}, 404)
-        added.append({
-            "job": {"id": int(job["id"]), "title": job.get("title"), "created_at": job.get("created_at"), "url": job.get("url")},
-            "skip_analysis": bool(item.get("skip_analysis", False)),
-        })
+        job, error = _ready_job_for_tailoring(job_id)
+        if error:
+            return error
+        queue_items.append({"job": job, "skip_analysis": bool(item.get("skip_analysis", False))})
 
-    _app._TAILORING_QUEUE.extend(added)
-
-    # If runner is idle, start the first one
-    if _app._TAILORING_RUNNER.get("proc") is None:
+    added, duplicates = _enqueue_tailoring_queue_items(queue_items)
+    if added and _app._TAILORING_RUNNER.get("proc") is None:
         _app._process_tailoring_queue()
 
-    return {"ok": True, "queued": len(added), "runner": _tailoring_runner_snapshot()}
+    return {
+        "ok": True,
+        "queued": len(added),
+        "duplicates": duplicates,
+        "items": added,
+        "runner": _tailoring_runner_snapshot(),
+    }
 
 
 def tailoring_queue_get():
     _sync_app_state()
-    return {"queue": [{"job": item["job"], "skip_analysis": item.get("skip_analysis", False)} for item in _app._TAILORING_QUEUE]}
+    conn = get_db_write()
+    try:
+        if _reconcile_stale_tailoring_queue(conn):
+            conn.commit()
+        items = _fetch_tailoring_queue_items(conn, statuses=_QUEUE_OPEN_STATUSES)
+    finally:
+        conn.close()
+    active_item = next((item for item in items if item.get("status") == "running"), None)
+    queue = [item for item in items if item.get("status") == "queued"]
+    return {"items": items, "active_item": active_item, "queue": queue, "count": len(items)}
 
 
 def tailoring_queue_clear():
     _sync_app_state()
-    count = len(_app._TAILORING_QUEUE)
-    _app._TAILORING_QUEUE.clear()
+    count = _cancel_tailoring_queue_items(statuses=("queued",), reason="Cleared from dashboard.")
     return {"ok": True, "cleared": count}
 
 
 def tailoring_queue_remove(index: int):
     _sync_app_state()
-    if index < 0 or index >= len(_app._TAILORING_QUEUE):
+    conn = get_db_write()
+    try:
+        if _reconcile_stale_tailoring_queue(conn):
+            conn.commit()
+        queued = _fetch_tailoring_queue_items(conn, statuses=("queued",))
+    finally:
+        conn.close()
+    if index < 0 or index >= len(queued):
         return JSONResponse({"ok": False, "error": "Index out of range"}, 400)
-    removed = _app._TAILORING_QUEUE.pop(index)
-    return {"ok": True, "removed": removed["job"]}
+    removed = queued[index]
+    _cancel_tailoring_queue_items(item_ids=[int(removed["id"])], statuses=("queued",), reason="Removed from queue.")
+    return {"ok": True, "removed": removed}
 
 
 def tailoring_runs():
@@ -353,10 +463,29 @@ def package_runs(status: str = Query("complete")):
             continue
         rows.append(s)
     applied_by_slug = _fetch_applied_by_package_slugs([str(row.get("slug") or "") for row in rows])
+    # Enrich with DB decision state
+    job_ids = [r.get("meta", {}).get("job_id") for r in rows if r.get("meta", {}).get("job_id")]
+    decision_map: dict[int, str] = {}
+    if job_ids:
+        conn = get_db()
+        try:
+            placeholders = ",".join("?" for _ in job_ids)
+            for r in conn.execute(f"SELECT id, decision FROM results WHERE id IN ({placeholders})", job_ids):
+                decision_map[r["id"]] = r["decision"]
+        finally:
+            conn.close()
+    filtered = []
     for row in rows:
         row["applied"] = applied_by_slug.get(str(row.get("slug") or ""))
-    rows.sort(key=lambda r: _parse_ts(r.get("updated_at")) or 0, reverse=True)
-    return {"items": rows}
+        jid = (row.get("meta") or {}).get("job_id")
+        if jid:
+            row["decision"] = decision_map.get(jid)
+        # Hide packages whose job was rolled back (no longer qa_approved) unless already applied
+        if row.get("decision") and row["decision"] != "qa_approved" and not row.get("applied"):
+            continue
+        filtered.append(row)
+    filtered.sort(key=lambda r: _parse_ts(r.get("updated_at")) or 0, reverse=True)
+    return {"items": filtered}
 
 
 
@@ -366,6 +495,197 @@ def package_detail(slug: str):
     if d is None:
         return JSONResponse({"error": "Package not found"}, 404)
     return _package_detail_payload(d)
+
+
+def _package_regen_env() -> dict[str, str]:
+    llm_runtime = _resolve_llm_runtime()
+    env = os.environ.copy()
+    env["TAILOR_LMSTUDIO_URL"] = llm_runtime["chat_url"]
+    env["TAILOR_LMSTUDIO_MODELS_URL"] = llm_runtime["models_url"]
+    env["TAILOR_LMSTUDIO_MODEL"] = llm_runtime["selected_model"]
+    env["TAILOR_OLLAMA_URL"] = llm_runtime["chat_url"]
+    env["TAILOR_OLLAMA_MODELS_URL"] = llm_runtime["models_url"]
+    env["TAILOR_OLLAMA_MODEL"] = llm_runtime["selected_model"]
+    return env
+
+
+def package_regenerate_cover(slug: str):
+    _sync_app_state()
+    d = _safe_tailoring_slug(slug)
+    if d is None:
+        return JSONResponse({"ok": False, "error": "Package not found"}, 404)
+    if _app._TAILORING_RUNNER.get("proc") is not None and _app._TAILORING_RUNNER["proc"].poll() is None:
+        return JSONResponse({"ok": False, "error": "A tailoring run is already in progress"}, 409)
+
+    summary = _tailoring_summary(d)
+    job_context = _package_job_context(summary)
+    analysis = _load_json_file(d / "analysis.json")
+    if not isinstance(analysis, dict) or not analysis:
+        return JSONResponse({"ok": False, "error": "Package analysis is missing; cannot regenerate cover letter"}, 409)
+
+    meta = summary.get("meta", {}) or {}
+    job_id = meta.get("job_id") or job_context.get("id")
+    try:
+        job_id = int(job_id)
+    except (TypeError, ValueError):
+        return JSONResponse({"ok": False, "error": "Package metadata is missing a valid job_id"}, 409)
+
+    job_payload = {
+        "id": job_id,
+        "url": str(job_context.get("url") or meta.get("url") or ""),
+        "title": str(job_context.get("title") or meta.get("title") or meta.get("job_title") or "Untitled"),
+        "board": meta.get("board"),
+        "seniority": job_context.get("seniority"),
+        "jd_text": job_context.get("jd_text"),
+        "snippet": job_context.get("snippet"),
+        "company": str(
+            analysis.get("company_name")
+            or meta.get("company_name")
+            or meta.get("company")
+            or "unknown"
+        ),
+    }
+    if not job_payload["url"]:
+        return JSONResponse({"ok": False, "error": "Package metadata is missing a job URL"}, 409)
+
+    script = r"""
+import json
+import sys
+from pathlib import Path
+
+from tailor import config as cfg
+from tailor.selector import SelectedJob
+from tailor.tracing import TraceRecorder, utc_now_iso
+from tailor.validator import validate_cover_letter
+from tailor.writer import write_cover_letter
+
+payload = json.loads(sys.stdin.read())
+output_dir = Path(payload["output_dir"])
+job = SelectedJob(**payload["job"])
+analysis = payload["analysis"]
+trace = TraceRecorder(
+    output_dir,
+    run_context={
+        "run_slug": output_dir.name,
+        "job_slug": payload.get("job_slug") or output_dir.name,
+        "job_id": job.id,
+        "job_title": job.title,
+    },
+)
+
+previous_errors = None
+passed = False
+last_result = None
+last_tex_path = None
+for attempt in range(1, cfg.MAX_RETRIES + 1):
+    tex_path = write_cover_letter(
+        job,
+        analysis,
+        output_dir,
+        previous_errors=previous_errors,
+        attempt=attempt,
+        trace_recorder=trace.record,
+    )
+    result = validate_cover_letter(tex_path)
+    trace.record(
+        {
+            "event_type": "validation_result",
+            "doc_type": "cover",
+            "phase": "qa",
+            "attempt": attempt,
+            "passed": result.passed,
+            "failures": result.failures,
+            "metrics": result.metrics,
+            "timestamp": utc_now_iso(),
+        }
+    )
+    trace.record(
+        {
+            "event_type": "doc_attempt_result",
+            "doc_type": "cover",
+            "phase": "qa",
+            "attempt": attempt,
+            "status": "passed" if result.passed else "failed",
+            "error": None if result.passed else str(result),
+            "timestamp": utc_now_iso(),
+        }
+    )
+    last_result = result
+    last_tex_path = str(tex_path)
+    if result.passed:
+        passed = True
+        break
+    previous_errors = str(result)
+
+print(json.dumps({
+    "ok": passed,
+    "tex_path": last_tex_path,
+    "validation": {
+        "passed": bool(last_result.passed) if last_result is not None else False,
+        "failures": list(last_result.failures) if last_result is not None else [],
+        "metrics": dict(last_result.metrics) if last_result is not None else {},
+    },
+}))
+"""
+
+    try:
+        env = _package_regen_env()
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 503)
+
+    proc = subprocess.run(
+        [str(TAILORING_PYTHON), "-c", script],
+        cwd=str(TAILORING_ROOT),
+        input=json.dumps(
+            {
+                "output_dir": str(d),
+                "job_slug": meta.get("job_slug") or meta.get("run_slug") or d.name,
+                "job": job_payload,
+                "analysis": analysis,
+            }
+        ),
+        text=True,
+        capture_output=True,
+        env=env,
+        timeout=300,
+    )
+    if proc.returncode != 0:
+        error = (proc.stderr or proc.stdout or "Cover regeneration failed").strip()
+        return JSONResponse({"ok": False, "error": error[-6000:]}, 500)
+
+    try:
+        payload = json.loads(proc.stdout.strip() or "{}")
+    except json.JSONDecodeError:
+        return JSONResponse({"ok": False, "error": "Cover regeneration returned invalid output"}, 500)
+
+    if not payload.get("ok"):
+        validation = payload.get("validation") or {}
+        failures = validation.get("failures") or []
+        error = "; ".join(str(item) for item in failures) or "Cover regeneration failed validation"
+        return JSONResponse(
+            {"ok": False, "error": error, "validation": validation},
+            422,
+        )
+
+    tex_path = d / "Conner_Jordan_Cover_Letter.tex"
+    ok, error = _compile_tex_in_place(tex_path)
+    if not ok:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": error or "Compile failed",
+                "validation": payload.get("validation"),
+            },
+            _package_compile_status_code(error),
+        )
+
+    return {
+        "ok": True,
+        "slug": slug,
+        "validation": payload.get("validation"),
+        "pdf_name": "Conner_Jordan_Cover_Letter.pdf",
+        "detail": _package_detail_payload(d),
+    }
 
 
 
@@ -847,7 +1167,7 @@ def tailoring_ingest_commit(payload: dict = Body(...)):
             """INSERT INTO results
                (url, title, board, seniority, experience_years, salary_k, score, decision,
                 snippet, query, jd_text, filter_verdicts, run_id, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, NULL, 'manual', ?, 'manual-ingest', ?, NULL, 'manual-ingest', ?)
+               VALUES (?, ?, ?, ?, ?, ?, NULL, 'qa_pending', ?, 'manual-ingest', ?, NULL, 'manual-ingest', ?)
                ON CONFLICT(url, run_id) DO NOTHING""",
             (url, title, board, seniority, experience_years, salary_k, snippet, jd_text, now),
         )
@@ -856,6 +1176,17 @@ def tailoring_ingest_commit(payload: dict = Body(...)):
             conn.close()
             return JSONResponse({"ok": False, "error": "Duplicate — this URL already exists for manual-ingest"}, 409)
         job_id = cur.lastrowid
+        from services.audit import log_state_change
+        log_state_change(
+            conn,
+            job_id=job_id,
+            job_url=url,
+            old_state=None,
+            new_state="qa_pending",
+            action="ingest_manual",
+            detail={"query": "manual-ingest"},
+        )
+        conn.commit()
         conn.close()
         return {"ok": True, "job_id": job_id, "url": url}
     except Exception as e:
@@ -1104,17 +1435,23 @@ def _polish_job_description(
         return heuristic_summary, heuristic_text, False
 
 
-def tailoring_qa_list(limit: int = Query(50, ge=1, le=200)):
+def tailoring_qa_list(limit: int = Query(200, ge=1, le=500)):
     _sync_app_state()
     conn = get_db()
     try:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM results WHERE decision = 'qa_pending' "
+            "AND NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)"
+        ).fetchone()[0]
         rows = conn.execute(
             "SELECT id, title, url, snippet, board, seniority, created_at "
-            "FROM results WHERE decision='accept' ORDER BY id DESC LIMIT ?",
+            "FROM results WHERE decision = 'qa_pending' "
+            "AND NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id) "
+            "ORDER BY id DESC LIMIT ?",
             (limit,),
         ).fetchall()
         items = [dict(r) for r in rows]
-        return {"items": items, "count": len(items)}
+        return {"items": items, "count": len(items), "total": total}
     finally:
         conn.close()
 
@@ -1144,10 +1481,13 @@ def tailoring_qa_approve(payload: dict = Body(...)):
         results = []
         for jid in job_ids:
             row = conn.execute(
-                "SELECT id, title, url, snippet, jd_text FROM results WHERE id = ?",
+                "SELECT id, title, url, snippet, jd_text, decision FROM results WHERE id = ?",
                 (jid,),
             ).fetchone()
             if not row:
+                continue
+            old_decision = _normalize_decision(row["decision"])
+            if not _job_is_qa_pending(old_decision):
                 continue
 
             source_text = row["jd_text"] or row["snippet"] or ""
@@ -1166,6 +1506,10 @@ def tailoring_qa_approve(payload: dict = Body(...)):
                     jid,
                 ),
             )
+            from services.audit import log_state_change
+            log_state_change(conn, job_id=jid, job_url=row["url"],
+                             old_state=old_decision, new_state="qa_approved",
+                             action="qa_approve")
             results.append({
                 "job_id": jid,
                 "summarized": bool(req_summary),
@@ -1189,8 +1533,17 @@ def tailoring_qa_reject(payload: dict = Body(...)):
 
     conn = get_db_write()
     try:
+        from services.audit import log_state_change
         for jid in job_ids:
+            row = conn.execute("SELECT decision, url FROM results WHERE id=?", (jid,)).fetchone()
+            old_decision = _normalize_decision(row["decision"]) if row else None
+            if not _job_is_qa_pending(old_decision):
+                continue
             conn.execute("UPDATE results SET decision='qa_rejected' WHERE id=?", (jid,))
+            if row:
+                log_state_change(conn, job_id=jid, job_url=row["url"],
+                                 old_state=old_decision, new_state="qa_rejected",
+                                 action="qa_reject")
         conn.commit()
         return {"ok": True, "rejected": len(job_ids)}
     finally:
@@ -1420,10 +1773,10 @@ def _run_single_qa_llm_review(
     ).fetchone()
     if not row:
         return {"status": "skipped", "reason": "job not found"}
-    if (row["decision"] or "") != "accept":
+    if not _job_is_qa_pending(row["decision"]):
         return {
             "status": "skipped",
-            "reason": f"job no longer pending QA ({row['decision'] or 'unknown'})",
+            "reason": f"job no longer pending QA ({_normalize_decision(row['decision']) or 'unknown'})",
         }
 
     jd_text = row["jd_text"] or row["snippet"] or ""
@@ -1665,9 +2018,138 @@ def tailoring_qa_reset_approved():
     _sync_app_state()
     conn = get_db_write()
     try:
-        cur = conn.execute("UPDATE results SET decision='accept' WHERE decision='qa_approved'")
+        from services.audit import log_state_change
+        rows = conn.execute("SELECT id, url FROM results WHERE decision='qa_approved'").fetchall()
+        job_ids = [int(row["id"]) for row in rows]
+        if job_ids:
+            _cancel_tailoring_queue_items(job_ids=job_ids, statuses=("queued",), reason="Returned to QA.")
+            _stop_active_tailoring_job(job_ids, "Job returned to QA.")
+        conn.execute("UPDATE results SET decision='qa_pending' WHERE decision='qa_approved'")
+        for row in rows:
+            log_state_change(conn, job_id=row["id"], job_url=row["url"],
+                             old_state="qa_approved", new_state="qa_pending",
+                             action="qa_reset_approved")
         conn.commit()
-        return {"ok": True, "reset": cur.rowcount}
+        return {"ok": True, "reset": len(rows)}
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Routes — API: QA Undo / Rollback
+# ---------------------------------------------------------------------------
+
+def tailoring_qa_undo_approve(payload: dict = Body(...)):
+    """Undo QA approval — revert qa_approved back to qa_pending."""
+    _sync_app_state()
+    job_ids = payload.get("job_ids") or []
+    if not job_ids:
+        return JSONResponse({"ok": False, "error": "job_ids required"}, 400)
+
+    conn = get_db_write()
+    try:
+        from services.audit import log_state_change
+        _cancel_tailoring_queue_items(job_ids=[int(jid) for jid in job_ids], statuses=("queued",), reason="Returned to QA.")
+        _stop_active_tailoring_job([int(jid) for jid in job_ids], "Job returned to QA.")
+        reverted = 0
+        for jid in job_ids:
+            row = conn.execute(
+                "SELECT id, url, decision FROM results WHERE id=? AND decision='qa_approved'",
+                (jid,),
+            ).fetchone()
+            if not row:
+                continue
+            conn.execute("UPDATE results SET decision='qa_pending' WHERE id=?", (jid,))
+            log_state_change(conn, job_id=jid, job_url=row["url"],
+                             old_state="qa_approved", new_state="qa_pending",
+                             action="qa_undo_approve")
+            reverted += 1
+        conn.commit()
+        return {"ok": True, "reverted": reverted}
+    finally:
+        conn.close()
+
+
+def tailoring_qa_undo_reject(payload: dict = Body(...)):
+    """Undo QA rejection — revert qa_rejected back to qa_pending."""
+    _sync_app_state()
+    job_ids = payload.get("job_ids") or []
+    if not job_ids:
+        return JSONResponse({"ok": False, "error": "job_ids required"}, 400)
+
+    conn = get_db_write()
+    try:
+        from services.audit import log_state_change
+        reverted = 0
+        for jid in job_ids:
+            row = conn.execute(
+                "SELECT id, url, decision FROM results WHERE id=? AND decision='qa_rejected'",
+                (jid,),
+            ).fetchone()
+            if not row:
+                continue
+            conn.execute("UPDATE results SET decision='qa_pending' WHERE id=?", (jid,))
+            log_state_change(conn, job_id=jid, job_url=row["url"],
+                             old_state="qa_rejected", new_state="qa_pending",
+                             action="qa_undo_reject")
+            reverted += 1
+        conn.commit()
+        return {"ok": True, "reverted": reverted}
+    finally:
+        conn.close()
+
+
+def tailoring_qa_rollback(payload: dict = Body(...)):
+    """Roll back tailored jobs to QA — resets decision to qa_pending without deleting output."""
+    _sync_app_state()
+    job_ids = payload.get("job_ids") or []
+    if not job_ids:
+        return JSONResponse({"ok": False, "error": "job_ids required"}, 400)
+
+    conn = get_db_write()
+    try:
+        from services.audit import log_state_change
+        _cancel_tailoring_queue_items(job_ids=[int(jid) for jid in job_ids], statuses=("queued",), reason="Returned to QA.")
+        _stop_active_tailoring_job([int(jid) for jid in job_ids], "Job returned to QA.")
+        rolled_back = 0
+        for jid in job_ids:
+            row = conn.execute(
+                "SELECT id, url, decision FROM results WHERE id=?",
+                (jid,),
+            ).fetchone()
+            if not row:
+                continue
+            old = _normalize_decision(row["decision"])
+            if old == "qa_pending":
+                continue
+            conn.execute("UPDATE results SET decision='qa_pending' WHERE id=?", (jid,))
+            log_state_change(conn, job_id=jid, job_url=row["url"],
+                             old_state=old, new_state="qa_pending",
+                             action="rollback_to_qa")
+            rolled_back += 1
+        conn.commit()
+        return {"ok": True, "rolled_back": rolled_back}
+    finally:
+        conn.close()
+
+
+def state_log(job_id: int | None = Query(None), limit: int = Query(50, ge=1, le=500)):
+    """Return recent job state audit log entries."""
+    conn = get_db()
+    try:
+        if job_id is not None:
+            rows = conn.execute(
+                "SELECT * FROM job_state_log WHERE job_id=? ORDER BY created_at DESC LIMIT ?",
+                (job_id, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM job_state_log ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return {"entries": [dict(r) for r in rows]}
+    except Exception:
+        return {"entries": []}
     finally:
         conn.close()
 

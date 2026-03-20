@@ -1,3 +1,5 @@
+import sqlite3
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -5,12 +7,61 @@ from unittest.mock import patch
 
 import typer
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tailor import config as cfg
 from tailor.__main__ import run
+from tailor.selector import select_job
 from tailor.selector import SelectedJob
 from tailor.validator import ValidationResult
 
 
 class TestCliRunExit(unittest.TestCase):
+    def test_select_job_rejects_non_approved_state(self):
+        with tempfile.TemporaryDirectory() as td:
+            db_path = Path(td) / "jobs.db"
+            conn = sqlite3.connect(db_path)
+            conn.execute(
+                """
+                CREATE TABLE results (
+                    id INTEGER PRIMARY KEY,
+                    url TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    board TEXT,
+                    seniority TEXT,
+                    jd_text TEXT,
+                    snippet TEXT,
+                    decision TEXT
+                )
+                """
+            )
+            conn.execute(
+                """
+                INSERT INTO results (id, url, title, board, seniority, jd_text, snippet, decision)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    1,
+                    "https://example.com/jobs/1",
+                    "Pending Role",
+                    "lever",
+                    "mid",
+                    "Role details",
+                    "Summary",
+                    "qa_pending",
+                ),
+            )
+            conn.commit()
+            conn.close()
+
+            old_db = cfg.DB_PATH
+            cfg.DB_PATH = db_path
+            try:
+                with self.assertRaisesRegex(ValueError, "not QA-approved"):
+                    select_job(1)
+            finally:
+                cfg.DB_PATH = old_db
+
     def test_run_exits_nonzero_when_resume_never_passes(self):
         job = SelectedJob(
             id=999,

@@ -16,6 +16,8 @@ Use these as proof points when generating tailored letters:
 - Built internal tooling that improved visibility and reduced manual effort
 - Established best practices for AI-assisted security tooling (auditability + safe deployment)
 - Wrote runbooks that standardized remediation workflows
+- Pioneered Checkmarx SAST integration into CI/CD pipelines, embedding security gates into the build process
+- Hands-on penetration testing with Burp Suite, ZAP, Nmap, John the Ripper, and other offensive tools
 - Built Python and PowerShell automation for enterprise-scale endpoint operations
 - Developed analytics tooling that turned security data into measurable improvements
 - Built a phishing detection project combining browser extension + backend API

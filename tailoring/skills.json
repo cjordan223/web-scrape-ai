@@ -78,6 +78,33 @@
                 ]
             },
             {
+                "name": "Application Security",
+                "skills": [
+                    "SAST integration (Checkmarx)",
+                    "DAST scanning (Burp Suite, OWASP ZAP)",
+                    "SCA and dependency analysis",
+                    "Secure SDLC implementation",
+                    "CI/CD security gate integration",
+                    "Manual penetration testing",
+                    "Web application security assessment"
+                ]
+            },
+            {
+                "name": "Penetration Testing and Offensive Tools",
+                "skills": [
+                    "Burp Suite",
+                    "OWASP ZAP",
+                    "Nmap network scanning",
+                    "John the Ripper",
+                    "Metasploit",
+                    "Tails OS",
+                    "RAT analysis and deployment",
+                    "Network reconnaissance",
+                    "Web application pentesting",
+                    "Spider/crawling tools"
+                ]
+            },
+            {
                 "name": "DevSecOps",
                 "skills": [
                     "CI/CD pipelines",
@@ -85,7 +112,9 @@
                     "Release automation",
                     "Infrastructure as Code",
                     "Configuration management",
-                    "Operational reliability practices"
+                    "Operational reliability practices",
+                    "Checkmarx CI/CD pipeline integration",
+                    "Security scanning automation in CI/CD"
                 ]
             },
             {
@@ -205,7 +234,9 @@
             "Carbon Black", "Trellix EDR", "Rapid7 InsightVM",
             "Zeek", "Grafana", "Prometheus",
             "SIEM", "EDR", "XDR", "SOAR",
-            "Vulnerability management", "Endpoint management"
+            "Vulnerability management", "Endpoint management",
+            "Checkmarx SAST", "Burp Suite", "OWASP ZAP",
+            "Nmap", "John the Ripper", "Metasploit", "Tails OS"
         ],
         "devops_and_cloud": [
             "AWS", "GCP", "Azure",

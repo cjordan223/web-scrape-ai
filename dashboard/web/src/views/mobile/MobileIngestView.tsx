@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../api';
 
 const EMPTY_FIELDS = {
@@ -10,6 +11,7 @@ type Mode = 'input' | 'fields' | 'done';
 type InputTab = 'url' | 'text';
 
 export default function MobileIngestView() {
+    const navigate = useNavigate();
     const [mode, setMode] = useState<Mode>('input');
     const [inputTab, setInputTab] = useState<InputTab>('text');
     const [urlInput, setUrlInput] = useState('');
@@ -19,12 +21,11 @@ export default function MobileIngestView() {
     const [busyLabel, setBusyLabel] = useState('');
     const [error, setError] = useState('');
     const [commitResult, setCommitResult] = useState<{ job_id: number } | null>(null);
-    const [queueBusy, setQueueBusy] = useState(false);
 
     const resetAll = () => {
         setMode('input'); setUrlInput(''); setTextInput('');
         setFields({ ...EMPTY_FIELDS }); setBusy(false); setBusyLabel(''); setError('');
-        setCommitResult(null); setQueueBusy(false);
+        setCommitResult(null);
     };
 
     const handleFetchAndParse = async () => {
@@ -87,20 +88,10 @@ export default function MobileIngestView() {
             const res = await api.ingestCommit(payload);
             if (!res.ok) { setError(res.error || 'Commit failed'); return; }
             setCommitResult({ job_id: res.job_id });
+            setMode('done');
         } catch (e: any) {
             setError(e?.response?.data?.error || e?.message || 'Commit failed');
         } finally { setBusy(false); }
-    };
-
-    const handleQueue = async () => {
-        if (!commitResult) return;
-        setQueueBusy(true);
-        try {
-            await api.queueTailoring([{ job_id: commitResult.job_id }]);
-            setMode('done');
-        } catch (e: any) {
-            alert(e?.response?.data?.error || 'Queue failed');
-        } finally { setQueueBusy(false); }
     };
 
     // -- styles --
@@ -130,8 +121,9 @@ export default function MobileIngestView() {
             <div style={{ ...wrap, alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
                 <div style={{ fontSize: '2rem' }}>&#10003;</div>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.85rem', color: 'var(--green)' }}>
-                    Job #{commitResult?.job_id} queued for tailoring
+                    Job #{commitResult?.job_id} sent to QA
                 </div>
+                <button style={primaryBtn} onClick={() => navigate('/m/qa')}>Open QA</button>
                 <button style={ghostBtn} onClick={resetAll}>Ingest Another</button>
             </div>
         );
@@ -246,15 +238,9 @@ export default function MobileIngestView() {
                     {busy ? 'Committing…' : 'Commit to DB'}
                 </button>
             ) : (
-                <>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.78rem', color: 'var(--green)', textAlign: 'center' }}>
-                        Committed — Job #{commitResult.job_id}
-                    </div>
-                    <button style={{ ...primaryBtn, background: 'var(--green)' }}
-                        onClick={handleQueue} disabled={queueBusy}>
-                        {queueBusy ? 'Queuing…' : 'Queue for Tailoring'}
-                    </button>
-                </>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.78rem', color: 'var(--green)', textAlign: 'center' }}>
+                    Sent to QA — Job #{commitResult.job_id}
+                </div>
             )}
         </div>
     );

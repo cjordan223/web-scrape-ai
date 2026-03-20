@@ -5,7 +5,7 @@ Generates targeted application packages (resume + cover letter) from scraper job
 ## Quick Start
 
 ```bash
-cd /Users/conner/Documents/SearXNG/tailoring
+cd /Users/conner/Documents/JobForge/tailoring
 source ../venv/bin/activate
 
 python -m tailor select

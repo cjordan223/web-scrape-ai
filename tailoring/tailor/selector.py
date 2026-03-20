@@ -49,12 +49,12 @@ def _parse_company(url: str, title: str) -> str:
 
 
 def list_recent_jobs(limit: int = 20) -> list[dict]:
-    """Return recent passing jobs from the DB."""
+    """Return recent QA-approved jobs from the DB."""
     conn = sqlite3.connect(cfg.DB_PATH, timeout=5)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
         "SELECT id, url, title, board, seniority, snippet "
-        "FROM results ORDER BY created_at DESC LIMIT ?",
+        "FROM results WHERE decision = 'qa_approved' ORDER BY created_at DESC LIMIT ?",
         (limit,),
     ).fetchall()
     conn.close()
@@ -74,13 +74,17 @@ def select_job(job_id: int) -> SelectedJob:
     if _results_has_column(conn, "approved_jd_text"):
         jd_expr = "COALESCE(approved_jd_text, jd_text)"
     row = conn.execute(
-        f"SELECT id, url, title, board, seniority, {jd_expr} AS jd_text, snippet "
+        f"SELECT id, url, title, board, seniority, {jd_expr} AS jd_text, snippet, decision "
         "FROM results WHERE id = ?",
         (job_id,),
     ).fetchone()
     conn.close()
     if not row:
         raise ValueError(f"Job ID {job_id} not found in results table")
+    if row["decision"] != "qa_approved":
+        raise ValueError(
+            f"Job ID {job_id} is not QA-approved (current state: {row['decision'] or 'unknown'})"
+        )
     return SelectedJob(
         id=row["id"],
         url=row["url"],

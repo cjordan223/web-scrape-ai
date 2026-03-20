@@ -757,7 +757,10 @@ export default function RunsView() {
 
     return (
         <PageView>
-            <PageHeader title="Run History & Controls" />
+            <PageHeader
+                title="Ingest Runs & Controls"
+                subtitle="SCRAPE / REVIEW INGESTION"
+            />
             <PagePrimary>
             <div className="runs-control-panel runs-control-panel--compact">
                 <div className="runs-control-block">
@@ -1056,8 +1059,8 @@ export default function RunsView() {
                                         <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{run.run_id.slice(0, 12)}...</td>
                                         <td>
                                             <ActionBar style={{ gap: '4px' }}>
-                                                <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/scraping/intake/jobs?run_id=${run.run_id}`)}>Jobs</button>
-                                                <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/scraping/intake/rejected?run_id=${run.run_id}`)}>Rej</button>
+                                                <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/ops/jobs?run_id=${run.run_id}`)}>Jobs</button>
+                                                <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/ops/rejected?run_id=${run.run_id}`)}>Rej</button>
                                                 {run.status === 'running' && (
                                                     <button
                                                         className="btn btn-sm"

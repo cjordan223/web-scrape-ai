@@ -27,7 +27,7 @@ python -m job_scraper stats
 python -m job_scraper recent -n 20
 
 # Dashboard backend
-cd /Users/conner/Documents/SearXNG
+cd /Users/conner/Documents/JobForge
 source venv/bin/activate
 python dashboard/backend/server.py
 

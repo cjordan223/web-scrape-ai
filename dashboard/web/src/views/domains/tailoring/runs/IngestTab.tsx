@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../../../../api';
 
 interface Props {
-    onRunStarted: () => void;
+    onSentToQa: () => void;
 }
 
 const EMPTY_FIELDS = {
@@ -10,7 +10,7 @@ const EMPTY_FIELDS = {
     salary_k: '', experience_years: '', jd_text: '',
 };
 
-export default function IngestTab({ onRunStarted }: Props) {
+export default function IngestTab({ onSentToQa }: Props) {
     const [rawJd, setRawJd] = useState('');
     const [fields, setFields] = useState({ ...EMPTY_FIELDS });
     const [parsing, setParsing] = useState(false);
@@ -19,7 +19,6 @@ export default function IngestTab({ onRunStarted }: Props) {
     const [committing, setCommitting] = useState(false);
     const [commitResult, setCommitResult] = useState<{ job_id: number; url: string } | null>(null);
     const [commitError, setCommitError] = useState('');
-    const [queueBusy, setQueueBusy] = useState(false);
 
     const handleParse = async () => {
         if (!rawJd.trim()) return;
@@ -67,19 +66,6 @@ export default function IngestTab({ onRunStarted }: Props) {
             setCommitError(e?.response?.data?.error || 'Commit request failed');
         } finally {
             setCommitting(false);
-        }
-    };
-
-    const handleQueue = async () => {
-        if (!commitResult) return;
-        setQueueBusy(true);
-        try {
-            await api.queueTailoring([{ job_id: commitResult.job_id }]);
-            onRunStarted();
-        } catch (e: any) {
-            alert(e?.response?.data?.error || 'Queue failed');
-        } finally {
-            setQueueBusy(false);
         }
     };
 
@@ -207,14 +193,13 @@ export default function IngestTab({ onRunStarted }: Props) {
                             <span style={{
                                 fontFamily: 'var(--font-mono)', fontSize: '.75rem', color: 'var(--green)',
                             }}>
-                                Committed — Job #{commitResult.job_id}
+                                Sent to QA — Job #{commitResult.job_id}
                             </span>
                             <button
                                 className="btn btn-primary btn-sm"
-                                onClick={handleQueue}
-                                disabled={queueBusy}
+                                onClick={onSentToQa}
                             >
-                                {queueBusy ? 'Queuing...' : 'Queue for Tailoring'}
+                                Open QA
                             </button>
                             <button className="btn btn-ghost btn-sm" onClick={handleReset}>Ingest Another</button>
                         </>

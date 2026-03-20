@@ -18,7 +18,7 @@ Shared control-plane app for:
 ## Run
 
 ```bash
-cd /Users/conner/Documents/SearXNG
+cd /Users/conner/Documents/JobForge
 source venv/bin/activate
 python dashboard/backend/server.py
 ```
@@ -28,7 +28,7 @@ Open `http://localhost:8899`.
 ## Frontend Development
 
 ```bash
-cd /Users/conner/Documents/SearXNG/dashboard/web
+cd /Users/conner/Documents/JobForge/dashboard/web
 npm install
 npm run dev       # dev server on :5173, proxies API to :8899
 npm run build     # production build to dist/

@@ -292,6 +292,73 @@ def ops_action(payload: dict = Body(default={})):
 
     action = str(payload.get("action", "")).strip()
 
+    def _clear_inventory_preserving_applied(
+        conn,
+        *,
+        clear_runs: bool,
+        clear_rejected: bool,
+        clear_seen_urls: bool,
+    ) -> dict:
+        existing = set(_db_user_tables(conn))
+        protected_job_ids = _fetch_protected_job_ids(conn) if "results" in existing else []
+        placeholders = ",".join("?" for _ in protected_job_ids)
+
+        removed_results = 0
+        removed_queue_items = 0
+        removed_state_logs = 0
+        cleared_tables: list[str] = []
+
+        if "tailoring_queue_items" in existing:
+            if protected_job_ids:
+                cur = conn.execute(
+                    f"DELETE FROM tailoring_queue_items WHERE job_id NOT IN ({placeholders})",
+                    tuple(protected_job_ids),
+                )
+            else:
+                cur = conn.execute("DELETE FROM tailoring_queue_items")
+            removed_queue_items = max(int(cur.rowcount or 0), 0)
+            cleared_tables.append("tailoring_queue_items")
+
+        if "job_state_log" in existing:
+            if protected_job_ids:
+                cur = conn.execute(
+                    f"DELETE FROM job_state_log WHERE job_id IS NULL OR job_id NOT IN ({placeholders})",
+                    tuple(protected_job_ids),
+                )
+            else:
+                cur = conn.execute("DELETE FROM job_state_log")
+            removed_state_logs = max(int(cur.rowcount or 0), 0)
+            cleared_tables.append("job_state_log")
+
+        if "results" in existing:
+            if protected_job_ids:
+                cur = conn.execute(
+                    f"DELETE FROM results WHERE id NOT IN ({placeholders})",
+                    tuple(protected_job_ids),
+                )
+            else:
+                cur = conn.execute("DELETE FROM results")
+            removed_results = max(int(cur.rowcount or 0), 0)
+            cleared_tables.append("results")
+
+        if clear_rejected and "rejected" in existing:
+            conn.execute("DELETE FROM rejected")
+            cleared_tables.append("rejected")
+        if clear_runs and "runs" in existing:
+            conn.execute("DELETE FROM runs")
+            cleared_tables.append("runs")
+        if clear_seen_urls and "seen_urls" in existing:
+            conn.execute("DELETE FROM seen_urls")
+            cleared_tables.append("seen_urls")
+
+        return {
+            "protected_job_ids": protected_job_ids,
+            "removed_results": removed_results,
+            "removed_queue_items": removed_queue_items,
+            "removed_state_logs": removed_state_logs,
+            "affected_tables": cleared_tables,
+        }
+
     # ── Scraping: DB table clears ──────────────────────────────────────────
     _SCRAPING_TABLE_ACTIONS = {
         "clear_scrape_runs":   ["runs"],
@@ -304,6 +371,16 @@ def ops_action(payload: dict = Body(default={})):
         tables = _SCRAPING_TABLE_ACTIONS[action]
         conn = get_db_write()
         try:
+            if action in {"clear_jobs", "clear_scraping_all"}:
+                summary = _clear_inventory_preserving_applied(
+                    conn,
+                    clear_runs=(action == "clear_scraping_all"),
+                    clear_rejected=(action == "clear_scraping_all"),
+                    clear_seen_urls=True,
+                )
+                conn.commit()
+                return {"ok": True, "action": action, **summary}
+
             existing = set(_db_user_tables(conn))
             affected = [t for t in tables if t in existing]
             for t in affected:
@@ -319,6 +396,7 @@ def ops_action(payload: dict = Body(default={})):
     # ── Tailoring: filesystem purges ──────────────────────────────────────
     if action in (
         "clear_tailoring_runs",
+        "clear_tailoring_docs",
         "clear_tailoring_failed",
         "clear_tailoring_partial",
         "clear_tailoring_succeeded",
@@ -334,6 +412,29 @@ def ops_action(payload: dict = Body(default={})):
                 existing = set(_db_user_tables(conn))
                 if "results" not in existing:
                     return 0
+                rows = conn.execute(
+                    """
+                    SELECT id FROM results
+                    WHERE COALESCE(query, '') IN ('manual-ingest', 'mobile-ingest')
+                       OR COALESCE(run_id, '') IN ('manual-ingest', 'mobile-ingest')
+                       OR url LIKE 'manual://ingest/%'
+                       OR url LIKE 'mobile://ingest/%'
+                    """
+                ).fetchall()
+                job_ids = [int(row["id"]) for row in rows if row["id"] is not None]
+                if not job_ids:
+                    return 0
+                placeholders = ",".join("?" for _ in job_ids)
+                if "tailoring_queue_items" in existing:
+                    conn.execute(
+                        f"DELETE FROM tailoring_queue_items WHERE job_id IN ({placeholders})",
+                        tuple(job_ids),
+                    )
+                if "job_state_log" in existing:
+                    conn.execute(
+                        f"DELETE FROM job_state_log WHERE job_id IN ({placeholders})",
+                        tuple(job_ids),
+                    )
                 cur = conn.execute(
                     """
                     DELETE FROM results
@@ -395,6 +496,30 @@ def ops_action(payload: dict = Body(default={})):
                         _shutil.rmtree(d)
                         removed.append(d.name)
             return {"ok": True, "action": action, "removed": removed}
+
+        if action == "clear_tailoring_docs":
+            # Delete generated documents (pdf, tex, strategies) but keep
+            # meta.json, analysis.json, and llm_trace.jsonl so run history
+            # and traces are preserved.
+            _KEEP = {"meta.json", "analysis.json", "llm_trace.jsonl"}
+            cleaned = []
+            if output_dir.exists():
+                for d in output_dir.iterdir():
+                    if not d.is_dir() or d.name == "_runner_logs":
+                        continue
+                    removed_files = []
+                    for f in list(d.iterdir()):
+                        if f.name in _KEEP:
+                            continue
+                        if f.is_file():
+                            f.unlink()
+                            removed_files.append(f.name)
+                        elif f.is_dir():
+                            _shutil.rmtree(f)
+                            removed_files.append(f.name + "/")
+                    if removed_files:
+                        cleaned.append({"slug": d.name, "files": len(removed_files)})
+            return {"ok": True, "action": action, "cleaned": cleaned}
 
         if action == "clear_tailoring_runs":
             try:

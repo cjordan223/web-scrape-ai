@@ -25,6 +25,21 @@ _BOARD_MAP = {
 }
 
 
+def _format_unresponsive_engines(raw: object) -> list[str]:
+    items: list[str] = []
+    if not isinstance(raw, list):
+        return items
+    for entry in raw:
+        if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+            engine = str(entry[0]).strip()
+            reason = str(entry[1]).strip()
+            if engine or reason:
+                items.append(f"{engine}: {reason}".strip(": "))
+        elif entry:
+            items.append(str(entry).strip())
+    return items
+
+
 def build_query_string(template: QueryTemplate) -> str:
     """Assemble a search query from a template."""
     parts = []
@@ -65,6 +80,7 @@ def execute_queries(config: ScraperConfig) -> list[SearchResult]:
         last_error = None
         used_engines = search.engines
         used_time_range = search.time_range
+        engine_failures: list[str] = []
         for time_range in time_range_candidates:
             for engines in engine_candidates:
                 try:
@@ -79,6 +95,12 @@ def execute_queries(config: ScraperConfig) -> list[SearchResult]:
                     resp.raise_for_status()
                     data = resp.json()
                     query_results = data.get("results", [])
+                    unresponsive = _format_unresponsive_engines(data.get("unresponsive_engines"))
+                    if unresponsive:
+                        engine_failures.extend(
+                            reason for reason in unresponsive
+                            if reason not in engine_failures
+                        )
                     used_engines = engines or "all"
                     used_time_range = time_range
                     if query_results:
@@ -92,6 +114,15 @@ def execute_queries(config: ScraperConfig) -> list[SearchResult]:
         if not query_results and last_error is not None:
             logger.error("Query failed [%s]: %s", query_str, last_error)
             continue
+
+        if not query_results and engine_failures:
+            logger.warning(
+                "Query %d/%d returned 0 results because upstream search engines were unavailable [%s]: %s",
+                i + 1,
+                len(config.queries),
+                query_str,
+                "; ".join(engine_failures),
+            )
 
         query_new = 0
 

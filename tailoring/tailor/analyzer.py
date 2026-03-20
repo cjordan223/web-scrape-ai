@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Callable
 
@@ -50,6 +51,61 @@ Respond with ONLY a JSON object — no other text, no markdown fences:
 }"""
 
 
+def _coerce_string_list(value: object) -> list[str]:
+    if isinstance(value, list):
+        items = value
+    elif isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return []
+        if raw.startswith("[") and raw.endswith("]"):
+            try:
+                decoded = json.loads(raw)
+            except Exception:
+                decoded = None
+            if decoded is not None:
+                return _coerce_string_list(decoded)
+        items = re.split(r"[,;\n]+", raw)
+    elif value is None:
+        return []
+    else:
+        items = [value]
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        text = str(item).strip().strip("\"'")
+        if not text:
+            continue
+        lowered = text.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        normalized.append(text)
+    return normalized
+
+
+def normalize_analysis(analysis: dict) -> dict:
+    normalized = dict(analysis or {})
+    company_context = normalized.get("company_context")
+    normalized["company_context"] = company_context if isinstance(company_context, dict) else {}
+
+    requirements = normalized.get("requirements")
+    if not isinstance(requirements, list):
+        requirements = []
+    cleaned_requirements: list[dict] = []
+    for req in requirements:
+        if not isinstance(req, dict):
+            continue
+        cleaned = dict(req)
+        cleaned["matched_skills"] = _coerce_string_list(req.get("matched_skills"))
+        priority = str(req.get("priority", "medium")).lower().strip()
+        cleaned["priority"] = priority if priority in {"high", "medium", "low"} else "medium"
+        cleaned_requirements.append(cleaned)
+    normalized["requirements"] = cleaned_requirements
+    return normalized
+
+
 def load_cached_analysis(job: SelectedJob, output_dir: Path) -> dict | None:
     """Return cached analysis only if it matches the selected job."""
     cache_path = output_dir / "analysis.json"
@@ -76,6 +132,7 @@ def load_cached_analysis(job: SelectedJob, output_dir: Path) -> dict | None:
         )
         return None
 
+    analysis = normalize_analysis(analysis)
     logger.info("Using cached analysis from %s", cache_path)
     return analysis
 
@@ -130,6 +187,7 @@ def analyze_job(
         },
         trace_recorder=trace_recorder,
     )
+    analysis = normalize_analysis(analysis)
     analysis["_job_id"] = job.id
     analysis["_job_url"] = job.url
 

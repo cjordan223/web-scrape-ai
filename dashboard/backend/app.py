@@ -139,15 +139,107 @@ CREATE TABLE IF NOT EXISTS applied_snapshots (
 );
 """
 
+_APPLIED_PROTECTION_SCHEMA = """\
+CREATE TRIGGER IF NOT EXISTS protect_applied_results_before_update
+BEFORE UPDATE ON results
+FOR EACH ROW
+WHEN EXISTS (
+    SELECT 1
+    FROM applied_applications aa
+    WHERE aa.job_id = OLD.id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'Applied job rows are protected from inventory writes');
+END;
+
+CREATE TRIGGER IF NOT EXISTS protect_applied_results_before_delete
+BEFORE DELETE ON results
+FOR EACH ROW
+WHEN EXISTS (
+    SELECT 1
+    FROM applied_applications aa
+    WHERE aa.job_id = OLD.id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'Applied job rows are protected from inventory writes');
+END;
+
+CREATE TRIGGER IF NOT EXISTS protect_applied_queue_before_insert
+BEFORE INSERT ON tailoring_queue_items
+FOR EACH ROW
+WHEN EXISTS (
+    SELECT 1
+    FROM applied_applications aa
+    WHERE aa.job_id = NEW.job_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'Applied jobs cannot be re-queued');
+END;
+
+CREATE TRIGGER IF NOT EXISTS protect_applied_queue_before_update
+BEFORE UPDATE ON tailoring_queue_items
+FOR EACH ROW
+WHEN EXISTS (
+    SELECT 1
+    FROM applied_applications aa
+    WHERE aa.job_id = COALESCE(NEW.job_id, OLD.job_id)
+)
+BEGIN
+    SELECT RAISE(ABORT, 'Applied jobs cannot be re-queued');
+END;
+"""
+
+_WORKFLOW_DB_SCHEMA = """\
+CREATE TABLE IF NOT EXISTS job_state_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER,
+    job_url TEXT,
+    old_state TEXT,
+    new_state TEXT,
+    action TEXT NOT NULL,
+    source TEXT DEFAULT 'dashboard',
+    detail TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_state_log_job_id ON job_state_log(job_id);
+CREATE INDEX IF NOT EXISTS idx_state_log_created_at ON job_state_log(created_at);
+CREATE TABLE IF NOT EXISTS tailoring_queue_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER NOT NULL,
+    skip_analysis INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'queued',
+    run_slug TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    started_at TEXT,
+    finished_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_tailoring_queue_items_status_id ON tailoring_queue_items(status, id);
+CREATE INDEX IF NOT EXISTS idx_tailoring_queue_items_job_id ON tailoring_queue_items(job_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tailoring_queue_items_open_job
+ON tailoring_queue_items(job_id)
+WHERE status IN ('queued', 'running');
+"""
+_LEGACY_DECISION_MAP = {
+    "accept": "qa_pending",
+    "manual": "qa_pending",
+    "manual_approved": "qa_approved",
+}
+_QUEUE_OPEN_STATUSES = ("queued", "running")
+_WORKFLOW_DB_INIT_CACHE: set[str] = set()
+
 _TAILORING_RUNNER: dict = {
     "proc": None,
     "log_handle": None,
     "job": None,
+    "queue_item_id": None,
     "started_at": None,
     "ended_at": None,
     "exit_code": None,
     "log_path": None,
     "cmd": None,
+    "stop_reason": None,
 }
 _TAILORING_QUEUE: list[dict] = []
 _QA_LLM_REVIEW_LOCK = threading.Lock()
@@ -200,12 +292,14 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # Database helper
 # ---------------------------------------------------------------------------
 def get_db() -> sqlite3.Connection:
+    _ensure_workflow_schema()
     conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     return conn
 
 
 def get_db_write() -> sqlite3.Connection:
+    _ensure_workflow_schema()
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -217,9 +311,63 @@ def _ensure_applied_tables() -> None:
     conn = sqlite3.connect(DB_PATH)
     try:
         conn.executescript(_APPLIED_DB_SCHEMA)
+        conn.executescript(_APPLIED_PROTECTION_SCHEMA)
         conn.commit()
     finally:
         conn.close()
+
+
+def _normalize_decision(decision: str | None) -> str | None:
+    return _LEGACY_DECISION_MAP.get(decision or "", decision)
+
+
+def _fetch_protected_job_ids(conn: sqlite3.Connection) -> list[int]:
+    _ensure_applied_tables()
+    rows = conn.execute(
+        "SELECT DISTINCT job_id FROM applied_applications WHERE job_id IS NOT NULL ORDER BY job_id"
+    ).fetchall()
+    return [int(row["job_id"] if isinstance(row, sqlite3.Row) else row[0]) for row in rows]
+
+
+def _ensure_workflow_schema(force: bool = False) -> None:
+    db_key = str(Path(DB_PATH).expanduser())
+    if not force and db_key in _WORKFLOW_DB_INIT_CACHE:
+        return
+
+    db_file = Path(DB_PATH).expanduser()
+    db_file.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db_file))
+    conn.row_factory = sqlite3.Row
+    try:
+        conn.executescript(_WORKFLOW_DB_SCHEMA)
+        conn.executescript(_APPLIED_DB_SCHEMA)
+        conn.executescript(_APPLIED_PROTECTION_SCHEMA)
+        existing_tables = {
+            row["name"] if isinstance(row, sqlite3.Row) else row[0]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        if "results" in existing_tables:
+            cols = {
+                row["name"] if isinstance(row, sqlite3.Row) else row[1]
+                for row in conn.execute("PRAGMA table_info(results)")
+            }
+            if "approved_jd_text" not in cols:
+                conn.execute("ALTER TABLE results ADD COLUMN approved_jd_text TEXT")
+            conn.execute(
+                """
+                UPDATE results
+                SET decision = CASE
+                    WHEN decision IN ('accept', 'manual') THEN 'qa_pending'
+                    WHEN decision = 'manual_approved' THEN 'qa_approved'
+                    ELSE decision
+                END
+                WHERE decision IN ('accept', 'manual', 'manual_approved')
+                """
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    _WORKFLOW_DB_INIT_CACHE.add(db_key)
 
 
 def _load_runtime_controls() -> dict:
@@ -598,6 +746,253 @@ def _results_has_column(conn: sqlite3.Connection, column: str) -> bool:
     return False
 
 
+def _job_is_qa_ready(decision: str | None) -> bool:
+    return _normalize_decision(decision) == "qa_approved"
+
+
+def _job_is_qa_pending(decision: str | None) -> bool:
+    return _normalize_decision(decision) == "qa_pending"
+
+
+def _queue_row_to_payload(row: sqlite3.Row | dict) -> dict:
+    record = dict(row)
+    return {
+        "id": int(record["id"]),
+        "job_id": int(record["job_id"]),
+        "skip_analysis": bool(record.get("skip_analysis")),
+        "status": record.get("status"),
+        "created_at": record.get("created_at"),
+        "updated_at": record.get("updated_at"),
+        "started_at": record.get("started_at"),
+        "finished_at": record.get("finished_at"),
+        "run_slug": record.get("run_slug"),
+        "error": record.get("error"),
+        "job": {
+            "id": int(record["job_id"]),
+            "title": record.get("title"),
+            "created_at": record.get("job_created_at"),
+            "url": record.get("url"),
+        },
+    }
+
+
+def _fetch_tailoring_queue_rows(
+    conn: sqlite3.Connection,
+    *,
+    statuses: tuple[str, ...] | None = None,
+    job_ids: list[int] | None = None,
+) -> list[sqlite3.Row]:
+    clauses: list[str] = []
+    params: list[object] = []
+    if statuses:
+        placeholders = ",".join("?" for _ in statuses)
+        clauses.append(f"q.status IN ({placeholders})")
+        params.extend(statuses)
+    if job_ids:
+        placeholders = ",".join("?" for _ in job_ids)
+        clauses.append(f"q.job_id IN ({placeholders})")
+        params.extend(int(job_id) for job_id in job_ids)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    return conn.execute(
+        f"""
+        SELECT q.id, q.job_id, q.skip_analysis, q.status, q.run_slug, q.error,
+               q.created_at, q.updated_at, q.started_at, q.finished_at,
+               r.title, r.url, r.created_at AS job_created_at
+        FROM tailoring_queue_items q
+        LEFT JOIN results r ON r.id = q.job_id
+        {where}
+        ORDER BY CASE q.status
+            WHEN 'running' THEN 0
+            WHEN 'queued' THEN 1
+            ELSE 2
+        END,
+        q.id ASC
+        """,
+        tuple(params),
+    ).fetchall()
+
+
+def _fetch_tailoring_queue_items(
+    conn: sqlite3.Connection,
+    *,
+    statuses: tuple[str, ...] | None = None,
+    job_ids: list[int] | None = None,
+) -> list[dict]:
+    return [_queue_row_to_payload(row) for row in _fetch_tailoring_queue_rows(conn, statuses=statuses, job_ids=job_ids)]
+
+
+def _reconcile_stale_tailoring_queue(conn: sqlite3.Connection) -> int:
+    proc = _TAILORING_RUNNER.get("proc")
+    if proc is not None and proc.poll() is None:
+        return 0
+    now = datetime.now(timezone.utc).isoformat()
+    cur = conn.execute(
+        """
+        UPDATE tailoring_queue_items
+        SET status = 'failed',
+            error = COALESCE(error, ?),
+            updated_at = ?,
+            finished_at = COALESCE(finished_at, ?)
+        WHERE status = 'running'
+        """,
+        ("Tailoring runner state was lost before completion.", now, now),
+    )
+    return max(int(cur.rowcount or 0), 0)
+
+
+def _enqueue_tailoring_queue_items(items: list[dict]) -> tuple[list[dict], list[dict]]:
+    if not items:
+        return [], []
+    conn = get_db_write()
+    try:
+        if _reconcile_stale_tailoring_queue(conn):
+            conn.commit()
+        added: list[dict] = []
+        duplicates: list[dict] = []
+        now = datetime.now(timezone.utc).isoformat()
+        for item in items:
+            job = item["job"]
+            cur = conn.execute(
+                """
+                INSERT OR IGNORE INTO tailoring_queue_items (
+                    job_id, skip_analysis, status, created_at, updated_at
+                ) VALUES (?, ?, 'queued', ?, ?)
+                """,
+                (int(job["id"]), 1 if item.get("skip_analysis") else 0, now, now),
+            )
+            if cur.rowcount > 0:
+                row = conn.execute(
+                    """
+                    SELECT q.id, q.job_id, q.skip_analysis, q.status, q.run_slug, q.error,
+                           q.created_at, q.updated_at, q.started_at, q.finished_at,
+                           r.title, r.url, r.created_at AS job_created_at
+                    FROM tailoring_queue_items q
+                    LEFT JOIN results r ON r.id = q.job_id
+                    WHERE q.id = ?
+                    """,
+                    (cur.lastrowid,),
+                ).fetchone()
+                if row:
+                    added.append(_queue_row_to_payload(row))
+                continue
+            existing = conn.execute(
+                """
+                SELECT q.id, q.job_id, q.skip_analysis, q.status, q.run_slug, q.error,
+                       q.created_at, q.updated_at, q.started_at, q.finished_at,
+                       r.title, r.url, r.created_at AS job_created_at
+                FROM tailoring_queue_items q
+                LEFT JOIN results r ON r.id = q.job_id
+                WHERE q.job_id = ? AND q.status IN ('queued', 'running')
+                ORDER BY CASE q.status WHEN 'running' THEN 0 ELSE 1 END, q.id ASC
+                LIMIT 1
+                """,
+                (int(job["id"]),),
+            ).fetchone()
+            if existing:
+                duplicates.append(_queue_row_to_payload(existing))
+        conn.commit()
+        return added, duplicates
+    finally:
+        conn.close()
+
+
+def _cancel_tailoring_queue_items(
+    *,
+    statuses: tuple[str, ...] = ("queued",),
+    job_ids: list[int] | None = None,
+    item_ids: list[int] | None = None,
+    reason: str | None = None,
+) -> int:
+    conn = get_db_write()
+    try:
+        if _reconcile_stale_tailoring_queue(conn):
+            conn.commit()
+        clauses: list[str] = []
+        params: list[object] = []
+        if statuses:
+            placeholders = ",".join("?" for _ in statuses)
+            clauses.append(f"status IN ({placeholders})")
+            params.extend(statuses)
+        if job_ids:
+            placeholders = ",".join("?" for _ in job_ids)
+            clauses.append(f"job_id IN ({placeholders})")
+            params.extend(int(job_id) for job_id in job_ids)
+        if item_ids:
+            placeholders = ",".join("?" for _ in item_ids)
+            clauses.append(f"id IN ({placeholders})")
+            params.extend(int(item_id) for item_id in item_ids)
+        if not clauses:
+            return 0
+
+        now = datetime.now(timezone.utc).isoformat()
+        assignments = [
+            "status = 'cancelled'",
+            "updated_at = ?",
+            "finished_at = COALESCE(finished_at, ?)",
+        ]
+        update_params: list[object] = [now, now]
+        if reason:
+            assignments.append("error = COALESCE(error, ?)")
+            update_params.append(reason)
+
+        cur = conn.execute(
+            f"""
+            UPDATE tailoring_queue_items
+            SET {", ".join(assignments)}
+            WHERE {' AND '.join(clauses)}
+            """,
+            tuple(update_params + params),
+        )
+        conn.commit()
+        return max(int(cur.rowcount or 0), 0)
+    finally:
+        conn.close()
+
+
+def _stop_active_tailoring_job(job_ids: list[int], reason: str) -> bool:
+    proc = _TAILORING_RUNNER.get("proc")
+    active_job = _TAILORING_RUNNER.get("job") or {}
+    try:
+        active_job_id = int(active_job.get("id"))
+    except (TypeError, ValueError, AttributeError):
+        active_job_id = None
+    if proc is None or proc.poll() is not None or active_job_id is None or active_job_id not in {int(job_id) for job_id in job_ids}:
+        return False
+    _TAILORING_RUNNER["stop_reason"] = reason
+    try:
+        proc.terminate()
+    except Exception:
+        return False
+    return True
+
+
+def _latest_run_slug_for_job_since(job_id: int, started_at: str | None = None) -> str | None:
+    if not TAILORING_OUTPUT_DIR.exists():
+        return None
+    started_ts = _parse_ts(started_at)
+    best_slug = None
+    best_ts = 0.0
+    for d in TAILORING_OUTPUT_DIR.iterdir():
+        if not d.is_dir():
+            continue
+        meta_path = d / "meta.json"
+        if not meta_path.exists():
+            continue
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            if int(meta.get("job_id", -1)) != int(job_id):
+                continue
+        except Exception:
+            continue
+        updated_ts = d.stat().st_mtime
+        if started_ts and updated_ts + 1 < started_ts:
+            continue
+        if updated_ts >= best_ts:
+            best_ts = updated_ts
+            best_slug = d.name
+    return best_slug
+
+
 def _get_job_context(job_id: int) -> dict | None:
     conn = get_db()
     try:
@@ -605,11 +1000,15 @@ def _get_job_context(job_id: int) -> dict | None:
         if _results_has_column(conn, "approved_jd_text"):
             jd_expr = "COALESCE(approved_jd_text, jd_text)"
         row = conn.execute(
-            f"SELECT id, url, title, snippet, {jd_expr} AS jd_text, query, run_id, created_at "
+            f"SELECT id, url, title, snippet, {jd_expr} AS jd_text, query, run_id, created_at, decision "
             "FROM results WHERE id = ?",
             (job_id,),
         ).fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        data = dict(row)
+        data["decision"] = _normalize_decision(data.get("decision"))
+        return data
     finally:
         conn.close()
 
@@ -617,14 +1016,21 @@ def _get_job_context(job_id: int) -> dict | None:
 def _latest_job(max_age_hours: int | None = None) -> dict | None:
     conn = get_db()
     try:
-        where = ""
-        params: tuple = ()
+        clauses = [
+            "decision = 'qa_approved'",
+            "NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)",
+        ]
+        params: list[object] = []
         if max_age_hours is not None:
-            where = "WHERE julianday(created_at) >= julianday('now', ?)"
-            params = (f"-{int(max_age_hours)} hours",)
+            clauses.append("julianday(created_at) >= julianday('now', ?)")
+            params.append(f"-{int(max_age_hours)} hours")
+        clauses.append(
+            "NOT EXISTS (SELECT 1 FROM tailoring_queue_items q WHERE q.job_id = results.id AND q.status IN ('queued', 'running'))"
+        )
+        where = "WHERE " + " AND ".join(clauses)
         row = conn.execute(
             f"SELECT id, title, created_at, url FROM results {where} ORDER BY id DESC LIMIT 1",
-            params,
+            tuple(params),
         ).fetchone()
         return dict(row) if row else None
     finally:
@@ -656,7 +1062,10 @@ def _recent_jobs(limit: int = 25, max_age_hours: int | None = None) -> list[dict
 
     conn = get_db()
     try:
-        clauses = ["decision IN ('qa_approved','manual','manual_approved')"]
+        clauses = [
+            "decision = 'qa_approved'",
+            "NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)",
+        ]
         params: list = []
         if max_age_hours is not None:
             clauses.append("julianday(created_at) >= julianday('now', ?)")
@@ -669,12 +1078,28 @@ def _recent_jobs(limit: int = 25, max_age_hours: int | None = None) -> list[dict
         ).fetchall()
         items = [dict(r) for r in rows]
         applied_by_job_id = _fetch_applied_by_job_ids([int(item["id"]) for item in items if item.get("id") is not None])
+        open_queue_by_job_id = {}
+        if items:
+            queue_conn = get_db_write()
+            try:
+                if _reconcile_stale_tailoring_queue(queue_conn):
+                    queue_conn.commit()
+                open_queue_items = _fetch_tailoring_queue_items(
+                    queue_conn,
+                    statuses=_QUEUE_OPEN_STATUSES,
+                    job_ids=[int(item["id"]) for item in items if item.get("id") is not None],
+                )
+            finally:
+                queue_conn.close()
+            for queue_item in open_queue_items:
+                open_queue_by_job_id.setdefault(int(queue_item["job_id"]), queue_item)
         for item in items:
             count = run_counts_by_job.get(int(item["id"]), 0)
             item["tailoring_run_count"] = count
             item["has_tailoring_runs"] = count > 0
             item["tailoring_latest_status"] = (latest_status_by_job.get(int(item["id"])) or {}).get("status")
             item["applied"] = applied_by_job_id.get(int(item["id"]))
+            item["queue_item"] = open_queue_by_job_id.get(int(item["id"]))
         return items
     finally:
         conn.close()
@@ -695,10 +1120,68 @@ def _process_tailoring_queue() -> None:
     """Auto-start the next queued tailoring job if runner is idle."""
     if _TAILORING_RUNNER.get("proc") is not None:
         return
-    if not _TAILORING_QUEUE:
+    while True:
+        conn = get_db_write()
+        try:
+            if _reconcile_stale_tailoring_queue(conn):
+                conn.commit()
+            row = conn.execute(
+                """
+                SELECT q.id, q.job_id, q.skip_analysis,
+                       r.title, r.url, r.created_at, r.decision
+                FROM tailoring_queue_items q
+                LEFT JOIN results r ON r.id = q.job_id
+                WHERE q.status = 'queued'
+                ORDER BY q.id ASC
+                LIMIT 1
+                """
+            ).fetchone()
+            if not row:
+                return
+            if row["job_id"] is None or row["title"] is None:
+                now = datetime.now(timezone.utc).isoformat()
+                conn.execute(
+                    """
+                    UPDATE tailoring_queue_items
+                    SET status = 'failed',
+                        error = ?,
+                        updated_at = ?,
+                        finished_at = COALESCE(finished_at, ?)
+                    WHERE id = ?
+                    """,
+                    ("Queued job no longer exists.", now, now, row["id"]),
+                )
+                conn.commit()
+                continue
+            if not _job_is_qa_ready(row["decision"]):
+                now = datetime.now(timezone.utc).isoformat()
+                conn.execute(
+                    """
+                    UPDATE tailoring_queue_items
+                    SET status = 'cancelled',
+                        error = ?,
+                        updated_at = ?,
+                        finished_at = COALESCE(finished_at, ?)
+                    WHERE id = ?
+                    """,
+                    (f"Job is no longer ready for tailoring ({_normalize_decision(row['decision']) or 'unknown'}).", now, now, row["id"]),
+                )
+                conn.commit()
+                continue
+            item = {
+                "queue_item_id": int(row["id"]),
+                "job": {
+                    "id": int(row["job_id"]),
+                    "title": row["title"],
+                    "created_at": row["created_at"],
+                    "url": row["url"],
+                },
+                "skip_analysis": bool(row["skip_analysis"]),
+            }
+        finally:
+            conn.close()
+        _start_tailoring_run(item["job"], skip_analysis=item["skip_analysis"], queue_item_id=item["queue_item_id"])
         return
-    item = _TAILORING_QUEUE.pop(0)
-    _start_tailoring_run(item["job"], skip_analysis=item.get("skip_analysis", False))
 
 
 def _tailoring_runner_snapshot(log_lines: int = 80) -> dict:
@@ -706,8 +1189,38 @@ def _tailoring_runner_snapshot(log_lines: int = 80) -> dict:
     if proc is not None:
         rc = proc.poll()
         if rc is not None:
+            now = datetime.now(timezone.utc).isoformat()
             _TAILORING_RUNNER["exit_code"] = rc
-            _TAILORING_RUNNER["ended_at"] = _TAILORING_RUNNER.get("ended_at") or datetime.now(timezone.utc).isoformat()
+            _TAILORING_RUNNER["ended_at"] = _TAILORING_RUNNER.get("ended_at") or now
+            queue_item_id = _TAILORING_RUNNER.get("queue_item_id")
+            if queue_item_id is not None:
+                job = _TAILORING_RUNNER.get("job") or {}
+                run_slug = None
+                if job.get("id") is not None:
+                    try:
+                        run_slug = _latest_run_slug_for_job_since(int(job["id"]), _TAILORING_RUNNER.get("started_at"))
+                    except (TypeError, ValueError):
+                        run_slug = None
+                stop_reason = _TAILORING_RUNNER.get("stop_reason")
+                status = "cancelled" if stop_reason else ("succeeded" if rc == 0 else "failed")
+                error = stop_reason or (None if rc == 0 else f"Tailoring exited with code {rc}")
+                conn = get_db_write()
+                try:
+                    conn.execute(
+                        """
+                        UPDATE tailoring_queue_items
+                        SET status = ?,
+                            run_slug = COALESCE(?, run_slug),
+                            error = ?,
+                            updated_at = ?,
+                            finished_at = COALESCE(finished_at, ?)
+                        WHERE id = ?
+                        """,
+                        (status, run_slug, error, now, now, int(queue_item_id)),
+                    )
+                    conn.commit()
+                finally:
+                    conn.close()
             handle = _TAILORING_RUNNER.get("log_handle")
             if handle is not None:
                 try:
@@ -716,7 +1229,18 @@ def _tailoring_runner_snapshot(log_lines: int = 80) -> dict:
                     pass
             _TAILORING_RUNNER["log_handle"] = None
             _TAILORING_RUNNER["proc"] = None
+            _TAILORING_RUNNER["queue_item_id"] = None
+            _TAILORING_RUNNER["stop_reason"] = None
             _process_tailoring_queue()
+
+    conn = get_db_write()
+    try:
+        if _reconcile_stale_tailoring_queue(conn):
+            conn.commit()
+        active_items = _fetch_tailoring_queue_items(conn, statuses=("running",))
+        queued_items = _fetch_tailoring_queue_items(conn, statuses=("queued",))
+    finally:
+        conn.close()
 
     log_path = Path(_TAILORING_RUNNER["log_path"]) if _TAILORING_RUNNER.get("log_path") else None
     return {
@@ -728,13 +1252,34 @@ def _tailoring_runner_snapshot(log_lines: int = 80) -> dict:
         "log_path": str(log_path) if log_path else None,
         "cmd": _TAILORING_RUNNER.get("cmd"),
         "log_tail": _read_tail(log_path, log_lines) if log_path else "",
-        "queue": [{"job": item["job"], "skip_analysis": item.get("skip_analysis", False)} for item in _TAILORING_QUEUE],
+        "queue": queued_items,
+        "active_item": active_items[0] if active_items else None,
     }
 
 
-def _start_tailoring_run(job: dict, skip_analysis: bool = False) -> tuple[bool, dict]:
+def _start_tailoring_run(job: dict, skip_analysis: bool = False, queue_item_id: int | None = None) -> tuple[bool, dict]:
     if _TAILORING_RUNNER.get("proc") is not None and _TAILORING_RUNNER["proc"].poll() is None:
         return False, {"ok": False, "error": "A tailoring run is already in progress", "runner": _tailoring_runner_snapshot()}
+
+    if queue_item_id is not None:
+        conn = get_db_write()
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            conn.execute(
+                """
+                UPDATE tailoring_queue_items
+                SET status = 'running',
+                    updated_at = ?,
+                    started_at = COALESCE(started_at, ?),
+                    finished_at = NULL,
+                    error = NULL
+                WHERE id = ?
+                """,
+                (now, now, int(queue_item_id)),
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
     TAILORING_RUNNER_LOG_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -763,6 +1308,24 @@ def _start_tailoring_run(job: dict, skip_analysis: bool = False) -> tuple[bool, 
             env=env,
         )
     except Exception as e:
+        if queue_item_id is not None:
+            conn = get_db_write()
+            try:
+                now = datetime.now(timezone.utc).isoformat()
+                conn.execute(
+                    """
+                    UPDATE tailoring_queue_items
+                    SET status = 'failed',
+                        error = ?,
+                        updated_at = ?,
+                        finished_at = COALESCE(finished_at, ?)
+                    WHERE id = ?
+                    """,
+                    (f"Failed to start tailoring run: {e}", now, now, int(queue_item_id)),
+                )
+                conn.commit()
+            finally:
+                conn.close()
         return False, {"ok": False, "error": f"Failed to start tailoring run: {e}"}
 
     _TAILORING_RUNNER.update(
@@ -770,11 +1333,13 @@ def _start_tailoring_run(job: dict, skip_analysis: bool = False) -> tuple[bool, 
             "proc": proc,
             "log_handle": log_handle,
             "job": job,
+            "queue_item_id": queue_item_id,
             "started_at": datetime.now(timezone.utc).isoformat(),
             "ended_at": None,
             "exit_code": None,
             "log_path": str(log_path),
             "cmd": " ".join(cmd),
+            "stop_reason": None,
         }
     )
     return True, {"ok": True, "job": job, "runner": _tailoring_runner_snapshot()}

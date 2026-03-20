@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '../../../../api';
 
-interface RecentJob {
+interface ReadyJob {
     id: number;
     title?: string;
     created_at?: string;
@@ -10,6 +10,7 @@ interface RecentJob {
     has_tailoring_runs?: boolean;
     tailoring_latest_status?: 'complete' | 'partial' | 'failed' | 'no-trace' | string;
     applied?: { id: number; status?: string } | null;
+    queue_item?: { id: number; status?: 'queued' | 'running' | string } | null;
 }
 
 interface Briefing {
@@ -25,7 +26,8 @@ interface Props {
 }
 
 export default function JobInventoryTab({ onRunStarted }: Props) {
-    const [recentJobs, setRecentJobs] = useState<RecentJob[]>([]);
+    const [readyJobs, setReadyJobs] = useState<ReadyJob[]>([]);
+    const [readyTotal, setReadyTotal] = useState(0);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [focusedJobId, setFocusedJobId] = useState<number>(0);
     const [briefing, setBriefing] = useState<Briefing | null>(null);
@@ -43,14 +45,19 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
         return { label: 'unknown', color: 'var(--text-secondary)' };
     };
 
-    useEffect(() => {
-        (async () => {
-            try {
-                const res = await api.getTailoringRecentJobs();
-                setRecentJobs(res.items || []);
-            } catch (err) { console.error(err); }
-        })();
+    const loadReadyJobs = useCallback(async () => {
+        try {
+            const res = await api.getTailoringReady(500);
+            setReadyJobs(res.items || []);
+            setReadyTotal(res.total || 0);
+        } catch (err) { console.error(err); }
     }, []);
+
+    useEffect(() => {
+        loadReadyJobs();
+        const id = setInterval(loadReadyJobs, 15000);
+        return () => clearInterval(id);
+    }, [loadReadyJobs]);
 
     useEffect(() => {
         if (!focusedJobId) { setBriefing(null); return; }
@@ -65,6 +72,10 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
     }, [focusedJobId]);
 
     const toggleSelection = (id: number) => {
+        const job = readyJobs.find((item) => item.id === id);
+        if (job?.queue_item?.status === 'queued' || job?.queue_item?.status === 'running') {
+            return;
+        }
         setSelectedIds(prev => {
             const next = new Set(prev);
             if (next.has(id)) next.delete(id);
@@ -81,6 +92,10 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
             const jobs = Array.from(selectedIds).map(job_id => ({ job_id, skip_analysis: skipAnalysis }));
             const res = await api.queueTailoring(jobs);
             if (!res.ok) { setQueueError(res.error || 'Failed to queue'); return; }
+            if ((res.duplicates || []).length > 0 && (res.items || []).length === 0) {
+                setQueueError(`${res.duplicates.length} job(s) were already queued or running`);
+            }
+            await loadReadyJobs();
             setSelectedIds(new Set());
             onRunStarted();
         } catch { setQueueError('Failed to queue jobs'); }
@@ -96,9 +111,9 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
             }}>
                 <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.68rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.1em' }}>
-                        Recent Jobs ({recentJobs.length})
+                        Ready Backlog ({readyTotal})
                     </span>
-                    {recentJobs.length > 0 && (
+                    {readyJobs.length > 0 && (
                         <button
                             className="btn btn-ghost btn-sm"
                             disabled={resetBusy}
@@ -107,8 +122,7 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                                 setResetBusy(true);
                                 try {
                                     await api.resetApprovedQA();
-                                    const res = await api.getTailoringRecentJobs();
-                                    setRecentJobs(res.items || []);
+                                    await loadReadyJobs();
                                     setSelectedIds(new Set());
                                     setFocusedJobId(0);
                                 } catch { }
@@ -132,6 +146,20 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                         >
                             {queueBusy ? 'Queuing...' : `Queue Selected (${selectedIds.size})`}
                         </button>
+                        <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => {
+                                const selectableIds = readyJobs
+                                    .filter((job) => job.queue_item?.status !== 'queued' && job.queue_item?.status !== 'running')
+                                    .map((job) => job.id);
+                                if (selectedIds.size === selectableIds.length) setSelectedIds(new Set());
+                                else setSelectedIds(new Set(selectableIds));
+                            }}
+                            disabled={readyJobs.length === 0}
+                            style={{ fontSize: '.68rem', whiteSpace: 'nowrap' }}
+                        >
+                            {selectedIds.size > 0 && selectedIds.size === readyJobs.filter((job) => job.queue_item?.status !== 'queued' && job.queue_item?.status !== 'running').length ? 'Deselect All' : 'Select All'}
+                        </button>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontFamily: 'var(--font-mono)', fontSize: '.7rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                             <input type="checkbox" checked={skipAnalysis}
                                 onChange={e => setSkipAnalysis(e.target.checked)}
@@ -140,26 +168,45 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                         </label>
                     </div>
                     {selectedIds.size > 0 && (
-                        <button
-                            className="btn btn-ghost btn-sm"
-                            onClick={() => setSelectedIds(new Set())}
-                            style={{ fontSize: '.68rem', alignSelf: 'flex-start' }}
-                        >
-                            Clear selection
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <button
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => setSelectedIds(new Set())}
+                                style={{ fontSize: '.68rem' }}
+                            >
+                                Clear selection
+                            </button>
+                            <button
+                                className="btn btn-ghost btn-sm"
+                                onClick={async () => {
+                                    if (!confirm(`Return ${selectedIds.size} job(s) to QA? Output files are preserved.`)) return;
+                                    try {
+                                        await api.rollbackToQA(Array.from(selectedIds));
+                                        await loadReadyJobs();
+                                        setSelectedIds(new Set());
+                                        setFocusedJobId(0);
+                                    } catch { }
+                                }}
+                                style={{ fontSize: '.68rem', color: 'var(--amber, #d1a23b)' }}
+                            >
+                                Return to QA ({selectedIds.size})
+                            </button>
+                        </div>
                     )}
                     {queueError && <div style={{ fontSize: '.72rem', color: 'var(--red)', fontFamily: 'var(--font-mono)' }}>{queueError}</div>}
                 </div>
 
                 {/* Job list */}
                 <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {recentJobs.length === 0 ? (
+                    {readyJobs.length === 0 ? (
                         <div style={{ padding: '24px 14px', textAlign: 'center', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: '.78rem' }}>
-                            No recent jobs
+                            No QA-approved jobs are ready for tailoring
                         </div>
-                    ) : recentJobs.map((j) => {
+                    ) : readyJobs.map((j) => {
                         const isFocused = focusedJobId === j.id;
                         const isChecked = selectedIds.has(j.id);
+                        const queueState = j.queue_item?.status;
+                        const isUnavailable = queueState === 'queued' || queueState === 'running';
                         const priorRunCount = Number(j.tailoring_run_count || 0);
                         const hasPriorRun = Boolean(j.has_tailoring_runs || priorRunCount > 0);
                         const runStatus = statusMeta(j.tailoring_latest_status);
@@ -181,6 +228,7 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                                 <input
                                     type="checkbox"
                                     checked={isChecked}
+                                    disabled={isUnavailable}
                                     onChange={() => toggleSelection(j.id)}
                                     onClick={e => e.stopPropagation()}
                                     style={{ accentColor: 'var(--accent)', marginTop: '3px', flexShrink: 0 }}
@@ -191,6 +239,24 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                                         <span style={{ fontWeight: 600, fontSize: '.82rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             {j.title || 'Untitled'}
                                         </span>
+                                        {queueState && (
+                                            <span style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                borderRadius: '999px',
+                                                border: `1px solid ${queueState === 'running' ? 'rgba(75, 142, 240, 0.35)' : 'rgba(224, 160, 48, 0.55)'}`,
+                                                background: queueState === 'running' ? 'rgba(75, 142, 240, 0.10)' : 'rgba(224, 160, 48, 0.12)',
+                                                color: queueState === 'running' ? 'var(--accent)' : 'var(--amber, #e0a030)',
+                                                padding: '1px 8px',
+                                                fontFamily: 'var(--font-mono)',
+                                                fontSize: '.6rem',
+                                                fontWeight: 700,
+                                                letterSpacing: '.04em',
+                                                textTransform: 'uppercase',
+                                            }}>
+                                                {queueState}
+                                            </span>
+                                        )}
                                     </div>
                                     {hasPriorRun && (
                                         <div style={{ marginBottom: '4px' }}>

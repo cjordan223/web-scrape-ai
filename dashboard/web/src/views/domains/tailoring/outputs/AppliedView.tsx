@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../../../../api';
-import { DetailContextSection, type ContextTab, timeAgo } from './shared';
+import { DetailContextSection, type ContextTab, timeAgo, safePdfName } from './shared';
 
 type PackageDoc = 'resume' | 'cover';
 type DocumentMode = 'preview' | 'latex';
@@ -78,6 +78,8 @@ export default function AppliedView() {
 
     useEffect(() => {
         loadList();
+        const id = setInterval(loadList, 15000);
+        return () => clearInterval(id);
     }, [loadList]);
 
     useEffect(() => {
@@ -267,8 +269,8 @@ export default function AppliedView() {
                                 <button className="btn btn-primary btn-sm" onClick={handleSaveTracking} disabled={saveBusy}>
                                     {saveBusy ? 'Saving...' : 'Save Tracking'}
                                 </button>
-                                {currentItem?.applicationUrl && (
-                                    <a className="btn btn-ghost btn-sm" href={currentItem.applicationUrl} target="_blank" rel="noreferrer">
+                                {currentItem?.application_url && (
+                                    <a className="btn btn-ghost btn-sm" href={currentItem.application_url} target="_blank" rel="noreferrer">
                                         Open Application
                                     </a>
                                 )}
@@ -311,7 +313,7 @@ export default function AppliedView() {
                                     className="btn btn-ghost btn-sm"
                                     style={{ fontSize: '.68rem', pointerEvents: resumePdfUrl ? 'auto' : 'none', opacity: resumePdfUrl ? 1 : 0.45 }}
                                     href={resumePdfUrl || undefined}
-                                    download={`Conner_Jordan_Resume_${detail.summary?.package_slug || 'applied'}.pdf`}
+                                    download={safePdfName(detail.summary?.company_name, detail.summary?.job_title, detail.summary?.package_slug || 'document', 'resume')}
                                 >
                                     Download Resume PDF
                                 </a>
@@ -319,7 +321,7 @@ export default function AppliedView() {
                                     className="btn btn-ghost btn-sm"
                                     style={{ fontSize: '.68rem', pointerEvents: coverPdfUrl ? 'auto' : 'none', opacity: coverPdfUrl ? 1 : 0.45 }}
                                     href={coverPdfUrl || undefined}
-                                    download={`Conner_Jordan_Cover_Letter_${detail.summary?.package_slug || 'applied'}.pdf`}
+                                    download={safePdfName(detail.summary?.company_name, detail.summary?.job_title, detail.summary?.package_slug || 'document', 'cover')}
                                 >
                                     Download Cover PDF
                                 </a>

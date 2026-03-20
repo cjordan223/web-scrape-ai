@@ -10,7 +10,7 @@ export default function MobileShell() {
         const poll = () => {
             api.getLlmStatus().then(d => setLlmOk(d.available ?? d.enabled ?? false)).catch(() => setLlmOk(false));
             api.getTailoringRunnerStatus().then(d => {
-                setRunnerStatus(d.running ? `Running job #${d.job_id}` : '');
+                setRunnerStatus(d.running ? `Running job #${d.job?.id || d.active_item?.job_id}` : '');
             }).catch(() => {});
         };
         poll();
@@ -78,7 +78,7 @@ export default function MobileShell() {
                 </NavLink>
                 <NavLink to="/m/jobs" style={({ isActive }) => tabStyle(isActive)}>
                     <span style={{ fontSize: '1.1rem' }}>&#9881;</span>
-                    <span>Jobs</span>
+                    <span>Ready</span>
                 </NavLink>
                 <NavLink to="/m/docs" style={({ isActive }) => tabStyle(isActive)}>
                     <span style={{ fontSize: '1.1rem' }}>&#9776;</span>

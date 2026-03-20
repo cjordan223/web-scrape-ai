@@ -3,15 +3,13 @@ import { api } from '../../../../api';
 import JobInventoryTab from './JobInventoryTab';
 import PipelineTab from './PipelineTab';
 import RunHistoryTab from './RunHistoryTab';
-import IngestTab from './IngestTab';
-
-type Tab = 'jobs' | 'pipeline' | 'history' | 'ingest';
+type Tab = 'jobs' | 'pipeline' | 'history';
 const TAILORING_RUNS_TAB_KEY = 'tailoring.runs.activeTab';
 
 function getInitialTab(): Tab {
     if (typeof window === 'undefined') return 'history';
     const saved = window.localStorage.getItem(TAILORING_RUNS_TAB_KEY);
-    if (saved === 'jobs' || saved === 'pipeline' || saved === 'history' || saved === 'ingest') {
+    if (saved === 'jobs' || saved === 'pipeline' || saved === 'history') {
         return saved;
     }
     return 'history';
@@ -194,26 +192,65 @@ export default function TailoringView() {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
 
-            {/* ══════════ CONTROL STRIP ══════════ */}
+            {/* ══════════ TAB BAR ══════════ */}
             <div style={{
-                display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 16px',
+                display: 'flex', alignItems: 'stretch', borderBottom: '2px solid var(--border)',
+                background: 'var(--surface)', flexShrink: 0,
+            }}>
+                {([
+                    { key: 'jobs' as Tab, label: 'Ready', desc: 'QA-approved backlog' },
+                    { key: 'pipeline' as Tab, label: 'Pipeline', desc: 'Live run' },
+                    { key: 'history' as Tab, label: 'History', desc: 'Past runs' },
+                ]).map(t => {
+                    const isActive = activeTab === t.key;
+                    return (
+                        <button
+                            key={t.key}
+                            onClick={() => setActiveTab(t.key)}
+                            style={{
+                                flex: 1, padding: '12px 16px', border: 'none', cursor: 'pointer',
+                                background: isActive ? 'var(--surface-2)' : 'transparent',
+                                borderBottom: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+                                marginBottom: '-2px',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
+                                transition: 'background .1s, border-color .1s',
+                            }}
+                            onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--surface-2)'; }}
+                            onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                        >
+                            <span style={{
+                                fontFamily: 'var(--font-mono)', fontSize: '.88rem', fontWeight: isActive ? 700 : 500,
+                                color: isActive ? 'var(--text)' : 'var(--text-secondary)',
+                                letterSpacing: '.02em',
+                            }}>{t.label}</span>
+                            <span style={{
+                                fontSize: '.62rem', color: 'var(--text-secondary)', opacity: isActive ? .9 : .6,
+                            }}>{t.desc}</span>
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* ══════════ STATUS BAR ══════════ */}
+            <div style={{
+                display: 'flex', alignItems: 'center', gap: '12px', padding: '6px 16px',
                 borderBottom: '1px solid var(--border)', background: 'var(--surface-2)', flexShrink: 0,
                 flexWrap: 'wrap',
             }}>
                 {/* Runner status */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span className={`status-dot ${runner.running ? 'active' : 'idle'}`} />
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.75rem', fontWeight: 500 }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.72rem', fontWeight: 500 }}>
                         {runner.running ? 'RUNNING' : 'IDLE'}
                     </span>
                     {runner.running && runner.job && (
-                        <span style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>
+                        <span style={{ fontSize: '.7rem', color: 'var(--text-secondary)' }}>
                             Job {runner.job.id}
                         </span>
                     )}
                     {runner.queue?.length > 0 && (
                         <span style={{
-                            fontFamily: 'var(--font-mono)', fontSize: '.68rem',
+                            fontFamily: 'var(--font-mono)', fontSize: '.66rem',
                             background: 'var(--surface-3)', border: '1px solid var(--border-bright)',
                             borderRadius: '2px', padding: '1px 6px', color: 'var(--amber, #e0a030)',
                         }}>
@@ -222,23 +259,26 @@ export default function TailoringView() {
                     )}
                 </div>
 
-                <div style={{ width: '1px', height: '20px', background: 'var(--border-bright)' }} />
+                <div style={{ width: '1px', height: '16px', background: 'var(--border-bright)' }} />
 
                 <button
                     className="btn btn-danger btn-sm"
                     onClick={handleStopTailoringRuns}
                     disabled={stopBusy || (!runner.running && (!runner.queue || runner.queue.length === 0))}
                     title="Gracefully stop active tailoring run and clear queued jobs"
+                    style={{ fontSize: '.7rem' }}
                 >
-                    {stopBusy ? 'Stopping...' : 'Stop Tailoring Runs'}
+                    {stopBusy ? 'Stopping...' : 'Stop'}
                 </button>
+
+                <div style={{ width: '1px', height: '16px', background: 'var(--border-bright)' }} />
 
                 {/* LLM Model */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.62rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.1em' }}>LLM</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.6rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.1em' }}>LLM</span>
                     {(llmStatus?.selected_model || llmStatus?.models?.[0]) && (
                         <span style={{
-                            fontFamily: 'var(--font-mono)', fontSize: '.68rem',
+                            fontFamily: 'var(--font-mono)', fontSize: '.66rem',
                             background: 'var(--surface-3)', border: '1px solid var(--border-bright)',
                             borderRadius: '2px', padding: '1px 6px', color: 'var(--green)',
                             maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -248,30 +288,11 @@ export default function TailoringView() {
                     )}
                     <button
                         className="btn btn-ghost btn-sm"
-                        style={{ fontSize: '.68rem' }}
+                        style={{ fontSize: '.66rem' }}
                         onClick={() => modelPanelOpen ? setModelPanelOpen(false) : openModelPanel()}
                     >
                         {modelPanelOpen ? 'Close' : 'Switch'}
                     </button>
-                </div>
-
-                {/* Tab bar — pushed right */}
-                <div style={{ marginLeft: 'auto', display: 'flex', gap: '2px' }}>
-                    {([
-                        { key: 'jobs' as Tab, label: 'Jobs' },
-                        { key: 'pipeline' as Tab, label: 'Pipeline' },
-                        { key: 'history' as Tab, label: 'History' },
-                        { key: 'ingest' as Tab, label: 'Ingest' },
-                    ]).map(t => (
-                        <button
-                            key={t.key}
-                            className={`btn btn-sm ${activeTab === t.key ? 'btn-primary' : 'btn-ghost'}`}
-                            onClick={() => setActiveTab(t.key)}
-                            style={{ fontSize: '.78rem' }}
-                        >
-                            {t.label}
-                        </button>
-                    ))}
                 </div>
             </div>
 
@@ -386,9 +407,6 @@ export default function TailoringView() {
                 )}
                 {activeTab === 'history' && (
                     <RunHistoryTab runs={runs} loading={loading} />
-                )}
-                {activeTab === 'ingest' && (
-                    <IngestTab onRunStarted={onRunStarted} />
                 )}
             </div>
         </div>

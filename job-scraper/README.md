@@ -15,7 +15,7 @@ Python scraper that discovers security jobs via SearXNG and crawler targets, eva
 ## Quick Start
 
 ```bash
-cd /Users/conner/Documents/SearXNG
+cd /Users/conner/Documents/JobForge
 source venv/bin/activate
 pip install -e ./job-scraper/
 
@@ -98,7 +98,7 @@ The shared dashboard lives at repo root in `dashboard/` and reads scraper data.
 Run dashboard:
 
 ```bash
-cd /Users/conner/Documents/SearXNG
+cd /Users/conner/Documents/JobForge
 source venv/bin/activate
 python dashboard/backend/server.py
 ```

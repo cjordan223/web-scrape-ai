@@ -104,6 +104,8 @@ def list_jobs(
     per_page: int = Query(25, ge=1, le=100),
     board: str | None = None,
     seniority: str | None = None,
+    decision: str | None = None,
+    source: str | None = None,
     search: str | None = None,
     url_search: str | None = None,
     run_id: str | None = None,
@@ -113,7 +115,7 @@ def list_jobs(
     date_to: str | None = None,
 ):
     _sync_app_state()
-    allowed_sort = {"created_at", "title", "board", "seniority", "experience_years", "salary_k"}
+    allowed_sort = {"created_at", "title", "board", "seniority", "experience_years", "salary_k", "decision", "source"}
     if sort_by not in allowed_sort:
         sort_by = "created_at"
     if sort_dir not in ("asc", "desc"):
@@ -128,6 +130,17 @@ def list_jobs(
     if seniority:
         conditions.append("seniority = :seniority")
         params["seniority"] = seniority
+    if decision:
+        conditions.append("decision = :decision")
+        params["decision"] = decision
+    if source == "manual_ingest":
+        conditions.append("run_id = :manual_run_id")
+        params["manual_run_id"] = "manual-ingest"
+    elif source == "mobile_ingest":
+        conditions.append("run_id = :mobile_run_id")
+        params["mobile_run_id"] = "mobile-ingest"
+    elif source == "scrape":
+        conditions.append("run_id NOT IN ('manual-ingest', 'mobile-ingest')")
     if search:
         conditions.append("title LIKE :search")
         params["search"] = f"%{search}%"
@@ -144,6 +157,7 @@ def list_jobs(
         conditions.append("created_at <= :date_to")
         params["date_to"] = date_to
 
+    conditions.append("NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)")
     where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
     offset = (page - 1) * per_page
     params["limit"] = per_page
@@ -154,7 +168,12 @@ def list_jobs(
         total = conn.execute(f"SELECT COUNT(*) FROM results{where}", params).fetchone()[0]
         rows = conn.execute(
             f"""SELECT id, url, title, board, seniority, experience_years, salary_k,
-                       snippet, query, run_id, created_at
+                       snippet, query, run_id, created_at, decision
+                       , CASE
+                           WHEN run_id = 'manual-ingest' THEN 'manual_ingest'
+                           WHEN run_id = 'mobile-ingest' THEN 'mobile_ingest'
+                           ELSE 'scrape'
+                         END AS source
                 FROM results{where}
                 ORDER BY {sort_by} {sort_dir}
                 LIMIT :limit OFFSET :offset""",
@@ -168,12 +187,45 @@ def list_jobs(
         latest_run_id = latest_run["run_id"] if latest_run else None
 
         items = [dict(r) for r in rows]
+        inventory = {
+            "results_total": conn.execute(
+                "SELECT COUNT(*) FROM results WHERE NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)"
+            ).fetchone()[0],
+            "qa_pending": conn.execute(
+                "SELECT COUNT(*) FROM results WHERE decision = 'qa_pending' "
+                "AND NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)"
+            ).fetchone()[0],
+            "qa_approved": conn.execute(
+                "SELECT COUNT(*) FROM results WHERE decision = 'qa_approved' "
+                "AND NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)"
+            ).fetchone()[0],
+            "qa_rejected": conn.execute(
+                "SELECT COUNT(*) FROM results WHERE decision = 'qa_rejected' "
+                "AND NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)"
+            ).fetchone()[0],
+            "scraper_rejected": conn.execute("SELECT COUNT(*) FROM rejected").fetchone()[0],
+            "source_counts": {
+                "scrape": conn.execute(
+                    "SELECT COUNT(*) FROM results WHERE run_id NOT IN ('manual-ingest', 'mobile-ingest') "
+                    "AND NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)"
+                ).fetchone()[0],
+                "manual_ingest": conn.execute(
+                    "SELECT COUNT(*) FROM results WHERE run_id = 'manual-ingest' "
+                    "AND NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)"
+                ).fetchone()[0],
+                "mobile_ingest": conn.execute(
+                    "SELECT COUNT(*) FROM results WHERE run_id = 'mobile-ingest' "
+                    "AND NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)"
+                ).fetchone()[0],
+            },
+        }
         return {
             "items": items,
             "total": total,
             "page": page,
             "pages": (total + per_page - 1) // per_page,
             "latest_run_id": latest_run_id,
+            "inventory": inventory,
         }
     finally:
         conn.close()
@@ -752,7 +804,7 @@ def approve_rejected(rejected_id: int):
                     None,
                     None,
                     None,
-                    "manual_approved",
+                    "qa_pending",
                     rejected["snippet"],
                     None,
                     None,
@@ -764,6 +816,23 @@ def approve_rejected(rejected_id: int):
             result_id = cur.lastrowid
 
         conn.execute("DELETE FROM rejected WHERE id = ?", (rejected_id,))
+        try:
+            from services.audit import log_state_change
+            log_state_change(
+                conn,
+                job_id=result_id,
+                job_url=rejected["url"],
+                old_state="rejected",
+                new_state="qa_pending",
+                action="rescue_to_qa",
+                detail={
+                    "rejection_stage": rejected["rejection_stage"],
+                    "rejection_reason": rejected["rejection_reason"],
+                    "already_present": already_present,
+                },
+            )
+        except Exception:
+            pass  # fail-open: don't block rescue if audit table missing
         conn.commit()
         return {"ok": True, "result_id": result_id, "already_present": already_present}
     except sqlite3.IntegrityError as e:

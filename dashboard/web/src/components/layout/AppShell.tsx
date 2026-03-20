@@ -1,12 +1,10 @@
 import type { ComponentType } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  Compass,
-  FolderTree,
-  PenTool,
+  LayoutDashboard,
+  GitMerge,
   Settings,
   Archive,
-  LayoutDashboard,
   Briefcase,
   XCircle,
   Activity,
@@ -17,17 +15,16 @@ import {
   Terminal,
   GitBranch,
   CheckSquare,
+  FileCheck,
+  ClipboardPaste,
 } from 'lucide-react';
 
 type NavItem = {
   label: string;
   to: string;
   icon: ComponentType<{ size?: number }>;
-};
-
-type NavGroup = {
-  label: string;
-  items: NavItem[];
+  desc?: string;
+  end?: boolean;
 };
 
 type Domain = {
@@ -35,69 +32,30 @@ type Domain = {
   label: string;
   basePath: string;
   icon: ComponentType<{ size?: number }>;
-  groups: NavGroup[];
+  items: NavItem[];
 };
 
 const domains: Domain[] = [
   {
-    key: 'home',
-    label: 'Home',
-    basePath: '/home',
-    icon: Compass,
-    groups: [
-      {
-        label: 'Control Plane',
-        items: [{ label: 'Overview', to: '/home/overview', icon: LayoutDashboard }],
-      },
-    ],
+    key: 'overview',
+    label: 'Overview',
+    basePath: '/overview',
+    icon: LayoutDashboard,
+    items: [],
   },
   {
-    key: 'scraping',
-    label: 'Scraping',
-    basePath: '/scraping',
-    icon: FolderTree,
-    groups: [
-      {
-        label: 'Intake',
-        items: [
-          { label: 'Jobs', to: '/scraping/intake/jobs', icon: Briefcase },
-          { label: 'Rejected', to: '/scraping/intake/rejected', icon: XCircle },
-        ],
-      },
-      {
-        label: 'Runs',
-        items: [{ label: 'Run List', to: '/scraping/runs', icon: Activity }],
-      },
-      {
-        label: 'Quality',
-        items: [
-          { label: 'Dedup & Growth', to: '/scraping/quality/dedup', icon: Layers },
-          { label: 'Schedules', to: '/scraping/quality/schedules', icon: Clock },
-        ],
-      },
-    ],
-  },
-  {
-    key: 'tailoring',
-    label: 'Tailoring',
-    basePath: '/tailoring',
-    icon: PenTool,
-    groups: [
-      {
-        label: 'Triage',
-        items: [{ label: 'QA', to: '/tailoring/qa', icon: CheckSquare }],
-      },
-      {
-        label: 'Runs',
-        items: [{ label: 'Manual & Traces', to: '/tailoring/runs', icon: Activity }],
-      },
-      {
-        label: 'Outputs',
-        items: [
-          { label: 'Packages', to: '/tailoring/outputs/packages', icon: Package },
-          { label: 'Applied', to: '/tailoring/outputs/applied', icon: Archive },
-        ],
-      },
+    key: 'pipeline',
+    label: 'Pipeline',
+    basePath: '/pipeline',
+    icon: GitMerge,
+    items: [
+      { label: 'Ingest', to: '/pipeline/ingest', icon: ClipboardPaste, end: true },
+      { label: 'Runs', to: '/pipeline/ingest/runs', icon: Activity, desc: 'Scrape ingest controls' },
+      { label: 'QA', to: '/pipeline/qa', icon: CheckSquare },
+      { label: 'Ready', to: '/pipeline/ready', icon: Briefcase, desc: 'QA-approved backlog' },
+      { label: 'Rejected', to: '/pipeline/rejected', icon: XCircle, desc: 'QA-rejected backlog' },
+      { label: 'Packages', to: '/pipeline/packages', icon: Package },
+      { label: 'Applied', to: '/pipeline/applied', icon: FileCheck },
     ],
   },
   {
@@ -105,47 +63,37 @@ const domains: Domain[] = [
     label: 'Ops',
     basePath: '/ops',
     icon: Settings,
-    groups: [
-      {
-        label: 'Data',
-        items: [
-          { label: 'DB Explorer', to: '/ops/data/explorer', icon: Database },
-          { label: 'Archives', to: '/ops/data/archives', icon: Archive },
-        ],
-      },
-      {
-        label: 'Diagnostics',
-        items: [
-          { label: 'Pipeline Inspector', to: '/ops/diagnostics/pipeline', icon: GitBranch },
-          { label: 'Admin Ops', to: '/ops/diagnostics/sql', icon: Terminal },
-        ],
-      },
+    items: [
+      { label: 'Inventory', to: '/ops/jobs', icon: Briefcase, desc: 'All stored results by workflow state' },
+      { label: 'Rejected', to: '/ops/rejected', icon: XCircle, desc: 'Filtered out by pipeline' },
+      { label: 'Dedup & Growth', to: '/ops/dedup', icon: Layers, desc: 'URL dedup stats & trends' },
+      { label: 'Schedules', to: '/ops/schedules', icon: Clock, desc: 'Scrape schedule & history' },
+      { label: 'DB Explorer', to: '/ops/explorer', icon: Database, desc: 'Browse raw tables' },
+      { label: 'Archives', to: '/ops/archives', icon: Archive, desc: 'Snapshot & restore DB' },
+      { label: 'Pipeline Inspector', to: '/ops/pipeline-inspector', icon: GitBranch, desc: 'Filter stage debugger' },
+      { label: 'Admin', to: '/ops/admin', icon: Terminal, desc: 'SQL console & bulk ops' },
     ],
   },
 ];
 
 const labelBySegment: Record<string, string> = {
-  home: 'Home',
   overview: 'Overview',
-  scraping: 'Scraping',
-  intake: 'Intake',
-  jobs: 'Jobs',
-  rejected: 'Rejected',
-  runs: 'Runs',
-  quality: 'Quality',
-  dedup: 'Dedup & Growth',
-  schedules: 'Schedules',
-  tailoring: 'Tailoring',
-  outputs: 'Outputs',
+  pipeline: 'Pipeline',
+  ingest: 'Ingest',
+  qa: 'QA',
+  ready: 'Ready',
   packages: 'Packages',
   applied: 'Applied',
+  jobs: 'Inventory',
+  rejected: 'Rejected',
+  runs: 'Runs',
   ops: 'Ops',
-  data: 'Data',
+  dedup: 'Dedup & Growth',
+  schedules: 'Schedules',
   explorer: 'DB Explorer',
   archives: 'Archives',
-  diagnostics: 'Diagnostics',
-  sql: 'Admin Ops',
-  pipeline: 'Pipeline Inspector',
+  'pipeline-inspector': 'Pipeline Inspector',
+  admin: 'Admin',
 };
 
 function getActiveDomain(pathname: string): Domain {
@@ -154,14 +102,14 @@ function getActiveDomain(pathname: string): Domain {
 }
 
 function buildBreadcrumbs(pathname: string): string[] {
-  const runDetailMatch = pathname.match(/^\/scraping\/runs\/([^/]+)$/);
+  const runDetailMatch = pathname.match(/^\/pipeline\/ingest\/runs\/([^/]+)$/);
   if (runDetailMatch) {
-    return ['Scraping', 'Runs', `Run ${runDetailMatch[1]}`];
+    return ['Pipeline', 'Ingest', 'Runs', `Run ${runDetailMatch[1]}`];
   }
 
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length === 0) {
-    return ['Home'];
+    return ['Overview'];
   }
 
   return segments.map((segment) => labelBySegment[segment] ?? segment);
@@ -176,11 +124,10 @@ export default function AppShell({ dbSizeLabel }: { dbSizeLabel: string }) {
     <>
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <span>Job</span> Scraper
+          <span>Job</span>Forge
         </div>
 
         <nav className="sidebar-nav">
-          <div className="nav-section-label">Domains</div>
           {domains.map((domain) => {
             const Icon = domain.icon;
             const isActiveDomain = activeDomain.key === domain.key;
@@ -195,25 +142,27 @@ export default function AppShell({ dbSizeLabel }: { dbSizeLabel: string }) {
                   <span>{domain.label}</span>
                 </NavLink>
 
-                {isActiveDomain && domain.groups.length > 0 && (
+                {isActiveDomain && domain.items.length > 0 && (
                   <div className="nav-nested-groups">
-                    {domain.groups.map((group) => (
-                      <div key={group.label} className="nav-group">
-                        {group.items.map((item) => {
-                          const ItemIcon = item.icon;
-                          return (
-                            <NavLink
-                              key={item.to}
-                              to={item.to}
-                              className={({ isActive }) => `nav-item nav-item-nested ${isActive ? 'active' : ''}`}
-                            >
-                              <ItemIcon size={18} />
+                    <div className="nav-group">
+                      {domain.items.map((item) => {
+                        const ItemIcon = item.icon;
+                        return (
+                          <NavLink
+                            key={item.to}
+                            to={item.to}
+                            end={item.end}
+                            className={({ isActive }) => `nav-item nav-item-nested ${isActive ? 'active' : ''}`}
+                          >
+                            <ItemIcon size={18} />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
                               <span>{item.label}</span>
-                            </NavLink>
-                          );
-                        })}
-                      </div>
-                    ))}
+                              {item.desc && <span className="nav-desc">{item.desc}</span>}
+                            </div>
+                          </NavLink>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -223,7 +172,7 @@ export default function AppShell({ dbSizeLabel }: { dbSizeLabel: string }) {
 
         <div className="sidebar-footer">
           <div className="db-size">{dbSizeLabel}</div>
-          v3.0 · Nested IA
+          v4.0 · Flat IA
         </div>
       </aside>
 

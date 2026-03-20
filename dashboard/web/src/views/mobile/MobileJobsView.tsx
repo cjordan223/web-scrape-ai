@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { api } from '../../api';
 
 interface Job {
@@ -8,10 +8,12 @@ interface Job {
     runCount: number;
     latestStatus: string;
     applied?: { id: number; status?: string } | null;
+    queueItem?: { id: number; status?: 'queued' | 'running' | string } | null;
 }
 
 export default function MobileJobsView() {
     const [jobs, setJobs] = useState<Job[]>([]);
+    const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [skipAnalysis, setSkipAnalysis] = useState(false);
@@ -19,22 +21,32 @@ export default function MobileJobsView() {
     const [queueMsg, setQueueMsg] = useState('');
     const [runnerStatus, setRunnerStatus] = useState<any>(null);
 
-    const load = () => {
+    const load = useCallback(() => {
         setLoading(true);
-        api.getTailoringRecentJobs().then(res => {
+        api.getTailoringReady(500).then(res => {
+            setTotal(res.total || 0);
             setJobs((res.items || []).map((j: any) => ({
                 id: j.id, title: j.title || 'Untitled', url: j.url || '',
                 runCount: j.tailoring_run_count || 0,
                 latestStatus: j.tailoring_latest_status || '',
                 applied: j.applied || null,
+                queueItem: j.queue_item || null,
             })));
         }).catch(() => {}).finally(() => setLoading(false));
         api.getTailoringRunnerStatus().then(setRunnerStatus).catch(() => {});
-    };
+    }, []);
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => {
+        load();
+        const id = setInterval(load, 15000);
+        return () => clearInterval(id);
+    }, [load]);
 
     const toggle = (id: number) => {
+        const job = jobs.find((item) => item.id === id);
+        if (job?.queueItem?.status === 'queued' || job?.queueItem?.status === 'running') {
+            return;
+        }
         setSelected(prev => {
             const n = new Set(prev);
             n.has(id) ? n.delete(id) : n.add(id);
@@ -51,6 +63,7 @@ export default function MobileJobsView() {
             if (!res.ok) { setQueueMsg(res.error || 'Failed'); return; }
             setQueueMsg(`Queued ${selected.size} job(s)`);
             setSelected(new Set());
+            load();
             setTimeout(() => setQueueMsg(''), 3000);
         } catch (e: any) {
             setQueueMsg(e?.response?.data?.error || 'Queue failed');
@@ -79,7 +92,7 @@ export default function MobileJobsView() {
     return (
         <div style={{ padding: '12px 16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <span style={hdr}>Jobs ({jobs.length})</span>
+                <span style={hdr}>Ready ({total})</span>
                 <button onClick={load} style={{
                     fontFamily: 'var(--font-mono)', fontSize: '.68rem', background: 'transparent',
                     border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 10px',
@@ -93,7 +106,7 @@ export default function MobileJobsView() {
                     fontFamily: 'var(--font-mono)', fontSize: '.7rem', color: 'var(--amber)',
                     padding: '8px 10px', background: 'rgba(200,144,42,.08)', borderRadius: '4px',
                     marginBottom: '10px', border: '1px solid rgba(200,144,42,.2)',
-                }}>Running job #{runnerStatus.job_id}
+                }}>Running job #{runnerStatus.job?.id || runnerStatus.active_item?.job_id}
                     {runnerStatus.queue?.length > 0 && ` · ${runnerStatus.queue.length} queued`}
                 </div>
             )}
@@ -128,14 +141,22 @@ export default function MobileJobsView() {
 
             {loading && <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.75rem', color: 'var(--text-secondary)', padding: '20px 0', textAlign: 'center' }}>Loading...</div>}
 
+            {!loading && jobs.length === 0 && (
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.78rem', color: 'var(--text-secondary)', padding: '40px 0', textAlign: 'center' }}>
+                    No QA-approved jobs are ready for tailoring
+                </div>
+            )}
+
             {jobs.map(j => {
                 const checked = selected.has(j.id);
+                const queueState = j.queueItem?.status;
+                const isUnavailable = queueState === 'queued' || queueState === 'running';
                 return (
                     <div key={j.id} style={{
                         ...row,
                         background: checked ? 'rgba(75,142,240,.06)' : 'transparent',
                     }} onClick={() => toggle(j.id)}>
-                        <input type="checkbox" checked={checked} readOnly
+                        <input type="checkbox" checked={checked} disabled={isUnavailable} readOnly
                             style={{ accentColor: 'var(--accent)', width: 20, height: 20, marginTop: 2, flexShrink: 0 }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -143,6 +164,19 @@ export default function MobileJobsView() {
                                 <span style={{ fontSize: '.82rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {j.title}
                                 </span>
+                                {queueState && (
+                                    <span style={{
+                                        marginLeft: 'auto',
+                                        fontFamily: 'var(--font-mono)',
+                                        fontSize: '.58rem',
+                                        fontWeight: 700,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '.04em',
+                                        color: queueState === 'running' ? 'var(--accent)' : 'var(--amber, #e0a030)',
+                                    }}>
+                                        {queueState}
+                                    </span>
+                                )}
                             </div>
                             {j.runCount > 0 && (
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.62rem', color: 'var(--text-secondary)', marginTop: '3px', display: 'flex', alignItems: 'center' }}>

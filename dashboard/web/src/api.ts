@@ -112,9 +112,18 @@ export const api = {
         return data;
     },
 
-    getTailoringRecentJobs: async () => {
-        const { data } = await apiClient.get('/tailoring/jobs/recent');
+    getTailoringReady: async (limit?: number) => {
+        const { data } = await apiClient.get('/tailoring/ready', { params: { limit } });
         return data;
+    },
+
+    getTailoringRejected: async (limit?: number) => {
+        const { data } = await apiClient.get('/tailoring/rejected', { params: { limit } });
+        return data;
+    },
+
+    getTailoringRecentJobs: async () => {
+        return api.getTailoringReady();
     },
 
     runTailoring: async (id: number, skip_analysis: boolean) => {
@@ -159,6 +168,11 @@ export const api = {
 
     applyPackage: async (slug: string, payload: Record<string, any>) => {
         const { data } = await apiClient.post(`/packages/${slug}/apply`, payload);
+        return data;
+    },
+
+    regeneratePackageCover: async (slug: string) => {
+        const { data } = await apiClient.post(`/packages/${slug}/regenerate/cover`);
         return data;
     },
 
@@ -264,6 +278,26 @@ export const api = {
 
     resetApprovedQA: async () => {
         const { data } = await apiClient.post('/tailoring/qa/reset-approved');
+        return data;
+    },
+
+    undoApproveQA: async (jobIds: number[]) => {
+        const { data } = await apiClient.post('/tailoring/qa/undo-approve', { job_ids: jobIds });
+        return data;
+    },
+
+    undoRejectQA: async (jobIds: number[]) => {
+        const { data } = await apiClient.post('/tailoring/qa/undo-reject', { job_ids: jobIds });
+        return data;
+    },
+
+    rollbackToQA: async (jobIds: number[]) => {
+        const { data } = await apiClient.post('/tailoring/qa/rollback', { job_ids: jobIds });
+        return data;
+    },
+
+    getStateLog: async (jobId?: number, limit?: number) => {
+        const { data } = await apiClient.get('/state-log', { params: { job_id: jobId, limit } });
         return data;
     },
 

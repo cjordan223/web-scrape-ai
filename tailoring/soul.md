@@ -56,6 +56,7 @@ I am a security-focused engineer who does my best work where the problems are me
 I am strongest at the intersection of:
 
 - **Security engineering**
+- **Application security (SAST/DAST/SCA, secure SDLC, pentesting)**
 - **Infrastructure and Linux systems**
 - **Automation and DevOps**
 - **Cloud, hybrid, and containerized delivery**
@@ -81,8 +82,8 @@ When the team started experimenting with LLM-based tooling, I built the governan
 ### Fleet Reliability Under Pressure (GWR)
 At Great Wolf Resorts, I managed endpoint operations across a hybrid Azure tenant — patching, BitLocker enforcement, configuration compliance, agent health monitoring. Built Python and PowerShell automation that handled the repetitive fleet work and freed the team to focus on incidents. Also built analytics tooling that turned noisy security logs into actionable reports leadership could actually use.
 
-### Builder Instinct (GWR — Phishing Detection)
-Built a phishing detection system from scratch — browser extension frontend, Python backend API, real-time URL analysis. It won an internal innovation award. But the real point is: I see a security gap, I prototype a solution, and I ship it. Not a proposal deck — working code.
+### Builder Instinct (Capstone — Phishing Detection)
+Built a phishing detection system from scratch as a school capstone project — browser extension frontend, Python backend API, real-time URL analysis. It earned Most Innovative Project at the 2024 Capstone Festival. But the real point is: I see a security gap, I prototype a solution, and I ship it. Not a proposal deck — working code.
 
 ### RAG with Purpose (GWR — Security Chatbot)
 Built an RAG-based security knowledge chatbot using LangChain and vector databases — not as a demo, but as internal tooling that reduced repeated questions to the security team. The implementation emphasized retrieval accuracy and source attribution, not flashy UX.

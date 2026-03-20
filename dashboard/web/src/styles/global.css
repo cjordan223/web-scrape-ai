@@ -38,7 +38,7 @@
 }
 
 html {
-  font-size: 14px
+  font-size: 15px;
 }
 
 body {
@@ -175,6 +175,21 @@ body {
 
 .nav-item-nested.active::before {
   background: var(--accent);
+}
+
+.nav-desc {
+  font-size: .62rem;
+  color: var(--text-secondary);
+  opacity: .7;
+  line-height: 1.2;
+  margin-top: -1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-item-nested.active .nav-desc {
+  opacity: .9;
 }
 
 .sidebar-footer {
@@ -848,10 +863,10 @@ canvas {
 
 /* ── Buttons ────────────────────────────────────────────────── */
 .btn {
-  padding: 5px 12px;
+  padding: 6px 14px;
   border: none;
   border-radius: var(--radius);
-  font-size: .82rem;
+  font-size: .9rem;
   font-weight: 500;
   cursor: pointer;
   font-family: var(--font);
@@ -879,8 +894,8 @@ canvas {
 }
 
 .btn-sm {
-  padding: 3px 9px;
-  font-size: .78rem;
+  padding: 4px 10px;
+  font-size: .82rem;
 }
 
 .btn-success {

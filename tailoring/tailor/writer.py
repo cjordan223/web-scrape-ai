@@ -236,6 +236,8 @@ PERSONALIZATION RULES:
 - The closing must connect back to the company-specific hook, not generic "thank you for your consideration."
 - Select the most relevant narrative vignettes from the candidate persona. Not every letter needs Coraline or GWR — pick what fits.
 - Adapt voice to the company type provided in the analysis (large_tech, startup, security_focused, etc.).
+- Preserve attribution exactly. If evidence comes from a Great Wolf Resorts bullet, name Great Wolf Resorts, not a vendor or tool mentioned inside that bullet.
+- School, capstone, and personal projects must stay labeled as school, capstone, or personal. Never rewrite them as internal employer recognition or on-the-job work.
 
 Return ONLY JSON:
 {{
@@ -274,7 +276,11 @@ Output requirements:
 - Keep tone grounded, direct, and technically credible.
 - Do not use literal \\n tokens or Python list syntax.
 - Keep content factual and grounded in provided source text only.
-- Apply the candidate voice from the persona section. Use the narrative vignettes as source material to reshape, not to copy."""
+- Apply the candidate voice from the persona section. Use the narrative vignettes as source material to reshape, not to copy.
+- Preserve attribution exactly:
+  - do not reassign an employer's work to a vendor, product, or tool named inside the evidence
+  - school, capstone, and personal projects must remain explicitly labeled that way
+  - if a project is not employer work, do not imply it happened on the job or won internal recognition."""
 
 _COVER_QA_SYSTEM = f"""\
 You are a strict final quality reviewer for LaTeX cover letters.
@@ -292,7 +298,11 @@ Task:
 DIFFERENTIATION CHECKS (fix if violated):
 - The opening paragraph MUST mention something specific about the company. If it starts with "I am reaching out to apply for X" or similar generic opener, rewrite it to lead with a company-specific insight.
 - The closing MUST NOT be generic "thank you for your consideration" or "I would welcome the opportunity to discuss." It must connect to the company or role specifically.
-- If the letter follows a rigid formula of opening → UCOP paragraph → GWR paragraph → closing, restructure to follow the strategy's prescribed order instead."""
+- If the letter follows a rigid formula of opening → UCOP paragraph → GWR paragraph → closing, restructure to follow the strategy's prescribed order instead.
+- Fix attribution drift:
+  - if a sentence starts with the wrong employer, rewrite it to match the source evidence exactly
+  - if a tool or vendor name (for example Rapid7 or KnowBe4) appears inside Great Wolf evidence, do not turn it into a separate employer
+  - if a project is a school, capstone, or personal project, label it as such and remove any "internal recognition" wording."""
 
 
 def _strip_disallowed_dashes(text: str) -> str:
@@ -313,7 +323,7 @@ def _resume_strategy(
     # Extract matched tools from analysis requirements for easy reference
     matched_tools: list[str] = []
     for req in analysis.get("requirements", []):
-        matched_tools.extend(req.get("matched_skills", []))
+        matched_tools.extend(req.get("matched_skills") or [])
     matched_tools = sorted(set(matched_tools))
 
     user_prompt = (
@@ -749,9 +759,9 @@ def write_resume(
     char_ratio = draft_body_len / baseline_body_len if baseline_body_len else 1.0
     length_status = (
         f"DRAFT IS TOO SHORT ({draft_body_len} chars vs baseline {baseline_body_len}, ratio {char_ratio:.2f}). "
-        f"You MUST expand bullet content to reach at least {int(baseline_body_len * 0.80)} chars. "
+        f"You MUST expand bullet content to reach at least {int(baseline_body_len * 0.95)} chars. "
         f"Add grounded technical detail to each bullet until length matches."
-        if char_ratio < 0.80
+        if char_ratio < 0.95
         else (
             f"DRAFT MAY BE TOO LONG ({draft_body_len} chars vs baseline {baseline_body_len}, ratio {char_ratio:.2f}). "
             f"Tighten summary language, shorten low-value phrasing, and reduce line wrapping pressure while preserving facts."
