@@ -1,7 +1,8 @@
-"""YAML config loader + Pydantic models."""
+"""YAML config loader for scraper v2."""
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -10,138 +11,176 @@ from pydantic import BaseModel, Field
 
 _DEFAULT_CONFIG = Path(__file__).parent / "config.default.yaml"
 
+DB_PATH = Path(
+    os.environ.get("JOB_SCRAPER_DB", Path.home() / ".local" / "share" / "job_scraper" / "jobs.db")
+)
 
-class SearchConfig(BaseModel):
-    searx_url: str = "http://localhost:8888/search"
+
+class BoardTarget(BaseModel):
+    url: str
+    board_type: str
+    company: str
+    enabled: bool = True
+
+
+class SearXNGConfig(BaseModel):
+    enabled: bool = True
+    url: str = "http://localhost:8888/search"
     timeout: int = 15
-    max_results_per_query: int = 20
     engines: str = "google,startpage"
-    fallback_engines: list[str] = Field(default_factory=lambda: ["google", "startpage"])
     time_range: str = "week"
-    fallback_time_ranges: list[str] = Field(default_factory=lambda: ["year"])
-    fallback_to_all_engines: bool = True
     request_delay: float = 1.0
 
 
-class FilterConfig(BaseModel):
-    title_keywords: list[str] = Field(default_factory=lambda: [
-        "security", "cyber", "appsec", "devsecops", "detection",
-        "vulnerability", "soc", "infosec", "secops",
-    ])
-    seniority_exclude: list[str] = Field(default_factory=lambda: [
-        "senior", "staff", "principal", "manager", "director",
-    ])
-    max_experience_years: int = 5
-    min_salary_k: int = 70
-    content_blocklist: list[str] = Field(default_factory=lambda: [
-        "clearance", "ts/sci", "ts-sci", "polygraph", "top secret",
-        "secret clearance",
-    ])
-    title_role_words: list[str] = Field(default_factory=lambda: [
-        "engineer", "analyst", "architect", "developer", "specialist",
-        "consultant", "administrator", "operator", "associate",
-        "responder", "researcher", "pentester", "tester",
-    ])
-    url_domain_blocklist: list[str] = Field(default_factory=lambda: [
+class USAJobsConfig(BaseModel):
+    enabled: bool = True
+    series: list[str] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+    agencies: list[str] = Field(default_factory=list)
+    days: int = 14
+    remote: bool = True
+
+
+class HardFilterConfig(BaseModel):
+    domain_blocklist: list[str] = Field(default_factory=lambda: [
         "dictionary.com", "collinsdictionary.com", "techtarget.com",
         "wikipedia.org", "merriam-webster.com", "investopedia.com",
         "reddit.com", "quora.com", "youtube.com", "medium.com",
     ])
-    require_remote: bool = True
-    require_explicit_remote: bool = False
-    require_us_location: bool = True
-    require_known_board: bool = False
-    fetch_jd: bool = True
-    min_jd_chars: int = 50
-    jd_max_chars: int = 15000
-    score_accept_threshold: int = 0
-    score_reject_threshold: int = -3
-    target_min_results: int = 5
-    target_max_results: int = 50
-    seen_ttl_days: int = 14
-    promotion_min_score: int = 0
+    title_blocklist: list[str] = Field(default_factory=lambda: [
+        "staff", "principal", "manager", "director",
+    ])
+    content_blocklist: list[str] = Field(default_factory=lambda: [
+        "clearance", "ts/sci", "ts-sci", "polygraph", "top secret",
+        "secret clearance",
+    ])
+    min_salary_k: int = 70
 
 
-class QueryTemplate(BaseModel):
-    board: str = "unknown"
+class SearXNGQuery(BaseModel):
+    title_phrase: str
     board_site: str = ""
-    title_phrase: str = ""
     suffix: str = ""
 
 
-class CrawlTarget(BaseModel):
-    url: str
-    board: str = "unknown"
-    link_pattern: str | None = None
+class ScraperConfig(BaseModel):
+    boards: list[BoardTarget] = Field(default_factory=list)
+    searxng: SearXNGConfig = Field(default_factory=SearXNGConfig)
+    usajobs: USAJobsConfig = Field(default_factory=USAJobsConfig)
+    hard_filters: HardFilterConfig = Field(default_factory=HardFilterConfig)
+    queries: list[SearXNGQuery] = Field(default_factory=list)
+    seen_ttl_days: int = 14
+    target_max_results: int = 50
 
 
-class CrawlConfig(BaseModel):
-    enabled: bool = True
-    targets: list[CrawlTarget] = Field(default_factory=list)
-    request_delay: float = 2.0
-    max_results_per_target: int = 50
+def _company_from_board_url(url: str, board_type: str) -> str:
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    path_parts = [p for p in parsed.path.strip("/").split("/") if p]
+    if board_type == "ashby" and "ashbyhq.com" in parsed.netloc:
+        return path_parts[0] if path_parts else "unknown"
+    if board_type == "greenhouse" and "greenhouse.io" in parsed.netloc:
+        return path_parts[0] if path_parts else "unknown"
+    if board_type == "lever" and "lever.co" in parsed.netloc:
+        return path_parts[0] if path_parts else "unknown"
+    host = parsed.netloc.replace("www.", "")
+    parts = host.split(".")
+    return parts[0] if parts else "unknown"
 
 
-class LLMReviewConfig(BaseModel):
-    enabled: bool = False
-    url: str = "http://localhost:1234/v1/chat/completions"
-    model: str = "default"
-    fail_open: bool = True
-    timeout: int = 30
-    jd_max_chars: int = 2000
+# ---------------------------------------------------------------------------
+# Backward-compat stubs — old modules import these; they will be deleted once
+# all old modules are replaced in later tasks.
+# ---------------------------------------------------------------------------
+
+class FilterConfig(BaseModel):
+    """Stub — kept for backward compat with old filters.py."""
+    pass
+
+
+class QueryTemplate(BaseModel):
+    """Stub — kept for backward compat with old searcher.py."""
+    title_phrase: str = ""
+    board_site: str = ""
+    suffix: str = ""
 
 
 class WatcherConfig(BaseModel):
-    name: str
-    type: str = "crawl"  # "crawl" | "rss" | "api" | "custom"
-    url: str = ""
-    board: str = "unknown"
-    enabled: bool = True
-    skip_filters: list[str] = Field(default_factory=list)
-    tags: list[str] = Field(default_factory=list)
-    # crawl-specific
-    link_pattern: str | None = None
-    # api-specific
-    method: str = "GET"
-    headers: dict[str, str] = Field(default_factory=dict)
-    params: dict[str, str] = Field(default_factory=dict)
-    results_path: str = ""
-    title_field: str = "title"
-    url_field: str = "url"
-    snippet_field: str = ""
-    # custom-specific
-    module: str | None = None
+    """Stub — kept for backward compat with old watchers.py / usajobs.py."""
+    name: str = ""
+    params: dict = Field(default_factory=dict)
 
 
-class ScraperConfig(BaseModel):
-    search: SearchConfig = Field(default_factory=SearchConfig)
-    filter: FilterConfig = Field(default_factory=FilterConfig)
-    queries: list[QueryTemplate] = Field(default_factory=list)
-    crawl: CrawlConfig = Field(default_factory=CrawlConfig)
-    llm_review: LLMReviewConfig = Field(default_factory=LLMReviewConfig)
-    watchers: list[WatcherConfig] = Field(default_factory=list)
+class LLMReviewConfig(BaseModel):
+    """Stub — kept for backward compat with old llm_reviewer.py."""
+    pass
 
 
-def load_config(config_path: Optional[Path] = None) -> ScraperConfig:
-    """Load config from YAML, falling back to defaults."""
-    # Start with defaults
-    with open(_DEFAULT_CONFIG) as f:
-        data = yaml.safe_load(f)
-
-    # Merge user overrides if provided
-    if config_path and config_path.exists():
-        with open(config_path) as f:
-            overrides = yaml.safe_load(f) or {}
-        _deep_merge(data, overrides)
-
-    return ScraperConfig.model_validate(data)
+class CrawlTarget(BaseModel):
+    """Stub — kept for backward compat with old crawler.py."""
+    url: str
+    board: str = ""
+    link_pattern: str = ""
 
 
-def _deep_merge(base: dict, override: dict) -> dict:
-    """Recursively merge override into base dict."""
-    for key, value in override.items():
-        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
-            _deep_merge(base[key], value)
-        else:
-            base[key] = value
-    return base
+# ---------------------------------------------------------------------------
+
+
+def load_config(path: str | Path | None = None) -> ScraperConfig:
+    config_path = Path(path) if path else _DEFAULT_CONFIG
+    with open(config_path) as f:
+        raw = yaml.safe_load(f)
+
+    boards: list[BoardTarget] = []
+    for target in raw.get("crawl", {}).get("targets", []):
+        board_type = target.get("board", "unknown")
+        company = target.get("company") or _company_from_board_url(target["url"], board_type)
+        boards.append(BoardTarget(url=target["url"], board_type=board_type, company=company))
+
+    queries = []
+    for q in raw.get("queries", []):
+        queries.append(SearXNGQuery(
+            title_phrase=q.get("title_phrase", ""),
+            board_site=q.get("board_site", ""),
+            suffix=q.get("suffix", ""),
+        ))
+
+    searxng_raw = raw.get("search", {})
+    searxng = SearXNGConfig(
+        url=searxng_raw.get("searx_url", "http://localhost:8888/search"),
+        timeout=searxng_raw.get("timeout", 15),
+        engines=searxng_raw.get("engines", "google,startpage"),
+        time_range=searxng_raw.get("time_range", "week"),
+        request_delay=searxng_raw.get("request_delay", 1.0),
+    )
+
+    usajobs_raw = {}
+    for w in raw.get("watchers", []):
+        if w.get("name") == "usajobs":
+            usajobs_raw = w.get("params", {})
+            break
+    usajobs = USAJobsConfig(
+        series=usajobs_raw.get("series", "").split(";") if usajobs_raw.get("series") else [],
+        keywords=usajobs_raw.get("keywords", "").split(";") if usajobs_raw.get("keywords") else [],
+        agencies=usajobs_raw.get("agencies", "").split(";") if usajobs_raw.get("agencies") else [],
+        days=int(usajobs_raw.get("days", "14")),
+        remote=usajobs_raw.get("remote", "true") == "true",
+    )
+
+    filter_raw = raw.get("filter", {})
+    hard_filters = HardFilterConfig(
+        domain_blocklist=filter_raw.get("url_domain_blocklist", HardFilterConfig().domain_blocklist),
+        title_blocklist=filter_raw.get("seniority_exclude", HardFilterConfig().title_blocklist),
+        content_blocklist=filter_raw.get("content_blocklist", HardFilterConfig().content_blocklist),
+        min_salary_k=filter_raw.get("min_salary_k", 70),
+    )
+
+    return ScraperConfig(
+        boards=boards,
+        searxng=searxng,
+        usajobs=usajobs,
+        hard_filters=hard_filters,
+        queries=queries,
+        seen_ttl_days=filter_raw.get("seen_ttl_days", 14),
+        target_max_results=filter_raw.get("target_max_results", 50),
+    )
