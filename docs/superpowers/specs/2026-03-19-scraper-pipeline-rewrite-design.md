@@ -36,7 +36,7 @@ SPIDERS (one per board type)
 | GreenhouseSpider | 5 boards (Nansen, Adyen, Anduril, CrowdStrike, Bitwarden) | scrapy-playwright renders JS SPA |
 | LeverSpider | 3 boards (EQ Bank, Spotify, Arcadia) | scrapy-playwright with stealth |
 | USAJobsSpider | USAJobs API | httpx, no browser |
-| SearXNGSpider | Local SearXNG (optional) | httpx, yields URLs for other spiders |
+| SearXNGSpider | Local SearXNG (optional) | httpx, yields `JobItem` directly (extracts title/URL/snippet from search results; JD fetched via follow-up request in same spider) |
 | AggregatorSpider | SimplyHired, similar | scrapy-playwright |
 | GenericSpider | RSS feeds, static HTML | Plain Scrapy downloader |
 
@@ -113,9 +113,12 @@ CREATE TABLE jobs (
     seniority TEXT,
     salary_text TEXT,
     jd_text TEXT,
+    approved_jd_text TEXT,           -- QA-edited JD (overrides jd_text for tailoring)
     snippet TEXT,
+    query TEXT,                      -- search query that discovered this job (diagnostics)
     source TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
+    rejection_stage TEXT,            -- which hard filter fired
     rejection_reason TEXT,
     run_id TEXT NOT NULL,
     discovered_at TEXT NOT NULL,
@@ -131,8 +134,22 @@ CREATE TABLE runs (
     items_new INTEGER DEFAULT 0,
     items_filtered INTEGER DEFAULT 0,
     errors INTEGER DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'running'
+    status TEXT NOT NULL DEFAULT 'running',
+    trigger_source TEXT NOT NULL DEFAULT 'scheduled'
 );
+
+-- Carried over from current schema (used by dashboard + tailoring)
+CREATE TABLE applied_applications ( ... );  -- unchanged
+CREATE TABLE applied_snapshots ( ... );     -- unchanged
+CREATE TABLE job_state_log ( ... );         -- unchanged
+CREATE TABLE tailoring_queue_items ( ... ); -- unchanged
+
+-- Triggers protecting applied jobs (unchanged)
+CREATE TRIGGER protect_applied_results_before_update ...;
+CREATE TRIGGER protect_applied_results_before_delete ...;
+
+-- Compatibility view: code referencing 'results' continues working during migration
+CREATE VIEW results AS SELECT *, status AS decision FROM jobs;
 ```
 
 ### Schema changes from current
@@ -142,7 +159,7 @@ CREATE TABLE runs (
 | `results` table | `jobs` table |
 | `rejected` table | `status='rejected'` + `rejection_reason` on `jobs` |
 | `quarantine` table | Eliminated (no scoring/promotion) |
-| `filter_verdicts` JSON blob | Eliminated (3 hard filters, reason is a string) |
+| `filter_verdicts` JSON blob | `rejection_stage` + `rejection_reason` (structured but simple) |
 | `decision` column | `status` with lifecycle: pending → qa_approved → tailored → applied → rejected |
 | `salary_k`, `experience_years`, `score` | Eliminated (no scraper-side parsing) |
 | Company parsed at selection time | `company` column populated at crawl time |
@@ -223,7 +240,32 @@ Removed: `requests`, `crawl4ai`, undeclared `feedparser`.
 - Old DB preserved (archival commit already made)
 - New schema created on first run via `db.py`
 - `seen_urls` table migrated as-is (compatible)
-- One-time migration script to copy `results` → `jobs` if desired (optional, not required)
+- `results` compatibility view (`CREATE VIEW results AS SELECT *, status AS decision FROM jobs`) ensures dashboard code works during transition
+- One-time migration script to copy `results` → `jobs`:
+  - Deduplicates by URL (keeps most recent row when same URL appears across runs)
+  - Maps `decision` → `status`
+  - Preserves `approved_jd_text` if column exists
+- `applied_applications`, `applied_snapshots`, `job_state_log`, `tailoring_queue_items` tables and triggers carried over unchanged
+
+## Risks & Mitigations
+
+### scrapy-playwright for Greenhouse/Lever is unvalidated
+
+The same Playwright engine that failed under Crawl4AI may fail under scrapy-playwright. Mitigation:
+- Prototype GreenhouseSpider and LeverSpider against 2 target boards each before full implementation
+- If they fail, those boards fall back to aggregator-only discovery (SimplyHired, SearXNG) — same as current behavior, no regression
+- Document which boards are direct-crawlable vs aggregator-only in config
+
+### Files requiring `results` → `jobs` table name changes
+
+These files contain raw SQL referencing `results`:
+- `job-scraper/api/scraping_handlers.py`
+- `dashboard/backend/services/tailoring.py`
+- `dashboard/backend/services/ops.py`
+- `dashboard/backend/routers/tailoring.py`
+- `tailoring/tailor/selector.py`
+
+The `results` view provides backward compatibility during migration, but all files should be updated to reference `jobs` directly as part of implementation.
 
 ## What's eliminated
 
