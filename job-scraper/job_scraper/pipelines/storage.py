@@ -19,7 +19,8 @@ class SQLitePipeline:
     def from_crawler(cls, crawler):
         from job_scraper.config import DB_PATH
         db = JobDB(DB_PATH)
-        return cls(db=db)
+        run_id = crawler.settings.get("SCRAPE_RUN_ID", "")
+        return cls(db=db, run_id=run_id)
 
     def open_spider(self, spider):
         if not self._run_id:
