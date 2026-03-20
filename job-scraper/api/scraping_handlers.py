@@ -283,7 +283,7 @@ def list_runs(
         stats_row = conn.execute(
             """SELECT AVG(elapsed) as avg_duration,
                       COUNT(*) as total_runs,
-                      SUM(CASE WHEN status='complete' THEN 1 ELSE 0 END) as success_count,
+                      SUM(CASE WHEN status IN ('complete','completed') THEN 1 ELSE 0 END) as success_count,
                       AVG(filtered_count) as avg_jobs
                FROM runs WHERE status != 'running'"""
         ).fetchone()

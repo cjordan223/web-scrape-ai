@@ -13,6 +13,23 @@ import {
     Filler
 } from 'chart.js';
 import { fmtDate, fmtDuration } from '../../../../utils';
+
+const SOURCE_LABELS: Record<string, string> = {
+    searxng: 'SearXNG', ashby: 'Ashby', greenhouse: 'Greenhouse', lever: 'Lever',
+    usajobs: 'USAJobs', aggregator: 'Aggregator', generic: 'Generic',
+    crawl4ai: 'Crawl4AI',  // legacy
+};
+const SOURCE_COLORS: Record<string, string> = {
+    searxng: 'var(--purple)', ashby: 'var(--cyan)', greenhouse: '#4ade80',
+    lever: '#f59e0b', usajobs: '#3b82f6', aggregator: '#ec4899', generic: '#94a3b8',
+    crawl4ai: 'var(--cyan)',  // legacy
+};
+function sourceLabel(src: string): string {
+    return SOURCE_LABELS[src] || src.replace('watcher:', '');
+}
+function sourceColor(src: string): string {
+    return SOURCE_COLORS[src] || 'var(--amber)';
+}
 import { PageHeader, PagePrimary, PageSecondary, PageView } from '../../../../components/workflow/PageLayout';
 import { WorkflowPanel } from '../../../../components/workflow/Panel';
 import { LoadingState } from '../../../../components/workflow/States';
@@ -247,7 +264,7 @@ function SourceDiagnosticsPanel() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             {by_source.map((s: any) => {
                                 const pct = totalAccepted > 0 ? (s.accepted / totalAccepted * 100) : 0;
-                                const label = s.source === 'searxng' ? 'SearXNG' : s.source === 'crawl4ai' ? 'Crawl4AI' : s.source.replace('watcher:', '');
+                                const label = sourceLabel(s.source);
                                 return (
                                     <div key={s.source} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         <div style={{ width: '100px', fontSize: '0.8rem', fontWeight: 500 }}>{label}</div>
@@ -256,7 +273,7 @@ function SourceDiagnosticsPanel() {
                                                 height: '100%',
                                                 borderRadius: '6px',
                                                 width: `${pct}%`,
-                                                background: s.source === 'searxng' ? 'var(--purple)' : s.source === 'crawl4ai' ? 'var(--cyan)' : 'var(--amber)',
+                                                background: sourceColor(s.source),
                                             }} />
                                         </div>
                                         <div style={{ width: '70px', fontSize: '0.8rem', fontWeight: 600, textAlign: 'right' }}>
@@ -349,7 +366,7 @@ function SourceDiagnosticsPanel() {
                                         return (
                                             <tr key={r.run_id}>
                                                 <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(r.started_at)}</td>
-                                                <td><span className={`pill ${r.status === 'complete' ? 'pill-success' : 'pill-fail'}`}>{r.status}</span></td>
+                                                <td><span className={`pill ${r.status?.startsWith('complete') ? 'pill-success' : 'pill-fail'}`}>{r.status}</span></td>
                                                 <td>{r.raw_count || 0}</td>
                                                 <td style={{ fontWeight: 600 }}>{stored}</td>
                                                 <td>
@@ -694,7 +711,7 @@ export default function RunsView() {
             return `${d.toLocaleString('en-US', { month: 'short', day: 'numeric' })}`;
         });
         const times = validRuns.map((r: any) => r.elapsed);
-        const colors = validRuns.map((r: any) => r.status === 'complete' ? '#06d6a0' : (r.status === 'failed' ? '#ef476f' : '#cbd5e1'));
+        const colors = validRuns.map((r: any) => r.status?.startsWith('complete') ? '#06d6a0' : (r.status === 'failed' ? '#ef476f' : '#cbd5e1'));
 
         return {
             labels,
@@ -1041,7 +1058,7 @@ export default function RunsView() {
                                         </td>
                                         <td>{run.elapsed != null ? fmtDuration(run.elapsed) : '—'}</td>
                                         <td>
-                                            <span className={`pill ${run.status === 'complete' ? 'pill-success' : (run.status === 'running' ? 'pill-running' : 'pill-fail')}`}>
+                                            <span className={`pill ${run.status?.startsWith('complete') ? 'pill-success' : (run.status === 'running' ? 'pill-running' : 'pill-fail')}`}>
                                                 {run.status}
                                             </span>
                                         </td>
