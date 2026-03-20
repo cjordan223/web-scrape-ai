@@ -222,7 +222,7 @@ class JobDB:
 
     def start_run(self, run_id: str, trigger: str = "scheduled") -> None:
         self._conn.execute(
-            "INSERT INTO runs (run_id, started_at, status, trigger_source) VALUES (?, ?, 'running', ?)",
+            "INSERT OR IGNORE INTO runs (run_id, started_at, status, trigger_source) VALUES (?, ?, 'running', ?)",
             (run_id, _now(), trigger),
         )
         self._conn.commit()

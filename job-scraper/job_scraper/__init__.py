@@ -52,9 +52,6 @@ def scrape_all(*, verbose: bool = False, spiders: list[str] | None = None) -> di
     # Pass run_id to pipelines via settings
     settings["SCRAPE_RUN_ID"] = run_id
 
-    db = JobDB()
-    db.start_run(run_id, trigger="manual")
-
     process = CrawlerProcess(settings)
 
     enabled = spiders or list(ALL_SPIDERS.keys())
@@ -66,6 +63,7 @@ def scrape_all(*, verbose: bool = False, spiders: list[str] | None = None) -> di
     process.start()  # blocks until all spiders finish
 
     # Gather stats from DB
+    db = JobDB()
     stats = {
         "run_id": run_id,
         "total_jobs": db.job_count(),
