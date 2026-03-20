@@ -43,10 +43,16 @@ def migrate(db_path: Path) -> None:
         return
 
     if _is_table(conn, "jobs") and _is_table(conn, "results"):
-        print("Both jobs and results tables exist. Assuming partial migration.")
-        print("Please inspect manually.")
-        conn.close()
-        return
+        jobs_count = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+        if jobs_count > 0:
+            print(f"Both jobs ({jobs_count} rows) and results tables exist. Skipping.")
+            _ensure_views(conn)
+            conn.close()
+            return
+        # jobs is empty — drop it and proceed with migration
+        print("Empty jobs table found alongside results. Dropping empty jobs table...")
+        conn.execute("DROP TABLE jobs")
+        conn.commit()
 
     if not _is_table(conn, "results"):
         print("No results table found. Nothing to migrate.")
@@ -114,6 +120,14 @@ def migrate(db_path: Path) -> None:
         if old_col in col_names:
             select_parts.append(old_col)
             insert_cols.append(new_col)
+
+    # Add fallbacks for required columns missing in v1
+    if "company" not in col_names:
+        select_parts.append("COALESCE(board, 'unknown')")
+        insert_cols.append("company")
+    if "updated_at" not in col_names:
+        select_parts.append("created_at")
+        insert_cols.append("updated_at")
 
     # decision -> status
     if "decision" in col_names:
@@ -190,6 +204,8 @@ def _ensure_views(conn: sqlite3.Connection) -> None:
         conn.execute("DROP VIEW results")
     if _is_view(conn, "rejected"):
         conn.execute("DROP VIEW rejected")
+    elif _is_table(conn, "rejected"):
+        conn.execute("ALTER TABLE rejected RENAME TO rejected_v1_backup")
 
     conn.execute("CREATE VIEW results AS SELECT *, status AS decision FROM jobs")
     conn.execute("""CREATE VIEW rejected AS

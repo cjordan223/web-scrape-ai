@@ -83,7 +83,53 @@ class JobDB:
         self._conn = sqlite3.connect(str(self._path), timeout=10)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
+        self._migrate_schema()
         self._conn.executescript(_SCHEMA)
+
+    def _migrate_schema(self) -> None:
+        """Handle in-place schema migrations for existing databases."""
+        # Rename discovered_at → created_at if needed
+        try:
+            cols = {r[1] for r in self._conn.execute("PRAGMA table_info(jobs)")}
+            if "discovered_at" in cols and "created_at" not in cols:
+                self._conn.execute("ALTER TABLE jobs RENAME COLUMN discovered_at TO created_at")
+                self._conn.commit()
+        except Exception:
+            pass  # Table may not exist yet
+        # Add missing columns to existing jobs table
+        try:
+            cols = {r[1] for r in self._conn.execute("PRAGMA table_info(jobs)")}
+            if cols:  # table exists
+                for col, defn in [
+                    ("experience_years", "INTEGER"),
+                    ("salary_k", "REAL"),
+                    ("score", "REAL"),
+                    ("filter_verdicts", "TEXT"),
+                ]:
+                    if col not in cols:
+                        self._conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} {defn}")
+                self._conn.commit()
+        except Exception:
+            pass
+        # Rename runs columns if needed
+        try:
+            cols = {r[1] for r in self._conn.execute("PRAGMA table_info(runs)")}
+            if cols:
+                renames = [
+                    ("items_scraped", "raw_count"),
+                    ("items_new", "dedup_count"),
+                    ("items_filtered", "filtered_count"),
+                ]
+                for old, new in renames:
+                    if old in cols and new not in cols:
+                        self._conn.execute(f"ALTER TABLE runs RENAME COLUMN {old} TO {new}")
+                # Add missing runs columns
+                for col, defn in [("error_count", "INTEGER DEFAULT 0"), ("errors", "TEXT")]:
+                    if col not in cols:
+                        self._conn.execute(f"ALTER TABLE runs ADD COLUMN {col} {defn}")
+                self._conn.commit()
+        except Exception:
+            pass
 
     def close(self) -> None:
         self._conn.close()
