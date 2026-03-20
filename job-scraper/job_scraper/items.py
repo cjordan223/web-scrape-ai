@@ -18,7 +18,12 @@ class JobItem(scrapy.Item):
     snippet = scrapy.Field()
     query = scrapy.Field()
     source = scrapy.Field()
-    discovered_at = scrapy.Field()
+    created_at = scrapy.Field()
+    discovered_at = scrapy.Field()  # alias accepted by db layer
     status = scrapy.Field()
     rejection_stage = scrapy.Field()
     rejection_reason = scrapy.Field()
+    experience_years = scrapy.Field()
+    salary_k = scrapy.Field()
+    score = scrapy.Field()
+    filter_verdicts = scrapy.Field()

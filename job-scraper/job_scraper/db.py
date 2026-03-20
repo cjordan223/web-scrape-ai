@@ -31,13 +31,17 @@ CREATE TABLE IF NOT EXISTS jobs (
     status TEXT NOT NULL DEFAULT 'pending',
     rejection_stage TEXT,
     rejection_reason TEXT,
+    experience_years INTEGER,
+    salary_k REAL,
+    score REAL,
+    filter_verdicts TEXT,
     run_id TEXT NOT NULL,
-    discovered_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_run_id ON jobs(run_id);
-CREATE INDEX IF NOT EXISTS idx_jobs_discovered_at ON jobs(discovered_at);
+CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at);
 CREATE INDEX IF NOT EXISTS idx_jobs_board ON jobs(board);
 
 CREATE TABLE IF NOT EXISTS runs (
@@ -45,10 +49,11 @@ CREATE TABLE IF NOT EXISTS runs (
     started_at TEXT NOT NULL,
     completed_at TEXT,
     elapsed REAL,
-    items_scraped INTEGER DEFAULT 0,
-    items_new INTEGER DEFAULT 0,
-    items_filtered INTEGER DEFAULT 0,
-    errors INTEGER DEFAULT 0,
+    raw_count INTEGER DEFAULT 0,
+    dedup_count INTEGER DEFAULT 0,
+    filtered_count INTEGER DEFAULT 0,
+    error_count INTEGER DEFAULT 0,
+    errors TEXT,
     status TEXT NOT NULL DEFAULT 'running',
     trigger_source TEXT NOT NULL DEFAULT 'scheduled'
 );
@@ -56,6 +61,11 @@ CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs(started_at);
 
 CREATE VIEW IF NOT EXISTS results AS
     SELECT *, status AS decision FROM jobs;
+
+CREATE VIEW IF NOT EXISTS rejected AS
+    SELECT id, url, title, board, snippet, rejection_stage, rejection_reason,
+           filter_verdicts, run_id, created_at
+    FROM jobs WHERE status = 'rejected';
 """
 
 
@@ -110,10 +120,12 @@ class JobDB:
         cur = self._conn.execute(
             """INSERT INTO jobs (url, title, company, board, location, seniority,
                salary_text, jd_text, snippet, query, source, status,
-               rejection_stage, rejection_reason, run_id, discovered_at, updated_at)
+               rejection_stage, rejection_reason, experience_years, salary_k,
+               score, filter_verdicts, run_id, created_at, updated_at)
             VALUES (:url, :title, :company, :board, :location, :seniority,
                     :salary_text, :jd_text, :snippet, :query, :source, :status,
-                    :rejection_stage, :rejection_reason, :run_id, :discovered_at, :updated_at)""",
+                    :rejection_stage, :rejection_reason, :experience_years, :salary_k,
+                    :score, :filter_verdicts, :run_id, :created_at, :updated_at)""",
             {
                 "url": job["url"],
                 "title": job["title"],
@@ -129,8 +141,12 @@ class JobDB:
                 "status": job.get("status", "pending"),
                 "rejection_stage": job.get("rejection_stage"),
                 "rejection_reason": job.get("rejection_reason"),
+                "experience_years": job.get("experience_years"),
+                "salary_k": job.get("salary_k"),
+                "score": job.get("score"),
+                "filter_verdicts": job.get("filter_verdicts"),
                 "run_id": job["run_id"],
-                "discovered_at": job.get("discovered_at", now),
+                "created_at": job.get("created_at", job.get("discovered_at", now)),
                 "updated_at": now,
             },
         )
@@ -149,12 +165,12 @@ class JobDB:
     def recent_jobs(self, limit: int = 50, status: str | None = None) -> list[dict]:
         if status:
             rows = self._conn.execute(
-                "SELECT * FROM jobs WHERE status = ? ORDER BY discovered_at DESC LIMIT ?",
+                "SELECT * FROM jobs WHERE status = ? ORDER BY created_at DESC LIMIT ?",
                 (status, limit),
             ).fetchall()
         else:
             rows = self._conn.execute(
-                "SELECT * FROM jobs ORDER BY discovered_at DESC LIMIT ?", (limit,)
+                "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?", (limit,)
             ).fetchall()
         return [dict(r) for r in rows]
 
@@ -165,8 +181,9 @@ class JobDB:
         )
         self._conn.commit()
 
-    def finish_run(self, run_id: str, *, items_scraped: int = 0, items_new: int = 0,
-                   items_filtered: int = 0, errors: int = 0) -> None:
+    def finish_run(self, run_id: str, *, raw_count: int = 0, dedup_count: int = 0,
+                   filtered_count: int = 0, error_count: int = 0,
+                   errors: str | None = None) -> None:
         now = _now()
         started = self._conn.execute(
             "SELECT started_at FROM runs WHERE run_id = ?", (run_id,)
@@ -176,10 +193,12 @@ class JobDB:
             start_dt = datetime.fromisoformat(started["started_at"])
             elapsed = (datetime.now(timezone.utc) - start_dt).total_seconds()
         self._conn.execute(
-            """UPDATE runs SET completed_at = ?, elapsed = ?, items_scraped = ?,
-               items_new = ?, items_filtered = ?, errors = ?, status = 'completed'
+            """UPDATE runs SET completed_at = ?, elapsed = ?, raw_count = ?,
+               dedup_count = ?, filtered_count = ?, error_count = ?, errors = ?,
+               status = 'completed'
             WHERE run_id = ?""",
-            (now, elapsed, items_scraped, items_new, items_filtered, errors, run_id),
+            (now, elapsed, raw_count, dedup_count, filtered_count, error_count,
+             errors, run_id),
         )
         self._conn.commit()
 

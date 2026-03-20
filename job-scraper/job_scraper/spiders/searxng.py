@@ -64,7 +64,7 @@ class SearXNGSpider(scrapy.Spider):
         elif "greenhouse.io" in host: board = "greenhouse"
         elif "lever.co" in host: board = "lever"
         elif "usajobs.gov" in host: board = "usajobs"
-        yield JobItem(url=response.url, title=response.meta["item_title"], company=company, board=board, snippet=response.meta["item_snippet"], query=response.meta["item_query"], jd_html=response.text, source=self.name, discovered_at=datetime.now(timezone.utc).isoformat())
+        yield JobItem(url=response.url, title=response.meta["item_title"], company=company, board=board, snippet=response.meta["item_snippet"], query=response.meta["item_query"], jd_html=response.text, source=self.name, created_at=datetime.now(timezone.utc).isoformat())
 
     def errback_searxng(self, failure):
         logger.warning("SearXNG request failed: %s", failure.value)

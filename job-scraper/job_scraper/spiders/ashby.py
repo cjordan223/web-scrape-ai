@@ -48,4 +48,4 @@ class AshbySpider(scrapy.Spider):
         title = response.meta.get("title") or response.css("h1::text").get() or "Unknown"
         location = response.meta.get("location") or ""
         jd_html = response.css(".ashby-job-posting-description").get() or response.text
-        yield JobItem(url=response.url, title=title.strip(), company=company, board="ashby", location=location, jd_html=jd_html, source=self.name, discovered_at=datetime.now(timezone.utc).isoformat())
+        yield JobItem(url=response.url, title=title.strip(), company=company, board="ashby", location=location, jd_html=jd_html, source=self.name, created_at=datetime.now(timezone.utc).isoformat())

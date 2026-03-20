@@ -46,8 +46,8 @@ class SQLitePipeline:
             stats = spider.crawler.stats.get_stats() if hasattr(spider, "crawler") else {}
             self._db.finish_run(
                 self._run_id,
-                items_scraped=stats.get("item_scraped_count", self._stats["new"] + self._stats["filtered"]),
-                items_new=self._stats["new"],
-                items_filtered=self._stats["filtered"],
-                errors=stats.get("log_count/ERROR", 0),
+                raw_count=stats.get("item_scraped_count", self._stats["new"] + self._stats["filtered"]),
+                dedup_count=self._stats["new"],
+                filtered_count=self._stats["filtered"],
+                error_count=stats.get("log_count/ERROR", 0),
             )

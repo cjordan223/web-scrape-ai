@@ -54,4 +54,4 @@ class USAJobsSpider(scrapy.Spider):
             qual = desc.get("QualificationSummary", "")
             duties = desc.get("UserArea", {}).get("Details", {}).get("MajorDuties", [])
             jd_text = qual + "\n\n" + "\n".join(duties) if duties else qual
-            yield JobItem(url=url, title=title, company=org, board="usajobs", location=location, salary_text=salary_text, jd_text=jd_text, source=self.name, discovered_at=datetime.now(timezone.utc).isoformat())
+            yield JobItem(url=url, title=title, company=org, board="usajobs", location=location, salary_text=salary_text, jd_text=jd_text, source=self.name, created_at=datetime.now(timezone.utc).isoformat())

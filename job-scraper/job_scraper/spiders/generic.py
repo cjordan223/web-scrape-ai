@@ -44,10 +44,10 @@ class GenericSpider(scrapy.Spider):
             url = item.findtext("link", "")
             description = item.findtext("description", "")
             if url:
-                yield JobItem(url=url, title=title, company=response.meta.get("company", "unknown"), board="generic", snippet=description, jd_html=description, source=self.name, discovered_at=datetime.now(timezone.utc).isoformat())
+                yield JobItem(url=url, title=title, company=response.meta.get("company", "unknown"), board="generic", snippet=description, jd_html=description, source=self.name, created_at=datetime.now(timezone.utc).isoformat())
 
     def parse_job(self, response):
         company = response.meta.get("company", "unknown")
         title = response.css("h1::text").get() or "Unknown"
         jd_html = response.css(".job-description, .content, main").get() or response.text
-        yield JobItem(url=response.url, title=title.strip(), company=company, board="generic", jd_html=jd_html, source=self.name, discovered_at=datetime.now(timezone.utc).isoformat())
+        yield JobItem(url=response.url, title=title.strip(), company=company, board="generic", jd_html=jd_html, source=self.name, created_at=datetime.now(timezone.utc).isoformat())

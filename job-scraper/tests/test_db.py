@@ -70,10 +70,10 @@ def test_insert_duplicate_url_raises(db):
 
 def test_start_and_finish_run(db):
     db.start_run("run-1")
-    db.finish_run("run-1", items_scraped=10, items_new=5, items_filtered=2, errors=0)
+    db.finish_run("run-1", raw_count=10, dedup_count=5, filtered_count=2, error_count=0)
     run = db.get_run("run-1")
     assert run["status"] == "completed"
-    assert run["items_new"] == 5
+    assert run["dedup_count"] == 5
 
 
 def test_job_count(db):

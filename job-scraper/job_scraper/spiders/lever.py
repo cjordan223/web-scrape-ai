@@ -50,4 +50,4 @@ class LeverSpider(scrapy.Spider):
         title = response.css(".posting-headline h2::text").get() or response.css("h1::text").get() or "Unknown"
         jd_html = response.css(".posting-page-content").get() or response.css(".content").get() or response.text
         location = response.css(".sort-by-location::text").get() or ""
-        yield JobItem(url=response.url, title=title.strip(), company=company, board="lever", location=location.strip(), jd_html=jd_html, source=self.name, discovered_at=datetime.now(timezone.utc).isoformat())
+        yield JobItem(url=response.url, title=title.strip(), company=company, board="lever", location=location.strip(), jd_html=jd_html, source=self.name, created_at=datetime.now(timezone.utc).isoformat())

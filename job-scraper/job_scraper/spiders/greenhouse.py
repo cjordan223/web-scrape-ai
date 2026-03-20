@@ -38,4 +38,4 @@ class GreenhouseSpider(scrapy.Spider):
         title = response.css("h1::text").get() or "Unknown"
         jd_html = response.css(".job-post-content").get() or response.css("#content").get() or response.text
         location = response.css(".location::text").get() or ""
-        yield JobItem(url=response.url, title=title.strip(), company=company, board="greenhouse", location=location.strip(), jd_html=jd_html, source=self.name, discovered_at=datetime.now(timezone.utc).isoformat())
+        yield JobItem(url=response.url, title=title.strip(), company=company, board="greenhouse", location=location.strip(), jd_html=jd_html, source=self.name, created_at=datetime.now(timezone.utc).isoformat())
