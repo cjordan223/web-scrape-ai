@@ -20,7 +20,7 @@ class SearXNGSpider(scrapy.Spider):
     def from_crawler(cls, crawler, *args, **kwargs):
         from job_scraper.config import load_config
         cfg = load_config()
-        spider = cls(*args, **kwargs)
+        spider = super().from_crawler(crawler, *args, **kwargs)
         spider._searxng_url = cfg.searxng.url
         spider._queries = cfg.queries
         spider._domain_blocklist = set(cfg.hard_filters.domain_blocklist)

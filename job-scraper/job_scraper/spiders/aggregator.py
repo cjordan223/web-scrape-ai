@@ -18,7 +18,9 @@ class AggregatorSpider(scrapy.Spider):
         from job_scraper.config import load_config
         cfg = load_config()
         boards = [{"url": b.url, "company": b.company} for b in cfg.boards if b.board_type == "simplyhired" and b.enabled]
-        return cls(boards=boards, *args, **kwargs)
+        kwargs["boards"] = boards
+        spider = super().from_crawler(crawler, *args, **kwargs)
+        return spider
 
     def start_requests(self):
         for board in self._boards:
