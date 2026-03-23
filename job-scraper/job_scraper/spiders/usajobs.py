@@ -15,10 +15,6 @@ class USAJobsSpider(scrapy.Spider):
         self._api_key = os.environ.get("USAJOBS_API_KEY", "")
         self._email = os.environ.get("USAJOBS_EMAIL", "")
 
-    @classmethod
-    def from_crawler(cls, crawler, *args, **kwargs):
-        return cls(*args, **kwargs)
-
     def start_requests(self):
         from job_scraper.config import load_config
         cfg = load_config()

@@ -82,6 +82,19 @@ export const api = {
         return data;
     },
 
+    getScraperConfig: async () => {
+        const { data } = await apiClient.get('/scraper/config');
+        return data;
+    },
+    saveScraperConfig: async (config: Record<string, any>) => {
+        const { data } = await apiClient.post('/scraper/config', config);
+        return data;
+    },
+    getScraperPipelineStats: async () => {
+        const { data } = await apiClient.get('/scraper/pipeline/stats');
+        return data;
+    },
+
     getSourceDiagnostics: async () => {
         const { data } = await apiClient.get('/scrape/sources');
         return data;
@@ -271,6 +284,11 @@ export const api = {
         return data;
     },
 
+    cancelQALlmReview: async () => {
+        const { data } = await apiClient.delete('/tailoring/qa/llm-review');
+        return data;
+    },
+
     rejectQA: async (jobIds: number[]) => {
         const { data } = await apiClient.post('/tailoring/qa/reject', { job_ids: jobIds });
         return data;
@@ -344,29 +362,6 @@ export const api = {
     getFilterStats: async () => {
         const { data } = await apiClient.get('/filters/stats');
         return data;
-    },
-
-    getScheduleLog: async (label: string, lines: number = 100) => {
-        const { data } = await apiClient.get(`/schedules/${encodeURIComponent(label)}/log`, { params: { lines } });
-        return data;
-    },
-
-    getDedup: async () => {
-        // DedupView aggregates these
-        const stats = await apiClient.get('/dedup/stats');
-        const growth = await apiClient.get('/growth');
-        const rejected = await apiClient.get('/rejected/stats');
-        return {
-            ...stats.data,
-            ...growth.data,
-            total_rejected: rejected.data.total,
-            rejection_breakdown: rejected.data.by_stage
-        };
-    },
-
-    getSchedules: async () => {
-        const { data } = await apiClient.get('/schedules');
-        return data.jobs;
     },
 
     dbQuery: async (query: string) => {

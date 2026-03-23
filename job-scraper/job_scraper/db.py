@@ -80,7 +80,7 @@ class JobDB:
             db_path = DB_PATH
         self._path = Path(db_path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(self._path), timeout=10)
+        self._conn = sqlite3.connect(str(self._path), timeout=30)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._migrate_schema()
@@ -159,6 +159,8 @@ class JobDB:
             "ON CONFLICT(url) DO UPDATE SET last_seen = ?",
             (url, now, now, now),
         )
+
+    def commit(self) -> None:
         self._conn.commit()
 
     def insert_job(self, job: dict) -> int:
@@ -184,7 +186,7 @@ class JobDB:
                 "snippet": job.get("snippet"),
                 "query": job.get("query"),
                 "source": job["source"],
-                "status": job.get("status", "pending"),
+                "status": job.get("status", "qa_pending"),
                 "rejection_stage": job.get("rejection_stage"),
                 "rejection_reason": job.get("rejection_reason"),
                 "experience_years": job.get("experience_years"),
@@ -196,7 +198,6 @@ class JobDB:
                 "updated_at": now,
             },
         )
-        self._conn.commit()
         return cur.lastrowid
 
     def job_count(self, status: str | None = None) -> int:

@@ -10,6 +10,9 @@ from fastapi import Request
 import app as _app
 globals().update({k: v for k, v in _app.__dict__.items() if not k.startswith("__")})
 
+# Scraper config handlers (standalone module, no circular deps)
+from services.scraper_config import scraper_config_get, scraper_config_save, scraper_pipeline_stats
+
 def _sync_app_state() -> None:
     globals().update({k: v for k, v in _app.__dict__.items() if not k.startswith("__")})
 
@@ -330,16 +333,16 @@ def ops_action(payload: dict = Body(default={})):
             removed_state_logs = max(int(cur.rowcount or 0), 0)
             cleared_tables.append("job_state_log")
 
-        if "results" in existing:
+        if "jobs" in existing:
             if protected_job_ids:
                 cur = conn.execute(
-                    f"DELETE FROM results WHERE id NOT IN ({placeholders})",
+                    f"DELETE FROM jobs WHERE id NOT IN ({placeholders})",
                     tuple(protected_job_ids),
                 )
             else:
-                cur = conn.execute("DELETE FROM results")
+                cur = conn.execute("DELETE FROM jobs")
             removed_results = max(int(cur.rowcount or 0), 0)
-            cleared_tables.append("results")
+            cleared_tables.append("jobs")
 
         if clear_rejected and "rejected" in existing:
             conn.execute("DELETE FROM rejected")
@@ -437,7 +440,7 @@ def ops_action(payload: dict = Body(default={})):
                     )
                 cur = conn.execute(
                     """
-                    DELETE FROM results
+                    DELETE FROM jobs
                     WHERE COALESCE(query, '') IN ('manual-ingest', 'mobile-ingest')
                        OR COALESCE(run_id, '') IN ('manual-ingest', 'mobile-ingest')
                        OR url LIKE 'manual://ingest/%'
@@ -630,75 +633,6 @@ def _tailoring_run_status(run_dir):
     return "unknown"
 
 
-# ---------------------------------------------------------------------------
-# Routes — API: Schedules (launchd)
-# ---------------------------------------------------------------------------
-
-def list_schedules():
-    _sync_app_state()
-    """List all launchd agents with their config and runtime status."""
-    if not LAUNCH_AGENTS_DIR.exists():
-        return {"jobs": []}
-
-    jobs = []
-    for plist_path in sorted(LAUNCH_AGENTS_DIR.glob("*.plist")):
-        try:
-            info = _parse_plist(plist_path)
-        except Exception:
-            continue
-
-        status = _get_launchctl_status(info["label"])
-        info.update(status)
-
-        # Log file stats
-        if info["log_path"]:
-            try:
-                lp = Path(info["log_path"])
-                info["log_size"] = lp.stat().st_size if lp.exists() else 0
-                info["log_modified"] = lp.stat().st_mtime if lp.exists() else None
-            except OSError:
-                info["log_size"] = 0
-                info["log_modified"] = None
-        else:
-            info["log_size"] = 0
-            info["log_modified"] = None
-
-        jobs.append(info)
-
-    return {"jobs": jobs}
-
-
-
-def get_schedule_log(label: str, lines: int = Query(100, ge=1, le=2000)):
-    _sync_app_state()
-    """Get the last N lines of a scheduled job's log file."""
-    # Find the plist for this label
-    plist_path = LAUNCH_AGENTS_DIR / f"{label}.plist"
-    if not plist_path.exists():
-        return JSONResponse({"error": "Job not found"}, 404)
-
-    try:
-        info = _parse_plist(plist_path)
-    except Exception as e:
-        return JSONResponse({"error": f"Failed to parse plist: {e}"}, 500)
-
-    log_path = info.get("log_path")
-    if not log_path or not Path(log_path).exists():
-        return {"lines": [], "total_lines": 0, "log_path": log_path or ""}
-
-    try:
-        # Read last N lines efficiently
-        with open(log_path, "r", errors="replace") as f:
-            all_lines = f.readlines()
-        total = len(all_lines)
-        tail = all_lines[-lines:]
-        return {
-            "lines": [l.rstrip("\n") for l in tail],
-            "total_lines": total,
-            "log_path": log_path,
-        }
-    except OSError as e:
-        return JSONResponse({"error": str(e)}, 500)
 
 
 # ---------------------------------------------------------------------------
@@ -764,6 +698,9 @@ def update_runtime_controls(payload: dict = Body(default={})):
             updates["schedule_stop_at"] = (started_at + timedelta(hours=stop_hours)).isoformat()
 
     controls = _save_runtime_controls(updates)
+
+    # Automatic scheduling removed — runs are UI-initiated only.
+
     return {"ok": True, "controls": controls}
 
 

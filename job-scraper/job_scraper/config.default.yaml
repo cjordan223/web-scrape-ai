@@ -1,105 +1,98 @@
-# job_scraper default configuration
-
 search:
-  searx_url: "http://localhost:8888/search"
+  searx_url: http://localhost:8888/search
   timeout: 15
   max_results_per_query: 30
-  engines: "google,startpage"
+  engines: google,startpage
   fallback_engines:
-    - "google"
-    - "startpage"
-  time_range: "week"
+  - google
+  - startpage
+  time_range: week
   fallback_time_ranges:
-    - "year"
+  - year
   fallback_to_all_engines: true
-  request_delay: 1.0
-
+  request_delay: 1
 filter:
   title_keywords:
-    # --- Security ---
-    - security
-    - cyber
-    - cybersecurity
-    - appsec
-    - devsecops
-    - detection
-    - vulnerability
-    - soc
-    - infosec
-    - secops
-    - "application security"
-    - "cloud security"
-    - "security automation"
-    - "security engineer"
-    - "threat"
-    - "penetration"
-    - "vulnerability management"
-    - "incident response"
-    # --- Infrastructure / Cloud / Platform ---
-    - infrastructure
-    - cloud
-    - platform
-    - devops
-    - sre
-    - "site reliability"
-    - "cloud engineer"
-    - "infrastructure engineer"
-    - "platform engineer"
-    - "systems engineer"
-    - "network engineer"
-    - "devops engineer"
-    # --- Software / AI ---
-    - "software engineer"
-    - "ai engineer"
-    - "automation engineer"
-    - "fullstack engineer"
-    - "backend engineer"
-    - "frontend engineer"
-    # --- AI/ML Infrastructure ---
-    - "mlops"
-    - "ml engineer"
-    - "ml infrastructure"
-    - "machine learning"
-    - "ai infrastructure"
+  - security
+  - cyber
+  - cybersecurity
+  - appsec
+  - devsecops
+  - detection
+  - vulnerability
+  - soc
+  - infosec
+  - secops
+  - application security
+  - cloud security
+  - security automation
+  - security engineer
+  - threat
+  - penetration
+  - vulnerability management
+  - incident response
+  - infrastructure
+  - cloud
+  - platform
+  - devops
+  - sre
+  - site reliability
+  - cloud engineer
+  - infrastructure engineer
+  - platform engineer
+  - systems engineer
+  - network engineer
+  - devops engineer
+  - software engineer
+  - ai engineer
+  - automation engineer
+  - fullstack engineer
+  - backend engineer
+  - frontend engineer
+  - mlops
+  - ml engineer
+  - ml infrastructure
+  - machine learning
+  - ai infrastructure
   seniority_exclude:
-    - staff
-    - principal
-    - manager
-    - director
+  - staff
+  - principal
+  - manager
+  - director
   max_experience_years: 5
   min_salary_k: 70
   content_blocklist:
-    - clearance
-    - ts/sci
-    - "ts-sci"
-    - polygraph
-    - "top secret"
-    - "secret clearance"
+  - clearance
+  - ts/sci
+  - ts-sci
+  - polygraph
+  - top secret
+  - secret clearance
   title_role_words:
-    - engineer
-    - analyst
-    - architect
-    - developer
-    - specialist
-    - consultant
-    - administrator
-    - operator
-    - associate
-    - responder
-    - researcher
-    - pentester
-    - tester
+  - engineer
+  - analyst
+  - architect
+  - developer
+  - specialist
+  - consultant
+  - administrator
+  - operator
+  - associate
+  - responder
+  - researcher
+  - pentester
+  - tester
   url_domain_blocklist:
-    - dictionary.com
-    - collinsdictionary.com
-    - techtarget.com
-    - wikipedia.org
-    - merriam-webster.com
-    - investopedia.com
-    - reddit.com
-    - quora.com
-    - youtube.com
-    - medium.com
+  - dictionary.com
+  - collinsdictionary.com
+  - techtarget.com
+  - wikipedia.org
+  - merriam-webster.com
+  - investopedia.com
+  - reddit.com
+  - quora.com
+  - youtube.com
+  - medium.com
   require_remote: true
   require_explicit_remote: false
   require_us_location: true
@@ -113,413 +106,413 @@ filter:
   target_max_results: 50
   seen_ttl_days: 14
   promotion_min_score: 0
-
+pipeline_order:
+- text_extraction
+- dedup
+- hard_filter
+- storage
 llm_review:
   enabled: true
-  url: "http://localhost:1234/v1/chat/completions"
-  model: "default"
+  url: http://localhost:1234/v1/chat/completions
+  model: default
   fail_open: true
   timeout: 30
   jd_max_chars: 2000
-
 crawl:
   enabled: true
-  request_delay: 2.0
+  request_delay: 2
   max_results_per_target: 50
   targets:
-    # Ashby boards — server-rendered, reliable link extraction
-    - url: "https://jobs.ashbyhq.com/ramp"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/notion"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/supabase"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/wraithwatch"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/onhires"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/cartesia"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/replit"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/fieldguide"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/airtable"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/fivetran"
-      board: ashby
-    # Security-focused companies on Ashby
-    - url: "https://jobs.ashbyhq.com/wiz"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/snyk"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/cloudflare"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/tailscale"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/teleport"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/1password"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/hashicorp"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/elastic"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/datadog"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/sentinelone"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/paloaltonetworks"
-      board: ashby
-    # Greenhouse boards
-    - url: "https://job-boards.greenhouse.io/nansen"
-      board: greenhouse
-    - url: "https://job-boards.greenhouse.io/adyen"
-      board: greenhouse
-    - url: "https://job-boards.greenhouse.io/andurilindustries"
-      board: greenhouse
-    - url: "https://job-boards.greenhouse.io/crowdstrike"
-      board: greenhouse
-    - url: "https://job-boards.greenhouse.io/bitwarden"
-      board: greenhouse
-    # Lever boards
-    - url: "https://jobs.lever.co/eqbank"
-      board: lever
-    - url: "https://jobs.lever.co/spotify"
-      board: lever
-    - url: "https://jobs.lever.co/arcadia"
-      board: lever
-    # Additional security-focused Ashby boards
-    - url: "https://jobs.ashbyhq.com/lacework"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/expel"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/huntress"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/semgrep"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/drata"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/vanta"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/abnormalsecurity"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/chainguard"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/linear"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/vercel"
-      board: ashby
-    # Interest-aligned: AI/ML companies on Ashby
-    - url: "https://jobs.ashbyhq.com/anthropic"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/openai"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/cohere"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/mistral"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/huggingface"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/deepmind"
-      board: ashby
-    # Interest-aligned: Space/Aerospace on Greenhouse
-    - url: "https://job-boards.greenhouse.io/spacex"
-      board: greenhouse
-    - url: "https://job-boards.greenhouse.io/relativityspace"
-      board: greenhouse
-    - url: "https://job-boards.greenhouse.io/planet"
-      board: greenhouse
-    - url: "https://job-boards.greenhouse.io/astranis"
-      board: greenhouse
-    # Interest-aligned: Health tech
-    - url: "https://jobs.ashbyhq.com/oura"
-      board: ashby
-    - url: "https://jobs.ashbyhq.com/whoop"
-      board: ashby
-    # Interest-aligned: Climate/Environmental
-    - url: "https://jobs.ashbyhq.com/watershed"
-      board: ashby
-    - url: "https://job-boards.greenhouse.io/pachama"
-      board: greenhouse
-    # SimplyHired — aggregator, security search URLs
-    - url: "https://www.simplyhired.com/search?q=security+engineer+remote&l="
-      board: simplyhired
-    - url: "https://www.simplyhired.com/search?q=cloud+security+engineer+remote&l="
-      board: simplyhired
-    - url: "https://www.simplyhired.com/search?q=devops+engineer+remote&l="
-      board: simplyhired
-
-# Watchers — source-agnostic job discovery plugins.
-# Types: crawl, rss, api, custom. Each watcher can skip specific filter stages.
-# Examples:
-#
-# watchers:
-#   - name: nasa-careers
-#     type: crawl
-#     url: "https://www.usajobs.gov/Search/Results?k=software+engineer&l=Remote"
-#     link_pattern: "/job/\\d+"
-#     skip_filters: [title_relevance, title_role, source_quality]
-#     tags: [space]
-#
-#   - name: usajobs-api
-#     type: api
-#     url: "https://data.usajobs.gov/api/Search"
-#     headers:
-#       Authorization-Key: "${USAJOBS_API_KEY}"
-#       User-Agent: "connercharlesjordan@gmail.com"
-#     params:
-#       Keyword: "security engineer"
-#       LocationName: "Remote"
-#     results_path: "SearchResult.SearchResultItems"
-#     title_field: "MatchedObjectDescriptor.PositionTitle"
-#     url_field: "MatchedObjectDescriptor.PositionURI"
-#     snippet_field: "MatchedObjectDescriptor.UserArea.Details.MajorDuties.0"
-#     skip_filters: [title_relevance, source_quality]
-#     tags: [space, government]
-#
-#   - name: planet-careers
-#     type: rss
-#     url: "https://www.planet.com/careers/feed/"
-#     skip_filters: [title_relevance, title_role]
-#     tags: [space, environmental]
-#
-#   - name: nasa-custom
-#     type: custom
-#     module: job_scraper.watchers_nasa
-#     skip_filters: [title_relevance, title_role, source_quality]
-#     tags: [space]
+  - url: https://jobs.ashbyhq.com/ramp
+    board: ashby
+    company: ramp
+  - url: https://jobs.ashbyhq.com/notion
+    board: ashby
+    company: notion
+  - url: https://jobs.ashbyhq.com/supabase
+    board: ashby
+    company: supabase
+  - url: https://jobs.ashbyhq.com/wraithwatch
+    board: ashby
+    company: wraithwatch
+  - url: https://jobs.ashbyhq.com/onhires
+    board: ashby
+    company: onhires
+  - url: https://jobs.ashbyhq.com/cartesia
+    board: ashby
+    company: cartesia
+  - url: https://jobs.ashbyhq.com/replit
+    board: ashby
+    company: replit
+  - url: https://jobs.ashbyhq.com/fieldguide
+    board: ashby
+    company: fieldguide
+  - url: https://jobs.ashbyhq.com/airtable
+    board: ashby
+    company: airtable
+  - url: https://jobs.ashbyhq.com/fivetran
+    board: ashby
+    company: fivetran
+  - url: https://jobs.ashbyhq.com/wiz
+    board: ashby
+    company: wiz
+  - url: https://jobs.ashbyhq.com/snyk
+    board: ashby
+    company: snyk
+  - url: https://jobs.ashbyhq.com/cloudflare
+    board: ashby
+    company: cloudflare
+  - url: https://jobs.ashbyhq.com/tailscale
+    board: ashby
+    company: tailscale
+  - url: https://jobs.ashbyhq.com/teleport
+    board: ashby
+    company: teleport
+  - url: https://jobs.ashbyhq.com/1password
+    board: ashby
+    company: 1password
+  - url: https://jobs.ashbyhq.com/hashicorp
+    board: ashby
+    company: hashicorp
+  - url: https://jobs.ashbyhq.com/elastic
+    board: ashby
+    company: elastic
+  - url: https://jobs.ashbyhq.com/datadog
+    board: ashby
+    company: datadog
+  - url: https://jobs.ashbyhq.com/sentinelone
+    board: ashby
+    company: sentinelone
+  - url: https://jobs.ashbyhq.com/paloaltonetworks
+    board: ashby
+    company: paloaltonetworks
+  - url: https://job-boards.greenhouse.io/nansen
+    board: greenhouse
+    company: nansen
+  - url: https://job-boards.greenhouse.io/adyen
+    board: greenhouse
+    company: adyen
+  - url: https://job-boards.greenhouse.io/andurilindustries
+    board: greenhouse
+    company: andurilindustries
+  - url: https://job-boards.greenhouse.io/crowdstrike
+    board: greenhouse
+    company: crowdstrike
+  - url: https://job-boards.greenhouse.io/bitwarden
+    board: greenhouse
+    company: bitwarden
+  - url: https://jobs.lever.co/eqbank
+    board: lever
+    company: eqbank
+  - url: https://jobs.lever.co/spotify
+    board: lever
+    company: spotify
+  - url: https://jobs.lever.co/arcadia
+    board: lever
+    company: arcadia
+  - url: https://jobs.ashbyhq.com/lacework
+    board: ashby
+    company: lacework
+  - url: https://jobs.ashbyhq.com/expel
+    board: ashby
+    company: expel
+  - url: https://jobs.ashbyhq.com/huntress
+    board: ashby
+    company: huntress
+  - url: https://jobs.ashbyhq.com/semgrep
+    board: ashby
+    company: semgrep
+  - url: https://jobs.ashbyhq.com/drata
+    board: ashby
+    company: drata
+  - url: https://jobs.ashbyhq.com/vanta
+    board: ashby
+    company: vanta
+  - url: https://jobs.ashbyhq.com/abnormalsecurity
+    board: ashby
+    company: abnormalsecurity
+  - url: https://jobs.ashbyhq.com/chainguard
+    board: ashby
+    company: chainguard
+  - url: https://jobs.ashbyhq.com/linear
+    board: ashby
+    company: linear
+  - url: https://jobs.ashbyhq.com/vercel
+    board: ashby
+    company: vercel
+  - url: https://jobs.ashbyhq.com/anthropic
+    board: ashby
+    company: anthropic
+  - url: https://jobs.ashbyhq.com/openai
+    board: ashby
+    company: openai
+  - url: https://jobs.ashbyhq.com/cohere
+    board: ashby
+    company: cohere
+  - url: https://jobs.ashbyhq.com/mistral
+    board: ashby
+    company: mistral
+  - url: https://jobs.ashbyhq.com/huggingface
+    board: ashby
+    company: huggingface
+  - url: https://jobs.ashbyhq.com/deepmind
+    board: ashby
+    company: deepmind
+  - url: https://job-boards.greenhouse.io/spacex
+    board: greenhouse
+    company: spacex
+  - url: https://job-boards.greenhouse.io/relativityspace
+    board: greenhouse
+    company: relativityspace
+  - url: https://job-boards.greenhouse.io/planet
+    board: greenhouse
+    company: planet
+  - url: https://job-boards.greenhouse.io/astranis
+    board: greenhouse
+    company: astranis
+  - url: https://jobs.ashbyhq.com/oura
+    board: ashby
+    company: oura
+  - url: https://jobs.ashbyhq.com/whoop
+    board: ashby
+    company: whoop
+  - url: https://jobs.ashbyhq.com/watershed
+    board: ashby
+    company: watershed
+  - url: https://job-boards.greenhouse.io/pachama
+    board: greenhouse
+    company: pachama
 watchers:
-  - name: usajobs
-    type: custom
-    module: job_scraper.usajobs
-    board: usajobs
-    enabled: true
-    skip_filters:
-      - url_domain
-      - source_quality
-      - remote
-      - location
-    params:
-      series: "2210;1550;0854;0861;1560;1301"
-      keywords: "cybersecurity;software engineer;platform engineer;cloud security;DevSecOps;aerospace engineer"
-      agencies: "NN;EP;NS"   # NASA, EPA, NSF
-      days: "14"
-      remote: "true"
-
+- name: usajobs
+  type: custom
+  module: job_scraper.usajobs
+  board: usajobs
+  enabled: true
+  skip_filters:
+  - url_domain
+  - source_quality
+  - remote
+  - location
+  params:
+    series: 2210;1550;0854;0861;1560;1301
+    keywords: cybersecurity;software engineer;platform engineer;cloud security;DevSecOps
+    agencies: NN;EP;NS
+    days: '14'
+    remote: 'true'
 queries:
-  # --- Greenhouse ---
-  - board: greenhouse
-    board_site: "boards.greenhouse.io"
-    title_phrase: "security engineer"
-    suffix: "remote"
-  - board: greenhouse
-    board_site: "boards.greenhouse.io"
-    title_phrase: "application security"
-    suffix: "remote"
-  - board: greenhouse
-    board_site: "boards.greenhouse.io"
-    title_phrase: "detection engineer"
-  - board: greenhouse
-    board_site: "boards.greenhouse.io"
-    title_phrase: "devsecops engineer"
-  - board: greenhouse
-    board_site: "boards.greenhouse.io"
-    title_phrase: "cloud security engineer"
-  - board: greenhouse
-    board_site: "boards.greenhouse.io"
-    title_phrase: "infrastructure security"
-  - board: greenhouse
-    board_site: "boards.greenhouse.io"
-    title_phrase: "platform engineer"
-    suffix: "remote"
-  - board: greenhouse
-    board_site: "boards.greenhouse.io"
-    title_phrase: "site reliability"
-    suffix: "remote"
-
-  # --- Lever ---
-  - board: lever
-    board_site: "jobs.lever.co"
-    title_phrase: "security engineer"
-    suffix: "remote"
-  - board: lever
-    board_site: "jobs.lever.co"
-    title_phrase: "devsecops"
-  - board: lever
-    board_site: "jobs.lever.co"
-    title_phrase: "cloud engineer"
-    suffix: "remote"
-  - board: lever
-    board_site: "jobs.lever.co"
-    title_phrase: "platform engineer"
-    suffix: "remote"
-
-  # --- Ashby ---
-  - board: ashby
-    board_site: "jobs.ashbyhq.com"
-    title_phrase: "security engineer"
-  - board: ashby
-    board_site: "jobs.ashbyhq.com"
-    title_phrase: "cloud security"
-  - board: ashby
-    board_site: "jobs.ashbyhq.com"
-    title_phrase: "platform engineer"
-
-  # --- Workday ---
-  - board: workday
-    board_site: "myworkdayjobs.com"
-    title_phrase: "security engineer"
-    suffix: "remote"
-  - board: workday
-    board_site: "myworkdayjobs.com"
-    title_phrase: "platform engineer"
-    suffix: "remote"
-  - board: workday
-    board_site: "myworkdayjobs.com"
-    title_phrase: "cloud engineer"
-    suffix: "remote"
-
-  # --- SmartRecruiters ---
-  - board: smartrecruiters
-    board_site: "jobs.smartrecruiters.com"
-    title_phrase: "security engineer"
-    suffix: "remote"
-  - board: smartrecruiters
-    board_site: "jobs.smartrecruiters.com"
-    title_phrase: "cloud engineer"
-    suffix: "remote"
-
-  # --- BambooHR ---
-  - board: bamboohr
-    board_site: "bamboohr.com/careers"
-    title_phrase: "security engineer"
-  - board: bamboohr
-    board_site: "bamboohr.com/careers"
-    title_phrase: "platform engineer"
-
-  # --- iCIMS ---
-  - board: icims
-    board_site: "icims.com"
-    title_phrase: "security engineer"
-    suffix: "remote"
-  - board: icims
-    board_site: "icims.com"
-    title_phrase: "cloud engineer"
-    suffix: "remote"
-
-  # --- Infrastructure / Cloud / Platform (Greenhouse) ---
-  - board: greenhouse
-    board_site: "boards.greenhouse.io"
-    title_phrase: "infrastructure engineer"
-    suffix: "remote"
-  - board: greenhouse
-    board_site: "boards.greenhouse.io"
-    title_phrase: "cloud engineer"
-    suffix: "remote"
-  - board: greenhouse
-    board_site: "boards.greenhouse.io"
-    title_phrase: "devops engineer"
-    suffix: "remote"
-
-  # --- Software (Greenhouse) ---
-  - board: greenhouse
-    board_site: "boards.greenhouse.io"
-    title_phrase: "software engineer"
-    suffix: "remote security"
-  - board: greenhouse
-    board_site: "boards.greenhouse.io"
-    title_phrase: "backend engineer"
-    suffix: "remote"
-
-  # --- Software (Lever) ---
-  - board: lever
-    board_site: "jobs.lever.co"
-    title_phrase: "software engineer"
-    suffix: "remote security"
-
-  # --- Software (Ashby) ---
-  - board: ashby
-    board_site: "jobs.ashbyhq.com"
-    title_phrase: "software engineer"
-
-  # --- Open-web queries (no board_site) ---
-  - board: unknown
-    title_phrase: "security engineer"
-    suffix: "remote USA"
-  - board: unknown
-    title_phrase: "application security engineer"
-    suffix: "remote"
-  - board: unknown
-    title_phrase: "cloud security engineer"
-    suffix: "remote"
-  - board: unknown
-    title_phrase: "devsecops engineer"
-    suffix: "remote"
-  - board: unknown
-    title_phrase: "detection engineer"
-    suffix: "remote"
-  - board: unknown
-    title_phrase: "platform engineer"
-    suffix: "remote USA"
-  - board: unknown
-    title_phrase: "infrastructure engineer"
-    suffix: "remote USA"
-  - board: unknown
-    title_phrase: "devops engineer"
-    suffix: "remote USA"
-  - board: unknown
-    title_phrase: "site reliability engineer"
-    suffix: "remote"
-  - board: unknown
-    title_phrase: "software engineer security"
-    suffix: "remote"
-
-  # --- Interest-aligned: AI/ML ---
-  - board: unknown
-    title_phrase: "AI security engineer"
-    suffix: "remote"
-  - board: unknown
-    title_phrase: "MLOps engineer"
-    suffix: "remote"
-  - board: unknown
-    title_phrase: "ML infrastructure engineer"
-    suffix: "remote"
-  - board: unknown
-    title_phrase: "AI engineer"
-    suffix: "remote"
-  - board: greenhouse
-    board_site: "boards.greenhouse.io"
-    title_phrase: "AI engineer"
-    suffix: "remote"
-  - board: greenhouse
-    board_site: "boards.greenhouse.io"
-    title_phrase: "MLOps engineer"
-    suffix: "remote"
-
-  # --- Interest-aligned: Space & Aerospace ---
-  - board: unknown
-    title_phrase: "security engineer aerospace"
-    suffix: "remote"
-  - board: unknown
-    title_phrase: "software engineer space"
-    suffix: "remote"
-  - board: unknown
-    title_phrase: "platform engineer aerospace"
-    suffix: "remote"
-
-  # --- Interest-aligned: Health Tech ---
-  - board: unknown
-    title_phrase: "security engineer healthtech"
-    suffix: "remote"
-  - board: unknown
-    title_phrase: "platform engineer health"
-    suffix: "remote"
-
-  # --- Interest-aligned: Climate / Environmental ---
-  - board: unknown
-    title_phrase: "software engineer climate"
-    suffix: "remote"
-  - board: unknown
-    title_phrase: "platform engineer climate"
-    suffix: "remote"
+- title_phrase: security engineer
+  board_site: boards.greenhouse.io
+  board: greenhouse
+  suffix: remote
+- title_phrase: application security
+  board_site: boards.greenhouse.io
+  board: greenhouse
+  suffix: remote
+- title_phrase: detection engineer
+  board_site: boards.greenhouse.io
+  board: greenhouse
+  suffix: ''
+- title_phrase: devsecops engineer
+  board_site: boards.greenhouse.io
+  board: greenhouse
+  suffix: ''
+- title_phrase: cloud security engineer
+  board_site: boards.greenhouse.io
+  board: greenhouse
+  suffix: ''
+- title_phrase: infrastructure security
+  board_site: boards.greenhouse.io
+  board: greenhouse
+  suffix: ''
+- title_phrase: platform engineer
+  board_site: boards.greenhouse.io
+  board: greenhouse
+  suffix: remote
+- title_phrase: site reliability
+  board_site: boards.greenhouse.io
+  board: greenhouse
+  suffix: remote
+- title_phrase: security engineer
+  board_site: jobs.lever.co
+  board: lever
+  suffix: remote
+- title_phrase: devsecops
+  board_site: jobs.lever.co
+  board: lever
+  suffix: ''
+- title_phrase: cloud engineer
+  board_site: jobs.lever.co
+  board: lever
+  suffix: remote
+- title_phrase: platform engineer
+  board_site: jobs.lever.co
+  board: lever
+  suffix: remote
+- title_phrase: security engineer
+  board_site: jobs.ashbyhq.com
+  board: ashby
+  suffix: ''
+- title_phrase: cloud security
+  board_site: jobs.ashbyhq.com
+  board: ashby
+  suffix: ''
+- title_phrase: platform engineer
+  board_site: jobs.ashbyhq.com
+  board: ashby
+  suffix: ''
+- title_phrase: security engineer
+  board_site: myworkdayjobs.com
+  board: workday
+  suffix: remote
+- title_phrase: platform engineer
+  board_site: myworkdayjobs.com
+  board: workday
+  suffix: remote
+- title_phrase: cloud engineer
+  board_site: myworkdayjobs.com
+  board: workday
+  suffix: remote
+- title_phrase: security engineer
+  board_site: jobs.smartrecruiters.com
+  board: smartrecruiters
+  suffix: remote
+- title_phrase: cloud engineer
+  board_site: jobs.smartrecruiters.com
+  board: smartrecruiters
+  suffix: remote
+- title_phrase: security engineer
+  board_site: bamboohr.com/careers
+  board: bamboohr
+  suffix: ''
+- title_phrase: platform engineer
+  board_site: bamboohr.com/careers
+  board: bamboohr
+  suffix: ''
+- title_phrase: security engineer
+  board_site: icims.com
+  board: icims
+  suffix: remote
+- title_phrase: cloud engineer
+  board_site: icims.com
+  board: icims
+  suffix: remote
+- title_phrase: infrastructure engineer
+  board_site: boards.greenhouse.io
+  board: greenhouse
+  suffix: remote
+- title_phrase: cloud engineer
+  board_site: boards.greenhouse.io
+  board: greenhouse
+  suffix: remote
+- title_phrase: devops engineer
+  board_site: boards.greenhouse.io
+  board: greenhouse
+  suffix: remote
+- title_phrase: software engineer
+  board_site: boards.greenhouse.io
+  board: greenhouse
+  suffix: remote security
+- title_phrase: backend engineer
+  board_site: boards.greenhouse.io
+  board: greenhouse
+  suffix: remote
+- title_phrase: software engineer
+  board_site: jobs.lever.co
+  board: lever
+  suffix: remote security
+- title_phrase: software engineer
+  board_site: jobs.ashbyhq.com
+  board: ashby
+  suffix: ''
+- title_phrase: security engineer
+  board_site: ''
+  board: unknown
+  suffix: remote USA
+- title_phrase: application security engineer
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: cloud security engineer
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: devsecops engineer
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: detection engineer
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: platform engineer
+  board_site: ''
+  board: unknown
+  suffix: remote USA
+- title_phrase: infrastructure engineer
+  board_site: ''
+  board: unknown
+  suffix: remote USA
+- title_phrase: devops engineer
+  board_site: ''
+  board: unknown
+  suffix: remote USA
+- title_phrase: site reliability engineer
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: software engineer security
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: AI security engineer
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: MLOps engineer
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: ML infrastructure engineer
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: AI engineer
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: AI engineer
+  board_site: boards.greenhouse.io
+  board: greenhouse
+  suffix: remote
+- title_phrase: MLOps engineer
+  board_site: boards.greenhouse.io
+  board: greenhouse
+  suffix: remote
+- title_phrase: security engineer aerospace
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: software engineer space
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: platform engineer aerospace
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: security engineer healthtech
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: platform engineer health
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: software engineer climate
+  board_site: ''
+  board: unknown
+  suffix: remote
+- title_phrase: platform engineer climate
+  board_site: ''
+  board: unknown
+  suffix: remote

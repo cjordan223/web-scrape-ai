@@ -1,22 +1,16 @@
 import type { ComponentType } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  GitMerge,
-  Settings,
-  Archive,
+  GitBranch,
   Briefcase,
   XCircle,
   Activity,
-  Layers,
-  Clock,
   Package,
-  Database,
   Terminal,
-  GitBranch,
-  CheckSquare,
   FileCheck,
   ClipboardPaste,
+  CheckSquare,
+  Workflow,
 } from 'lucide-react';
 
 type NavItem = {
@@ -37,21 +31,15 @@ type Domain = {
 
 const domains: Domain[] = [
   {
-    key: 'overview',
-    label: 'Overview',
-    basePath: '/overview',
-    icon: LayoutDashboard,
-    items: [],
-  },
-  {
     key: 'pipeline',
     label: 'Pipeline',
     basePath: '/pipeline',
-    icon: GitMerge,
+    icon: Workflow,
     items: [
+      { label: 'Editor', to: '/pipeline/editor', icon: GitBranch, desc: 'Visual pipeline control', end: true },
       { label: 'Ingest', to: '/pipeline/ingest', icon: ClipboardPaste, end: true },
-      { label: 'Runs', to: '/pipeline/ingest/runs', icon: Activity, desc: 'Scrape ingest controls' },
-      { label: 'QA', to: '/pipeline/qa', icon: CheckSquare },
+      { label: 'Runs', to: '/pipeline/ingest/runs', icon: Activity, desc: 'Scrape run history' },
+      { label: 'QA', to: '/pipeline/qa', icon: CheckSquare, desc: 'Approve, reject, LLM review' },
       { label: 'Ready', to: '/pipeline/ready', icon: Briefcase, desc: 'QA-approved backlog' },
       { label: 'Rejected', to: '/pipeline/rejected', icon: XCircle, desc: 'QA-rejected backlog' },
       { label: 'Packages', to: '/pipeline/packages', icon: Package },
@@ -62,37 +50,29 @@ const domains: Domain[] = [
     key: 'ops',
     label: 'Ops',
     basePath: '/ops',
-    icon: Settings,
+    icon: Terminal,
     items: [
-      { label: 'Inventory', to: '/ops/jobs', icon: Briefcase, desc: 'All stored results by workflow state' },
-      { label: 'Rejected', to: '/ops/rejected', icon: XCircle, desc: 'Filtered out by pipeline' },
-      { label: 'Dedup & Growth', to: '/ops/dedup', icon: Layers, desc: 'URL dedup stats & trends' },
-      { label: 'Schedules', to: '/ops/schedules', icon: Clock, desc: 'Scrape schedule & history' },
-      { label: 'DB Explorer', to: '/ops/explorer', icon: Database, desc: 'Browse raw tables' },
-      { label: 'Archives', to: '/ops/archives', icon: Archive, desc: 'Snapshot & restore DB' },
-      { label: 'Pipeline Inspector', to: '/ops/pipeline-inspector', icon: GitBranch, desc: 'Filter stage debugger' },
+      { label: 'Inventory', to: '/ops/inventory', icon: Briefcase, desc: 'All stored results' },
+      { label: 'Rejected', to: '/ops/rejected', icon: XCircle, desc: 'Scraper filter rejects' },
+      { label: 'Traces', to: '/ops/traces', icon: GitBranch, desc: 'Tailoring LLM traces' },
       { label: 'Admin', to: '/ops/admin', icon: Terminal, desc: 'SQL console & bulk ops' },
     ],
   },
 ];
 
 const labelBySegment: Record<string, string> = {
-  overview: 'Overview',
   pipeline: 'Pipeline',
+  editor: 'Editor',
   ingest: 'Ingest',
   qa: 'QA',
   ready: 'Ready',
   packages: 'Packages',
   applied: 'Applied',
-  jobs: 'Inventory',
   rejected: 'Rejected',
   runs: 'Runs',
   ops: 'Ops',
-  dedup: 'Dedup & Growth',
-  schedules: 'Schedules',
-  explorer: 'DB Explorer',
-  archives: 'Archives',
-  'pipeline-inspector': 'Pipeline Inspector',
+  inventory: 'Inventory',
+  traces: 'Traces',
   admin: 'Admin',
 };
 
@@ -109,7 +89,7 @@ function buildBreadcrumbs(pathname: string): string[] {
 
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length === 0) {
-    return ['Overview'];
+    return ['Pipeline'];
   }
 
   return segments.map((segment) => labelBySegment[segment] ?? segment);
@@ -172,7 +152,7 @@ export default function AppShell({ dbSizeLabel }: { dbSizeLabel: string }) {
 
         <div className="sidebar-footer">
           <div className="db-size">{dbSizeLabel}</div>
-          v4.0 · Flat IA
+          v5.0 · Pipeline
         </div>
       </aside>
 

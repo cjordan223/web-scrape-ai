@@ -20,11 +20,21 @@ RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429]
 
 DOWNLOAD_TIMEOUT = 30
 
+_PIPELINE_MAP = {
+    "text_extraction": "job_scraper.pipelines.text_extraction.TextExtractionPipeline",
+    "dedup": "job_scraper.pipelines.dedup.DeduplicationPipeline",
+    "hard_filter": "job_scraper.pipelines.hard_filter.HardFilterPipeline",
+    "storage": "job_scraper.pipelines.storage.SQLitePipeline",
+}
+try:
+    from job_scraper.config import load_config as _load_config
+    _pipeline_order = _load_config().pipeline_order
+except Exception:
+    _pipeline_order = ["text_extraction", "dedup", "hard_filter", "storage"]
 ITEM_PIPELINES = {
-    "job_scraper.pipelines.text_extraction.TextExtractionPipeline": 100,
-    "job_scraper.pipelines.dedup.DeduplicationPipeline": 200,
-    "job_scraper.pipelines.hard_filter.HardFilterPipeline": 300,
-    "job_scraper.pipelines.storage.SQLitePipeline": 400,
+    _PIPELINE_MAP[name]: (i + 1) * 100
+    for i, name in enumerate(_pipeline_order)
+    if name in _PIPELINE_MAP
 }
 
 DOWNLOAD_HANDLERS = {

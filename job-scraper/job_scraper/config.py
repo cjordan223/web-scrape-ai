@@ -71,6 +71,9 @@ class ScraperConfig(BaseModel):
     queries: list[SearXNGQuery] = Field(default_factory=list)
     seen_ttl_days: int = 14
     target_max_results: int = 50
+    pipeline_order: list[str] = Field(default_factory=lambda: [
+        "text_extraction", "dedup", "hard_filter", "storage",
+    ])
 
 
 def _company_from_board_url(url: str, board_type: str) -> str:
@@ -175,6 +178,10 @@ def load_config(path: str | Path | None = None) -> ScraperConfig:
         min_salary_k=filter_raw.get("min_salary_k", 70),
     )
 
+    pipeline_order = raw.get("pipeline_order", [
+        "text_extraction", "dedup", "hard_filter", "storage",
+    ])
+
     return ScraperConfig(
         boards=boards,
         searxng=searxng,
@@ -183,4 +190,5 @@ def load_config(path: str | Path | None = None) -> ScraperConfig:
         queries=queries,
         seen_ttl_days=filter_raw.get("seen_ttl_days", 14),
         target_max_results=filter_raw.get("target_max_results", 50),
+        pipeline_order=pipeline_order,
     )

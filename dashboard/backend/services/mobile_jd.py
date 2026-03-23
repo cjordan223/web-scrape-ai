@@ -89,8 +89,8 @@ def scan_and_process(db_path: str | None = None) -> dict:
         try:
             conn = sqlite3.connect(db_path)
             cur = conn.execute(
-                """INSERT INTO results
-                   (url, title, board, seniority, experience_years, salary_k, score, decision,
+                """INSERT INTO jobs
+                   (url, title, board, seniority, experience_years, salary_k, score, status,
                     snippet, query, jd_text, filter_verdicts, run_id, created_at)
                    VALUES (?, ?, ?, NULL, NULL, NULL, NULL, 'qa_pending', ?, 'mobile-ingest', ?, NULL, 'mobile-ingest', ?)
                    ON CONFLICT(url, run_id) DO NOTHING""",

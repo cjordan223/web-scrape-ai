@@ -131,66 +131,31 @@ const deriveConsoleSummary = (text: string, runner: any, activeRun: any) => {
     const messages = lines.map(stripLogPrefix);
     const lastUseful = stripLogPrefix(findLastUsefulLine(lines));
 
-    let queries: number | null = null;
-    let searchResults: number | null = null;
-    let crawlResults: number | null = null;
-    let rawResults: number | null = null;
-    let uniqueResults: number | null = null;
-    let accepted: number | null = null;
-    let rejected: number | null = null;
-    let quarantined: number | null = null;
-    let llmCalls = 0;
-    let candidateProgress = '';
-    let watcherResults: number | null = null;
+    // Track Scrapy spider activity
+    const spidersOpened = new Set<string>();
+    const spidersClosed = new Set<string>();
+    let itemsScraped = 0;
+    let itemsDropped = 0;
 
     for (const message of messages) {
-        let match = message.match(/^Executing (\d+) queries/);
-        if (match) queries = Number(match[1]);
+        let match = message.match(/Spider opened.*?<(\w+)Spider/i) || message.match(/opened spider '(\w+)'/i);
+        if (match) spidersOpened.add(match[1].toLowerCase());
 
-        match = message.match(/^Got (\d+) raw results from SearXNG/);
-        if (match) searchResults = Number(match[1]);
+        match = message.match(/Spider closed.*?<(\w+)Spider/i) || message.match(/closed spider '(\w+)'/i);
+        if (match) spidersClosed.add(match[1].toLowerCase());
 
-        match = message.match(/^Got (\d+) results from Crawl4AI/);
-        if (match) crawlResults = Number(match[1]);
+        match = message.match(/Scraped (\d+) items/) || message.match(/'item_scraped_count': (\d+)/);
+        if (match) itemsScraped = Math.max(itemsScraped, Number(match[1]));
 
-        match = message.match(/^Got (\d+) results from watchers/);
-        if (match) watcherResults = Number(match[1]);
-
-        // Also catch individual watcher lines like "Watcher 'usajobs' (custom) returned N results"
-        match = message.match(/^Watcher .+ returned (\d+) results/);
-        if (match) watcherResults = (watcherResults || 0) + Number(match[1]);
-
-        match = message.match(/^USAJobs: (\d+) unique results/);
-        if (match) watcherResults = Number(match[1]);
-
-        match = message.match(/^Total raw results: (\d+)/);
-        if (match) rawResults = Number(match[1]);
-
-        match = message.match(/^(\d+) new \(unseen\) results after dedup/);
-        if (match) uniqueResults = Number(match[1]);
-
-        match = message.match(/^Candidate (\d+)\/(\d+):/);
-        if (match) candidateProgress = `${match[1]} / ${match[2]}`;
-
-        match = message.match(/^(\d+) jobs passed filters, (\d+) rejected, (\d+) quarantined/);
-        if (match) {
-            accepted = Number(match[1]);
-            rejected = Number(match[2]);
-            quarantined = Number(match[3]);
-        }
-
-        if (message.startsWith('LLM Review Call')) llmCalls += 1;
+        match = message.match(/'item_dropped_count': (\d+)/) || message.match(/Dropped: (\d+)/);
+        if (match) itemsDropped = Math.max(itemsDropped, Number(match[1]));
     }
 
     const phaseMatchers = [
-        { label: 'Persisting results', pattern: /Persisted \d+\/\d+ results|Promoted \d+ review candidates|jobs passed filters/ },
-        { label: 'Running LLM review', pattern: /LLM Review Call|LLM review completed|LLM passed|LLM rejected/ },
-        { label: 'Filtering candidates', pattern: /Candidate \d+\/\d+|Filter outcome|Rejecting '|Accepted '|Quarantining '/ },
-        { label: 'Deduplicating URLs', pattern: /new \(unseen\) results after dedup|Skipping previously seen URL|Skipping in-run duplicate URL/ },
-        { label: 'Running watchers', pattern: /Watcher .+ returned|USAJobs:|Got \d+ results from watchers/ },
-        { label: 'Crawling boards', pattern: /Crawling \d+ job board targets|Crawl target \d+\/\d+|Got \d+ results from Crawl4AI/ },
-        { label: 'Searching via SearXNG', pattern: /Executing \d+ queries|Query \d+\/\d+|raw results from SearXNG/ },
-        { label: 'Initializing scrape', pattern: /Scrape config|LLM review override applied/ },
+        { label: 'Closing spiders', pattern: /closed spider|Spider closed|dumping Scrapy stats/ },
+        { label: 'Scraping items', pattern: /Scraped|item_scraped|Crawled \(\d+\)/ },
+        { label: 'Opening spiders', pattern: /opened spider|Spider opened/ },
+        { label: 'Starting Scrapy', pattern: /Scrapy \d+|Overridden settings|Enabled extensions/ },
     ];
 
     const phase =
@@ -211,16 +176,10 @@ const deriveConsoleSummary = (text: string, runner: any, activeRun: any) => {
         statusTone,
         statusLabel,
         lastEvent: lastUseful || 'No runtime feedback yet.',
-        candidateProgress: candidateProgress || '—',
         metrics: [
-            { label: 'Queries', value: queries != null ? String(queries) : '—' },
-            { label: 'Search', value: searchResults != null ? String(searchResults) : '—' },
-            { label: 'Crawl', value: crawlResults != null ? String(crawlResults) : '—' },
-            { label: 'Watchers', value: watcherResults != null ? String(watcherResults) : '—' },
-            { label: 'Raw', value: rawResults != null ? String(rawResults) : '—' },
-            { label: 'Unique', value: uniqueResults != null ? String(uniqueResults) : '—' },
-            { label: 'Decision', value: accepted != null ? `${accepted}/${rejected ?? 0}/${quarantined ?? 0}` : '—' },
-            { label: 'LLM calls', value: llmCalls > 0 ? String(llmCalls) : '—' },
+            { label: 'Spiders', value: spidersOpened.size > 0 ? `${spidersClosed.size}/${spidersOpened.size} done` : '—' },
+            { label: 'Items', value: itemsScraped > 0 ? String(itemsScraped) : '—' },
+            { label: 'Dropped', value: itemsDropped > 0 ? String(itemsDropped) : '—' },
         ],
     };
 };
@@ -962,10 +921,6 @@ export default function RunsView() {
                         </div>
 
                         <div className="scrape-console-detail-grid">
-                            <div className="scrape-console-detail">
-                                <span>Candidate Progress</span>
-                                <strong>{consoleSummary.candidateProgress}</strong>
-                            </div>
                             <div className="scrape-console-detail">
                                 <span>Started</span>
                                 <strong>{runner.started_at ? fmtDate(runner.started_at) : '—'}</strong>

@@ -346,22 +346,22 @@ def _ensure_workflow_schema(force: bool = False) -> None:
             row["name"] if isinstance(row, sqlite3.Row) else row[0]
             for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-        if "results" in existing_tables:
+        if "jobs" in existing_tables:
             cols = {
                 row["name"] if isinstance(row, sqlite3.Row) else row[1]
-                for row in conn.execute("PRAGMA table_info(results)")
+                for row in conn.execute("PRAGMA table_info(jobs)")
             }
             if "approved_jd_text" not in cols:
-                conn.execute("ALTER TABLE results ADD COLUMN approved_jd_text TEXT")
+                conn.execute("ALTER TABLE jobs ADD COLUMN approved_jd_text TEXT")
             conn.execute(
                 """
-                UPDATE results
-                SET decision = CASE
-                    WHEN decision IN ('accept', 'manual') THEN 'qa_pending'
-                    WHEN decision = 'manual_approved' THEN 'qa_approved'
-                    ELSE decision
+                UPDATE jobs
+                SET status = CASE
+                    WHEN status IN ('accept', 'manual') THEN 'qa_pending'
+                    WHEN status = 'manual_approved' THEN 'qa_approved'
+                    ELSE status
                 END
-                WHERE decision IN ('accept', 'manual', 'manual_approved')
+                WHERE status IN ('accept', 'manual', 'manual_approved')
                 """
             )
         conn.commit()
@@ -736,7 +736,7 @@ def _get_applied_snapshot_detail(application_id: int) -> dict | None:
 
 def _results_has_column(conn: sqlite3.Connection, column: str) -> bool:
     try:
-        cols = conn.execute("PRAGMA table_info(results)").fetchall()
+        cols = conn.execute("PRAGMA table_info(jobs)").fetchall()
     except Exception:
         return False
     for col in cols:
@@ -1358,7 +1358,12 @@ def _db_has_active_scrape() -> bool:
 
 
 def _scrape_schedule_status() -> dict:
-    return _get_launchctl_status(SCRAPE_SCHEDULED_LABEL)
+    """Check if the in-process scrape schedule is active."""
+    from services.ops import _SCRAPE_SCHEDULER_TIMER
+    controls = _load_runtime_controls()
+    interval = controls.get("schedule_interval_minutes")
+    has_timer = _SCRAPE_SCHEDULER_TIMER is not None and _SCRAPE_SCHEDULER_TIMER.is_alive()
+    return {"loaded": has_timer, "interval_minutes": interval}
 
 
 def _mark_scrape_run_inactive(run_id: str, *, status: str = "failed", error: str | None = None) -> bool:
@@ -1412,15 +1417,11 @@ def _mark_scrape_run_inactive(run_id: str, *, status: str = "failed", error: str
 
 def _reconcile_stale_scrape_runs() -> dict:
     manual_running = bool(_scrape_runner_snapshot(log_lines=0).get("running"))
-    schedule_status = _scrape_schedule_status()
-    scheduled_running = bool(schedule_status.get("running"))
     stale_run_ids: list[str] = []
 
-    if manual_running or scheduled_running:
+    if manual_running:
         return {
             "manual_running": manual_running,
-            "scheduled_running": scheduled_running,
-            "scheduled_pid": schedule_status.get("pid"),
             "stale_run_ids": stale_run_ids,
         }
 
@@ -1443,8 +1444,6 @@ def _reconcile_stale_scrape_runs() -> dict:
 
     return {
         "manual_running": manual_running,
-        "scheduled_running": scheduled_running,
-        "scheduled_pid": schedule_status.get("pid"),
         "stale_run_ids": stale_run_ids,
     }
 
@@ -1480,11 +1479,7 @@ def _scrape_runner_snapshot(log_lines: int = 80) -> dict:
 
 def _start_scrape_run(
     *,
-    dry_run: bool = False,
-    no_fetch: bool = False,
-    no_crawl: bool = False,
-    ignore_runtime_controls: bool = True,
-    llm_enabled_override: bool | None = None,
+    spider: str | None = None,
 ) -> tuple[bool, dict]:
     snap = _scrape_runner_snapshot(log_lines=0)
     if snap.get("running"):
@@ -1502,18 +1497,8 @@ def _start_scrape_run(
     log_path = log_dir / f"manual_scrape_{stamp}.log"
 
     cmd = [str(SCRAPER_PYTHON), "-m", "job_scraper", "scrape", "-v"]
-    if dry_run:
-        cmd.append("--dry-run")
-    if no_fetch:
-        cmd.append("--no-fetch")
-    if no_crawl:
-        cmd.append("--no-crawl")
-    if ignore_runtime_controls:
-        cmd.append("--ignore-runtime-controls")
-    if llm_enabled_override is True:
-        cmd.append("--llm-enabled")
-    elif llm_enabled_override is False:
-        cmd.append("--no-llm-enabled")
+    if spider:
+        cmd.extend(["--spider", spider])
 
     try:
         log_handle = log_path.open("w", encoding="utf-8")
@@ -1537,11 +1522,7 @@ def _start_scrape_run(
             "log_path": str(log_path),
             "cmd": " ".join(cmd),
             "options": {
-                "dry_run": dry_run,
-                "no_fetch": no_fetch,
-                "no_crawl": no_crawl,
-                "ignore_runtime_controls": ignore_runtime_controls,
-                "llm_enabled_override": llm_enabled_override,
+                "spider": spider,
             },
         }
     )
@@ -1792,6 +1773,11 @@ def _register_routes() -> None:
 
 
 _register_routes()
+
+
+# ---------------------------------------------------------------------------
+# Startup — no automatic scrape scheduling. Runs are UI-initiated only.
+# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------

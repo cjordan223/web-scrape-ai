@@ -47,6 +47,7 @@ ROUTES: list[tuple[str, str, str]] = [
     ("POST", "/api/tailoring/qa/reject", "tailoring_qa_reject"),
     ("GET", "/api/tailoring/qa/llm-review", "tailoring_qa_llm_review_status"),
     ("POST", "/api/tailoring/qa/llm-review", "tailoring_qa_llm_review"),
+    ("DELETE", "/api/tailoring/qa/llm-review", "tailoring_qa_llm_review_cancel"),
     ("POST", "/api/tailoring/qa/reset-approved", "tailoring_qa_reset_approved"),
     ("POST", "/api/tailoring/qa/undo-approve", "tailoring_qa_undo_approve"),
     ("POST", "/api/tailoring/qa/undo-reject", "tailoring_qa_undo_reject"),

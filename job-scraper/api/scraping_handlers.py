@@ -338,21 +338,8 @@ def run_scrape(payload: dict = Body(default={})):
     _sync_app_state()
     if not isinstance(payload, dict):
         return JSONResponse({"error": "Invalid payload"}, 400)
-    dry_run = bool(payload.get("dry_run", False))
-    no_fetch = bool(payload.get("no_fetch", False))
-    no_crawl = bool(payload.get("no_crawl", False))
-    llm_enabled_override = payload.get("llm_enabled")
-    if llm_enabled_override is not None:
-        llm_enabled_override = bool(llm_enabled_override)
-    # Manual runs are intended for one-off testing and should bypass schedule toggle by default.
-    ignore_runtime_controls = bool(payload.get("ignore_runtime_controls", True))
-    ok, result = _start_scrape_run(
-        dry_run=dry_run,
-        no_fetch=no_fetch,
-        no_crawl=no_crawl,
-        ignore_runtime_controls=ignore_runtime_controls,
-        llm_enabled_override=llm_enabled_override,
-    )
+    spider = payload.get("spider")  # optional: run only one spider
+    ok, result = _start_scrape_run(spider=spider)
     if not ok:
         return JSONResponse(result, 409)
     return result
@@ -792,8 +779,8 @@ def approve_rejected(rejected_id: int):
         else:
             now = datetime.now(timezone.utc).isoformat()
             cur = conn.execute(
-                """INSERT INTO results
-                   (url, title, board, seniority, experience_years, salary_k, score, decision,
+                """INSERT INTO jobs
+                   (url, title, board, seniority, experience_years, salary_k, score, status,
                     snippet, query, jd_text, filter_verdicts, run_id, created_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (

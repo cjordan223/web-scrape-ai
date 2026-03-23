@@ -1164,8 +1164,8 @@ def tailoring_ingest_commit(payload: dict = Body(...)):
     try:
         conn = get_db_write()
         cur = conn.execute(
-            """INSERT INTO results
-               (url, title, board, seniority, experience_years, salary_k, score, decision,
+            """INSERT INTO jobs
+               (url, title, board, seniority, experience_years, salary_k, score, status,
                 snippet, query, jd_text, filter_verdicts, run_id, created_at)
                VALUES (?, ?, ?, ?, ?, ?, NULL, 'qa_pending', ?, 'manual-ingest', ?, NULL, 'manual-ingest', ?)
                ON CONFLICT(url, run_id) DO NOTHING""",
@@ -1262,7 +1262,7 @@ _JD_HEADING_MARKERS = [
 
 def _ensure_results_approved_jd_column(conn: sqlite3.Connection) -> None:
     if not _app._results_has_column(conn, "approved_jd_text"):
-        conn.execute("ALTER TABLE results ADD COLUMN approved_jd_text TEXT")
+        conn.execute("ALTER TABLE jobs ADD COLUMN approved_jd_text TEXT")
 
 
 def _strip_llm_fences(raw: str) -> str:
@@ -1499,7 +1499,7 @@ def tailoring_qa_approve(payload: dict = Body(...)):
                 model_id if llm_available else None,
             )
             conn.execute(
-                "UPDATE results SET decision='qa_approved', snippet=?, approved_jd_text=? WHERE id=?",
+                "UPDATE jobs SET status='qa_approved', snippet=?, approved_jd_text=? WHERE id=?",
                 (
                     (req_summary or row["snippet"] or "").strip() or None,
                     (approved_jd_text or source_text or "").strip() or None,
@@ -1539,7 +1539,7 @@ def tailoring_qa_reject(payload: dict = Body(...)):
             old_decision = _normalize_decision(row["decision"]) if row else None
             if not _job_is_qa_pending(old_decision):
                 continue
-            conn.execute("UPDATE results SET decision='qa_rejected' WHERE id=?", (jid,))
+            conn.execute("UPDATE jobs SET status='qa_rejected' WHERE id=?", (jid,))
             if row:
                 log_state_change(conn, job_id=jid, job_url=row["url"],
                                  old_state=old_decision, new_state="qa_rejected",
@@ -1826,7 +1826,7 @@ def _run_single_qa_llm_review(
                 model_id,
             )
             conn.execute(
-                "UPDATE results SET decision=?, snippet=?, approved_jd_text=? WHERE id=?",
+                "UPDATE jobs SET status=?, snippet=?, approved_jd_text=? WHERE id=?",
                 (
                     new_decision,
                     (req_summary or row["snippet"] or "").strip() or None,
@@ -1836,7 +1836,7 @@ def _run_single_qa_llm_review(
             )
         else:
             conn.execute(
-                "UPDATE results SET decision=? WHERE id=?",
+                "UPDATE jobs SET status=? WHERE id=?",
                 (new_decision, job_id),
             )
         return {
@@ -1912,6 +1912,17 @@ def _qa_llm_review_worker() -> None:
             _app._QA_LLM_REVIEW_RUNNER["thread"] = None
             if _app._QA_LLM_REVIEW_RUNNER.get("ended_at") is None:
                 _app._QA_LLM_REVIEW_RUNNER["ended_at"] = datetime.now(timezone.utc).isoformat()
+
+
+def tailoring_qa_llm_review_cancel():
+    _sync_app_state()
+    cancelled = 0
+    with _app._QA_LLM_REVIEW_LOCK:
+        for item in _app._QA_LLM_REVIEW_RUNNER.get("items", []):
+            if item.get("status") == "queued":
+                item["status"] = "cancelled"
+                cancelled += 1
+    return {"ok": True, "cancelled": cancelled}
 
 
 def tailoring_qa_llm_review_status():
@@ -2024,7 +2035,7 @@ def tailoring_qa_reset_approved():
         if job_ids:
             _cancel_tailoring_queue_items(job_ids=job_ids, statuses=("queued",), reason="Returned to QA.")
             _stop_active_tailoring_job(job_ids, "Job returned to QA.")
-        conn.execute("UPDATE results SET decision='qa_pending' WHERE decision='qa_approved'")
+        conn.execute("UPDATE jobs SET status='qa_pending' WHERE status='qa_approved'")
         for row in rows:
             log_state_change(conn, job_id=row["id"], job_url=row["url"],
                              old_state="qa_approved", new_state="qa_pending",
@@ -2059,7 +2070,7 @@ def tailoring_qa_undo_approve(payload: dict = Body(...)):
             ).fetchone()
             if not row:
                 continue
-            conn.execute("UPDATE results SET decision='qa_pending' WHERE id=?", (jid,))
+            conn.execute("UPDATE jobs SET status='qa_pending' WHERE id=?", (jid,))
             log_state_change(conn, job_id=jid, job_url=row["url"],
                              old_state="qa_approved", new_state="qa_pending",
                              action="qa_undo_approve")
@@ -2088,7 +2099,7 @@ def tailoring_qa_undo_reject(payload: dict = Body(...)):
             ).fetchone()
             if not row:
                 continue
-            conn.execute("UPDATE results SET decision='qa_pending' WHERE id=?", (jid,))
+            conn.execute("UPDATE jobs SET status='qa_pending' WHERE id=?", (jid,))
             log_state_change(conn, job_id=jid, job_url=row["url"],
                              old_state="qa_rejected", new_state="qa_pending",
                              action="qa_undo_reject")
@@ -2122,7 +2133,7 @@ def tailoring_qa_rollback(payload: dict = Body(...)):
             old = _normalize_decision(row["decision"])
             if old == "qa_pending":
                 continue
-            conn.execute("UPDATE results SET decision='qa_pending' WHERE id=?", (jid,))
+            conn.execute("UPDATE jobs SET status='qa_pending' WHERE id=?", (jid,))
             log_state_change(conn, job_id=jid, job_url=row["url"],
                              old_state=old, new_state="qa_pending",
                              action="rollback_to_qa")

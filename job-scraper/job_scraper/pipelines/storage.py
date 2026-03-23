@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from job_scraper.db import JobDB
+from job_scraper.pipelines.dedup import _get_shared_db
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +18,7 @@ class SQLitePipeline:
 
     @classmethod
     def from_crawler(cls, crawler):
-        from job_scraper.config import DB_PATH
-        db = JobDB(DB_PATH)
+        db = _get_shared_db(crawler)
         run_id = crawler.settings.get("SCRAPE_RUN_ID", "")
         return cls(db=db, run_id=run_id)
 
@@ -44,11 +44,15 @@ class SQLitePipeline:
 
     def close_spider(self, spider):
         if self._db:
+            self._db.commit()
             stats = spider.crawler.stats.get_stats() if hasattr(spider, "crawler") else {}
+            dropped = stats.get("item_dropped_count", 0)
+            scraped = stats.get("item_scraped_count", 0)
+            raw_total = scraped + dropped  # total items before dedup
             self._db.finish_run(
                 self._run_id,
-                raw_count=stats.get("item_scraped_count", self._stats["new"] + self._stats["filtered"]),
-                dedup_count=self._stats["new"],
+                raw_count=raw_total,
+                dedup_count=self._stats["new"] + self._stats["filtered"],
                 filtered_count=self._stats["filtered"],
                 error_count=stats.get("log_count/ERROR", 0),
             )

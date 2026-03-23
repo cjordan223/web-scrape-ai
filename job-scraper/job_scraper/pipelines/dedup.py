@@ -11,6 +11,14 @@ from job_scraper.db import JobDB
 logger = logging.getLogger(__name__)
 
 
+def _get_shared_db(crawler) -> JobDB:
+    """Get or create a shared JobDB on the crawler instance."""
+    if not hasattr(crawler, "_shared_db"):
+        from job_scraper.config import DB_PATH
+        crawler._shared_db = JobDB(DB_PATH)
+    return crawler._shared_db
+
+
 class DeduplicationPipeline:
     def __init__(self, db: JobDB | None = None, ttl_days: int = 14):
         self._db = db
@@ -18,8 +26,7 @@ class DeduplicationPipeline:
 
     @classmethod
     def from_crawler(cls, crawler):
-        from job_scraper.config import DB_PATH
-        db = JobDB(DB_PATH)
+        db = _get_shared_db(crawler)
         ttl = crawler.settings.getint("SEEN_TTL_DAYS", 14)
         return cls(db=db, ttl_days=ttl)
 
@@ -29,3 +36,7 @@ class DeduplicationPipeline:
             raise DropItem(f"Already seen: {url}")
         self._db.mark_seen(url)
         return item
+
+    def close_spider(self, spider):
+        if self._db:
+            self._db.commit()

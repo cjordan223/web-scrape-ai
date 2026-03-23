@@ -12,7 +12,6 @@ import { api } from './api';
 
 import './styles/global.css';
 
-const OverviewView = lazy(() => import('./views/domains/home/OverviewView'));
 const JobsView = lazy(() => import('./views/domains/scraping/intake/JobsView'));
 const RejectedView = lazy(() => import('./views/domains/scraping/intake/RejectedView'));
 const RunsView = lazy(() => import('./views/domains/scraping/runs/RunsView'));
@@ -22,12 +21,9 @@ const IngestView = lazy(() => import('./views/domains/tailoring/runs/IngestView'
 const TailoringRejectedView = lazy(() => import('./views/domains/tailoring/rejected/RejectedView'));
 const PackagesView = lazy(() => import('./views/domains/tailoring/outputs/PackagesView'));
 const AppliedView = lazy(() => import('./views/domains/tailoring/outputs/AppliedView'));
-const DedupView = lazy(() => import('./views/domains/scraping/quality/DedupView'));
-const SchedulesView = lazy(() => import('./views/domains/scraping/quality/SchedulesView'));
-const ExplorerView = lazy(() => import('./views/domains/ops/data/ExplorerView'));
 const SqlConsoleView = lazy(() => import('./views/domains/ops/diagnostics/SqlConsoleView'));
 const PipelineView = lazy(() => import('./views/domains/ops/diagnostics/PipelineView'));
-const ArchiveView = lazy(() => import('./views/domains/ops/data/ArchiveView'));
+const PipelineEditorView = lazy(() => import('./views/domains/ops/diagnostics/PipelineEditorView'));
 const MobileShell = lazy(() => import('./components/layout/MobileShell'));
 const MobileQAView = lazy(() => import('./views/mobile/MobileQAView'));
 const MobileDocsView = lazy(() => import('./views/mobile/MobileDocsView'));
@@ -115,7 +111,7 @@ function PrefixRedirect({ from, to }: { from: string; to: string }) {
 
 function SmartRedirect() {
   const isMobile = window.innerWidth < 768;
-  return <Navigate to={isMobile ? '/m/qa' : '/overview'} replace />;
+  return <Navigate to={isMobile ? '/m/qa' : '/pipeline/editor'} replace />;
 }
 
 function App() {
@@ -143,10 +139,11 @@ function App() {
         </Route>
 
         <Route element={<AppShell dbSizeLabel={dbSizeLabel} />}>
-          {/* New flat routes */}
-          <Route path="/overview" element={<LazyRoute><OverviewView /></LazyRoute>} />
+          {/* Pipeline Editor — new default landing */}
+          <Route path="/pipeline/editor" element={<LazyRoute><PipelineEditorView /></LazyRoute>} />
 
-          <Route path="/pipeline" element={<Navigate to="/pipeline/ready" replace />} />
+          {/* Pipeline workflow */}
+          <Route path="/pipeline" element={<Navigate to="/pipeline/editor" replace />} />
           <Route path="/pipeline/ready" element={<LazyRoute><TailoringView /></LazyRoute>} />
           <Route path="/pipeline/ingest" element={<LazyRoute><IngestView /></LazyRoute>} />
           <Route path="/pipeline/ingest/runs" element={<LazyRoute><RunsView /></LazyRoute>} />
@@ -156,51 +153,57 @@ function App() {
           <Route path="/pipeline/rejected" element={<LazyRoute><TailoringRejectedView /></LazyRoute>} />
           <Route path="/pipeline/applied" element={<LazyRoute><AppliedView /></LazyRoute>} />
 
-          <Route path="/ops" element={<Navigate to="/ops/jobs" replace />} />
-          <Route path="/ops/jobs" element={<LazyRoute><JobsView /></LazyRoute>} />
+          {/* Ops */}
+          <Route path="/ops" element={<Navigate to="/ops/inventory" replace />} />
+          <Route path="/ops/inventory" element={<LazyRoute><JobsView /></LazyRoute>} />
           <Route path="/ops/rejected" element={<LazyRoute><RejectedView /></LazyRoute>} />
-          <Route path="/ops/dedup" element={<LazyRoute><DedupView /></LazyRoute>} />
-          <Route path="/ops/schedules" element={<LazyRoute><SchedulesView /></LazyRoute>} />
-          <Route path="/ops/explorer" element={<LazyRoute><ExplorerView /></LazyRoute>} />
-          <Route path="/ops/archives" element={<LazyRoute><ArchiveView /></LazyRoute>} />
-          <Route path="/ops/pipeline-inspector" element={<LazyRoute><PipelineView /></LazyRoute>} />
+          <Route path="/ops/traces" element={<LazyRoute><PipelineView /></LazyRoute>} />
           <Route path="/ops/admin" element={<LazyRoute><SqlConsoleView /></LazyRoute>} />
 
+          {/* Redirects — removed views → pipeline editor */}
+          <Route path="/overview" element={<LegacyRedirect to="/pipeline/editor" />} />
+          <Route path="/ops/dedup" element={<LegacyRedirect to="/pipeline/editor" />} />
+          <Route path="/ops/schedules" element={<LegacyRedirect to="/pipeline/editor" />} />
+          <Route path="/ops/explorer" element={<LegacyRedirect to="/ops/admin" />} />
+          <Route path="/ops/archives" element={<LegacyRedirect to="/pipeline/editor" />} />
+          <Route path="/ops/jobs" element={<LegacyRedirect to="/ops/inventory" />} />
+          <Route path="/ops/pipeline-editor" element={<LegacyRedirect to="/pipeline/editor" />} />
+          <Route path="/ops/pipeline-inspector" element={<LegacyRedirect to="/ops/traces" />} />
+
           {/* Legacy redirects */}
-          <Route path="/home" element={<LegacyRedirect to="/overview" />} />
-          <Route path="/home/overview" element={<LegacyRedirect to="/overview" />} />
-          <Route path="/scraping" element={<LegacyRedirect to="/ops/jobs" />} />
-          <Route path="/scraping/intake/jobs" element={<LegacyRedirect to="/ops/jobs" />} />
+          <Route path="/home" element={<LegacyRedirect to="/pipeline/editor" />} />
+          <Route path="/home/overview" element={<LegacyRedirect to="/pipeline/editor" />} />
+          <Route path="/scraping" element={<LegacyRedirect to="/ops/inventory" />} />
+          <Route path="/scraping/intake/jobs" element={<LegacyRedirect to="/ops/inventory" />} />
           <Route path="/scraping/intake/rejected" element={<LegacyRedirect to="/ops/rejected" />} />
           <Route path="/pipeline/runs" element={<PrefixRedirect from="/pipeline/runs" to="/pipeline/ingest/runs" />} />
           <Route path="/pipeline/runs/:runId" element={<PrefixRedirect from="/pipeline/runs" to="/pipeline/ingest/runs" />} />
           <Route path="/scraping/runs" element={<PrefixRedirect from="/scraping/runs" to="/pipeline/ingest/runs" />} />
           <Route path="/scraping/runs/:runId" element={<PrefixRedirect from="/scraping/runs" to="/pipeline/ingest/runs" />} />
-          <Route path="/scraping/quality/dedup" element={<LegacyRedirect to="/ops/dedup" />} />
-          <Route path="/scraping/quality/schedules" element={<LegacyRedirect to="/ops/schedules" />} />
-          <Route path="/tailoring" element={<LegacyRedirect to="/pipeline/qa" />} />
-          <Route path="/tailoring/qa" element={<LegacyRedirect to="/pipeline/qa" />} />
+          <Route path="/scraping/quality/dedup" element={<LegacyRedirect to="/pipeline/editor" />} />
+          <Route path="/scraping/quality/schedules" element={<LegacyRedirect to="/pipeline/editor" />} />
+          <Route path="/tailoring" element={<LegacyRedirect to="/pipeline/ready" />} />
+          <Route path="/tailoring/qa" element={<LegacyRedirect to="/pipeline/ready" />} />
           <Route path="/tailoring/runs" element={<LegacyRedirect to="/pipeline/ready" />} />
           <Route path="/tailoring/outputs/packages" element={<LegacyRedirect to="/pipeline/packages" />} />
           <Route path="/tailoring/outputs/applied" element={<LegacyRedirect to="/pipeline/applied" />} />
-          <Route path="/ops/traces" element={<LegacyRedirect to="/pipeline/ready" />} />
-          <Route path="/ops/data/explorer" element={<LegacyRedirect to="/ops/explorer" />} />
-          <Route path="/ops/data/archives" element={<LegacyRedirect to="/ops/archives" />} />
+          <Route path="/ops/data/explorer" element={<LegacyRedirect to="/ops/admin" />} />
+          <Route path="/ops/data/archives" element={<LegacyRedirect to="/pipeline/editor" />} />
           <Route path="/ops/diagnostics/sql" element={<LegacyRedirect to="/ops/admin" />} />
-          <Route path="/ops/diagnostics/pipeline" element={<LegacyRedirect to="/ops/pipeline-inspector" />} />
+          <Route path="/ops/diagnostics/pipeline" element={<LegacyRedirect to="/ops/traces" />} />
           <Route path="/pipeline/jobs" element={<LegacyRedirect to="/pipeline/ready" />} />
-          <Route path="/jobs" element={<LegacyRedirect to="/ops/jobs" />} />
+          <Route path="/jobs" element={<LegacyRedirect to="/ops/inventory" />} />
           <Route path="/rejected" element={<LegacyRedirect to="/ops/rejected" />} />
           <Route path="/runs" element={<LegacyRedirect to="/pipeline/ingest/runs" />} />
           <Route path="/runs/:runId" element={<PrefixRedirect from="/runs" to="/pipeline/ingest/runs" />} />
           <Route path="/packages" element={<LegacyRedirect to="/pipeline/packages" />} />
           <Route path="/applied" element={<LegacyRedirect to="/pipeline/applied" />} />
-          <Route path="/dedup" element={<LegacyRedirect to="/ops/dedup" />} />
-          <Route path="/schedules" element={<LegacyRedirect to="/ops/schedules" />} />
-          <Route path="/explorer" element={<LegacyRedirect to="/ops/explorer" />} />
+          <Route path="/dedup" element={<LegacyRedirect to="/pipeline/editor" />} />
+          <Route path="/schedules" element={<LegacyRedirect to="/pipeline/editor" />} />
+          <Route path="/explorer" element={<LegacyRedirect to="/ops/admin" />} />
           <Route path="/sql" element={<LegacyRedirect to="/ops/admin" />} />
 
-          <Route path="*" element={<Navigate to="/overview" replace />} />
+          <Route path="*" element={<Navigate to="/pipeline/editor" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>
