@@ -9,6 +9,12 @@ from pathlib import Path
 from typing import Callable
 
 from . import config as cfg
+from .grounding import (
+    build_grounding_context,
+    enrich_analysis_with_grounding,
+    grounding_prompt_block,
+    write_grounding_artifacts,
+)
 from .ollama import chat_expect_json
 from .persona import get_store as get_persona
 from .selector import SelectedJob
@@ -22,6 +28,8 @@ RULES:
 1. Only reference skills that exist in the provided skills_inventory. Do NOT hallucinate skills the candidate does not have.
 2. Map each JD requirement to the best matching skill categories and specific skills.
 3. Select evidence anchors from the BASELINE RESUME provided. You MUST quote or closely paraphrase a specific bullet from the resume and cite the company name. Do NOT fabricate metrics, percentages, or outcomes not present in the baseline.
+3a. Treat baseline employer names, role titles, and dates as immutable facts. Never reinterpret a past employer role as the target role.
+3b. Persona text may add narrative emphasis only. It does NOT authorize new tools, compliance frameworks, identity stacks, deployment topology, or operational mechanics unless explicitly stated in source truth.
 4. Identify the company name and exact role title from the JD.
 5. Note any tone adjustments needed based on the JD's language and culture signals.
 6. Extract company context: what the company builds/does, what engineering challenges the team likely faces, and what the company seems to value based on JD language. This will be used to personalize the cover letter opening.
@@ -43,7 +51,13 @@ Respond with ONLY a JSON object — no other text, no markdown fences:
       "matched_category": "skill category name from inventory",
       "matched_skills": ["specific skill 1", "specific skill 2"],
       "evidence": "quote or close paraphrase of a specific baseline resume bullet (cite company name)",
-      "priority": "high|medium|low"
+      "priority": "high|medium|low",
+      "allowed_evidence": {
+        "source_company": "company named in evidence",
+        "immutable_role": "baseline role title for that company",
+        "approved_terms": ["specific grounded terms already present in source truth"],
+        "forbidden_categories": ["categories of claim drift to avoid for this requirement"]
+      }
     }
   ],
   "tone_notes": "any adjustments to cover letter tone based on JD signals",
@@ -99,10 +113,21 @@ def normalize_analysis(analysis: dict) -> dict:
             continue
         cleaned = dict(req)
         cleaned["matched_skills"] = _coerce_string_list(req.get("matched_skills"))
+        allowed = req.get("allowed_evidence")
+        if not isinstance(allowed, dict):
+            allowed = {}
+        cleaned["allowed_evidence"] = {
+            "source_company": allowed.get("source_company"),
+            "immutable_role": allowed.get("immutable_role"),
+            "approved_terms": _coerce_string_list(allowed.get("approved_terms")),
+            "forbidden_categories": _coerce_string_list(allowed.get("forbidden_categories")),
+        }
         priority = str(req.get("priority", "medium")).lower().strip()
         cleaned["priority"] = priority if priority in {"high", "medium", "low"} else "medium"
         cleaned_requirements.append(cleaned)
     normalized["requirements"] = cleaned_requirements
+    grounding_contract = normalized.get("grounding_contract")
+    normalized["grounding_contract"] = grounding_contract if isinstance(grounding_contract, dict) else {}
     return normalized
 
 
@@ -118,7 +143,7 @@ def load_cached_analysis(job: SelectedJob, output_dir: Path) -> dict | None:
         logger.warning("Ignoring unreadable analysis cache at %s", cache_path)
         return None
 
-    # Invalidate cache if it's missing required fields (e.g. company_context added later)
+    # Invalidate cache if it's missing required fields needed by downstream grounding rules.
     if "company_context" not in analysis:
         logger.info("Invalidating analysis cache at %s (missing company_context)", cache_path)
         return None
@@ -132,7 +157,8 @@ def load_cached_analysis(job: SelectedJob, output_dir: Path) -> dict | None:
         )
         return None
 
-    analysis = normalize_analysis(analysis)
+    grounding = build_grounding_context()
+    analysis = enrich_analysis_with_grounding(normalize_analysis(analysis), grounding)
     logger.info("Using cached analysis from %s", cache_path)
     return analysis
 
@@ -154,6 +180,7 @@ def analyze_job(
     skills_data = json.loads(cfg.SKILLS_JSON.read_text())
     persona_text = get_persona().for_analysis()
     baseline_resume = cfg.RESUME_TEX.read_text()
+    grounding = build_grounding_context(baseline_tex=baseline_resume, skills_data=skills_data)
 
     jd_text = job.jd_text or job.snippet or ""
     if not jd_text.strip():
@@ -169,6 +196,7 @@ def analyze_job(
         f"```latex\n{baseline_resume}\n```\n\n"
         f"## Candidate Skills Inventory\n"
         f"{json.dumps(skills_data['skills_inventory'], indent=2)}\n\n"
+        f"{grounding_prompt_block(grounding)}\n\n"
         f"## Candidate Persona\n"
         f"{persona_text}"
     )
@@ -187,11 +215,12 @@ def analyze_job(
         },
         trace_recorder=trace_recorder,
     )
-    analysis = normalize_analysis(analysis)
+    analysis = enrich_analysis_with_grounding(normalize_analysis(analysis), grounding)
     analysis["_job_id"] = job.id
     analysis["_job_url"] = job.url
 
     output_dir.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(json.dumps(analysis, indent=2))
+    write_grounding_artifacts(output_dir, grounding=grounding, analysis=analysis)
     logger.info("Analysis saved to %s (%d requirements mapped)", cache_path, len(analysis.get("requirements", [])))
     return analysis

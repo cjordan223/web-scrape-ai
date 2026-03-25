@@ -90,11 +90,11 @@ def scan_and_process(db_path: str | None = None) -> dict:
             conn = sqlite3.connect(db_path)
             cur = conn.execute(
                 """INSERT INTO jobs
-                   (url, title, board, seniority, experience_years, salary_k, score, status,
-                    snippet, query, jd_text, filter_verdicts, run_id, created_at)
-                   VALUES (?, ?, ?, NULL, NULL, NULL, NULL, 'qa_pending', ?, 'mobile-ingest', ?, NULL, 'mobile-ingest', ?)
-                   ON CONFLICT(url, run_id) DO NOTHING""",
-                (url, title, company, jd_text[:200], jd_text, now),
+                   (url, title, company, board, seniority, experience_years, salary_k, score, status,
+                    snippet, query, source, jd_text, filter_verdicts, run_id, created_at, updated_at)
+                   VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, 'qa_pending', ?, 'mobile-ingest', 'mobile', ?, NULL, 'mobile-ingest', ?, ?)
+                   ON CONFLICT(url) DO NOTHING""",
+                (url, title, company, jd_text[:200], jd_text, now, now),
             )
             job_id = cur.lastrowid if cur.rowcount > 0 else None
             if job_id is not None:

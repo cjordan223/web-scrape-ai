@@ -25,6 +25,7 @@ ROUTES: list[tuple[str, str, str]] = [
     ("GET", "/api/tailoring/runs/{slug}/artifact/{name}", "tailoring_artifact"),
     ("GET", "/api/packages", "package_runs"),
     ("GET", "/api/packages/{slug}", "package_detail"),
+    ("DELETE", "/api/packages/{slug}", "package_delete"),
     ("POST", "/api/packages/{slug}/apply", "package_apply"),
     ("POST", "/api/packages/{slug}/regenerate/cover", "package_regenerate_cover"),
     ("POST", "/api/packages/{slug}/latex/{doc_type}", "package_save_latex"),

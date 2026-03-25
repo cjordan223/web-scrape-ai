@@ -1,15 +1,64 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from '../../../../api';
-import { FileDiff, Pencil, MessageSquare, ChevronDown, ChevronUp, FileText, Layers, BookOpen } from 'lucide-react';
+import { FileDiff, Pencil, MessageSquare, ChevronDown, ChevronUp, FileText, Layers, BookOpen, Trash2 } from 'lucide-react';
 import PackageChatPanel from './PackageChatTab';
 import { DetailContextSection, BriefingPanel, DocumentsSideBySide, StrategyCard, JdDisplay, timeAgo, safePdfName } from './shared';
 
 type MainTab = 'briefing' | 'strategy' | 'documents' | 'jd' | 'diff' | 'editor';
+type RunFilter = 'all' | 'recent_reruns' | 'latest_only' | 'previous_only' | 'with_history' | 'returned';
+
+type PackageGroup = {
+    key: string;
+    jobId: number | null;
+    title: string;
+    company: string;
+    items: any[];
+};
 
 function toLocalInputValue(isoDate?: string | null) {
     const date = isoDate ? new Date(isoDate) : new Date();
     const offsetMs = date.getTimezoneOffset() * 60_000;
     return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function packageUpdatedAt(item: any) {
+    const raw = item?.updated_at || item?.created_at || 0;
+    const ts = new Date(raw).getTime();
+    return Number.isFinite(ts) ? ts : 0;
+}
+
+function isTimestampedRerunSlug(slug?: string) {
+    return Boolean(slug && /-\d{8}T\d{6}Z$/.test(slug));
+}
+
+function groupPackages(items: any[]): PackageGroup[] {
+    const groups = new Map<string, PackageGroup>();
+
+    for (const item of items) {
+        const jobId = item?.meta?.job_id ?? null;
+        const title = item?.meta?.job_title || item?.meta?.title || 'Untitled';
+        const company = item?.meta?.company_name || item?.meta?.company || '--';
+        const key = jobId != null ? `job:${jobId}` : `slug:${item.slug}`;
+        const existing = groups.get(key);
+        if (existing) {
+            existing.items.push(item);
+            continue;
+        }
+        groups.set(key, {
+            key,
+            jobId: typeof jobId === 'number' ? jobId : jobId != null ? Number(jobId) : null,
+            title,
+            company,
+            items: [item],
+        });
+    }
+
+    return Array.from(groups.values())
+        .map((group) => ({
+            ...group,
+            items: [...group.items].sort((a, b) => packageUpdatedAt(b) - packageUpdatedAt(a)),
+        }))
+        .sort((a, b) => packageUpdatedAt(b.items[0]) - packageUpdatedAt(a.items[0]));
 }
 
 export default function PackagesView() {
@@ -35,6 +84,7 @@ export default function PackagesView() {
     const [selectedSlugs, setSelectedSlugs] = useState<Set<string>>(new Set());
     const [bulkBusy, setBulkBusy] = useState(false);
     const [applyFilter, setApplyFilter] = useState<'all' | 'unapplied' | 'applied'>('unapplied');
+    const [runFilter, setRunFilter] = useState<RunFilter>('all');
     const [applyFormOpen, setApplyFormOpen] = useState(false);
     const [applyUrl, setApplyUrl] = useState('');
     const [applyAt, setApplyAt] = useState(toLocalInputValue());
@@ -44,6 +94,7 @@ export default function PackagesView() {
     const [applyError, setApplyError] = useState('');
     const [regenerateBusy, setRegenerateBusy] = useState(false);
     const [regenerateMessage, setRegenerateMessage] = useState('');
+    const [deleteBusy, setDeleteBusy] = useState(false);
     const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
@@ -176,6 +227,37 @@ export default function PackagesView() {
         }
     };
 
+    const handleDelete = async (slug: string) => {
+        const pkg = data.find(p => p.slug === slug);
+        const label = pkg?.meta?.job_title || pkg?.meta?.title || slug;
+        if (!confirm(`Delete package "${label}"? The output files will be permanently removed.`)) return;
+        setDeleteBusy(true);
+        try {
+            await api.deletePackage(slug);
+            if (activeSlug === slug) setActiveSlug(null);
+            await fetchPackages();
+        } catch (e: any) {
+            console.error(e);
+        } finally {
+            setDeleteBusy(false);
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        const slugs = [...selectedSlugs];
+        if (!slugs.length) return;
+        if (!confirm(`Delete ${slugs.length} package(s)? Output files will be permanently removed.`)) return;
+        setDeleteBusy(true);
+        try {
+            await Promise.allSettled(slugs.map(slug => api.deletePackage(slug)));
+            setSelectedSlugs(new Set());
+            setActiveSlug(null);
+            await fetchPackages();
+        } finally {
+            setDeleteBusy(false);
+        }
+    };
+
     const handleMarkApplied = async () => {
         if (!activeSlug) return;
         setApplyBusy(true);
@@ -202,14 +284,36 @@ export default function PackagesView() {
         if (applyFilter === 'unapplied') return !item.applied;
         return true;
     });
+    const groupedFilteredData = groupPackages(filteredData)
+        .map((group) => {
+            let items = group.items;
+            if (runFilter === 'recent_reruns') items = items.filter((item) => isTimestampedRerunSlug(item.slug));
+            if (runFilter === 'latest_only') items = items.slice(0, 1);
+            if (runFilter === 'previous_only') items = items.slice(1);
+            if (runFilter === 'with_history') items = group.items.length > 1 ? items : [];
+            if (runFilter === 'returned') items = items.filter((item) => item.decision && item.decision !== 'qa_approved' && !item.applied);
+            return { ...group, items };
+        })
+        .filter((group) => group.items.length > 0);
+    const visibleData = groupedFilteredData.flatMap((group) => group.items);
+    const selectedVisibleCount = visibleData.filter((item) => selectedSlugs.has(item.slug)).length;
+
+    const runFilterOptions: Array<{ value: RunFilter; label: string }> = [
+        { value: 'all', label: 'All Runs' },
+        { value: 'recent_reruns', label: 'Recent Reruns' },
+        { value: 'latest_only', label: 'Latest Only' },
+        { value: 'previous_only', label: 'Previous Only' },
+        { value: 'with_history', label: 'With History' },
+        { value: 'returned', label: 'Returned' },
+    ];
 
     useEffect(() => {
-        if (!filteredData.some((item) => item.slug === activeSlug)) {
-            setActiveSlug(filteredData[0]?.slug || null);
+        if (!visibleData.some((item) => item.slug === activeSlug)) {
+            setActiveSlug(visibleData[0]?.slug || null);
         }
-    }, [filteredData, activeSlug]);
+    }, [visibleData, activeSlug]);
 
-    const activePkg = filteredData.find(p => p.slug === activeSlug) || data.find(p => p.slug === activeSlug);
+    const activePkg = visibleData.find(p => p.slug === activeSlug) || data.find(p => p.slug === activeSlug);
     const resumePdfKey = Object.keys(activePkg?.artifacts || {}).find(k => k.endsWith('Resume.pdf'));
     const coverPdfKey = Object.keys(activePkg?.artifacts || {}).find(k => k.endsWith('Cover_Letter.pdf'));
     const pdfKey = packageDoc === 'resume'
@@ -246,7 +350,7 @@ export default function PackagesView() {
         );
     }
 
-    if (filteredData.length === 0) {
+    if (visibleData.length === 0) {
         return (
             <div style={{ display: 'flex', height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
                 <div style={{
@@ -279,6 +383,18 @@ export default function PackagesView() {
                                 </button>
                             ))}
                         </div>
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+                            {runFilterOptions.map(({ value, label }) => (
+                                <button
+                                    key={value}
+                                    className={`btn btn-sm ${runFilter === value ? 'btn-primary' : 'btn-ghost'}`}
+                                    style={{ fontSize: '.62rem' }}
+                                    onClick={() => setRunFilter(value)}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
                 <div style={{
@@ -291,7 +407,7 @@ export default function PackagesView() {
                 }}>
                     <span style={{ fontSize: '1.6rem', opacity: 0.2 }}>&#9998;</span>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.82rem', color: 'var(--text-secondary)' }}>
-                        No unapplied packages. Applied snapshots remain under Applied.
+                        No packages match the current filters.
                     </span>
                 </div>
             </div>
@@ -314,7 +430,7 @@ export default function PackagesView() {
                         color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.1em',
                         marginBottom: '8px',
                     }}>
-                        Packages ({filteredData.length})
+                        Packages ({visibleData.length}) {groupedFilteredData.length > 0 ? `• Jobs (${groupedFilteredData.length})` : ''}
                     </div>
                     <div style={{ display: 'flex', gap: '6px' }}>
                         {([
@@ -330,29 +446,41 @@ export default function PackagesView() {
                             >
                                 {label}
                             </button>
+                            ))}
+                        </div>
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+                        {runFilterOptions.map(({ value, label }) => (
+                            <button
+                                key={value}
+                                className={`btn btn-sm ${runFilter === value ? 'btn-primary' : 'btn-ghost'}`}
+                                style={{ fontSize: '.62rem' }}
+                                onClick={() => setRunFilter(value)}
+                            >
+                                {label}
+                            </button>
                         ))}
                     </div>
                     <div style={{ display: 'flex', gap: '6px', marginTop: '8px', alignItems: 'center' }}>
                         <button
                             className="btn btn-ghost btn-sm"
                             style={{ fontSize: '.62rem', flex: 1 }}
-                            disabled={filteredData.length === 0}
+                            disabled={visibleData.length === 0}
                             onClick={() => {
-                                const selectable = filteredData.filter(d => !d.applied);
+                                const selectable = visibleData.filter(d => !d.applied);
                                 const selectableSlugs = selectable.map(d => d.slug);
                                 if (selectableSlugs.every(s => selectedSlugs.has(s)) && selectableSlugs.length > 0) setSelectedSlugs(new Set());
                                 else setSelectedSlugs(new Set(selectableSlugs));
                             }}
                         >
-                            {selectedSlugs.size === filteredData.length && filteredData.length > 0 ? 'Deselect All' : 'Select All'}
+                            {selectedVisibleCount === visibleData.filter((job) => !job.applied).length && visibleData.length > 0 && selectedVisibleCount > 0 ? 'Deselect All' : 'Select All'}
                         </button>
-                        {selectedSlugs.size > 0 && (
+                        {selectedVisibleCount > 0 && (<>
                             <button
                                 className="btn btn-ghost btn-sm"
                                 style={{ fontSize: '.62rem', color: 'var(--amber, #d1a23b)', flex: 1 }}
                                 disabled={bulkBusy}
                                 onClick={async () => {
-                                    const selected = filteredData.filter(d => selectedSlugs.has(d.slug) && d.meta?.job_id && !d.applied);
+                                    const selected = visibleData.filter(d => selectedSlugs.has(d.slug) && d.meta?.job_id && !d.applied);
                                     const jobIds = selected.map(d => d.meta.job_id);
                                     if (!jobIds.length) return;
                                     if (!confirm(`Return ${jobIds.length} job(s) to QA? Output files are preserved.`)) return;
@@ -365,122 +493,181 @@ export default function PackagesView() {
                                     finally { setBulkBusy(false); }
                                 }}
                             >
-                                {bulkBusy ? 'Returning...' : `Return to QA (${selectedSlugs.size})`}
+                                {bulkBusy ? 'Returning...' : `Return to QA (${selectedVisibleCount})`}
                             </button>
-                        )}
+                            <button
+                                className="btn btn-ghost btn-sm"
+                                style={{ fontSize: '.62rem', color: 'var(--red)', flex: 1 }}
+                                disabled={deleteBusy}
+                                onClick={handleBulkDelete}
+                            >
+                                {deleteBusy ? 'Deleting...' : (<><Trash2 size={11} /> Delete ({selectedVisibleCount})</>)}
+                            </button>
+                        </>)}
                     </div>
                 </div>
 
                 <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {filteredData.map((item) => {
-                        const isActive = activeSlug === item.slug;
-                        const isChecked = selectedSlugs.has(item.slug);
-                        const hasResume = item.artifacts['Conner_Jordan_Resume.pdf'];
-                        const hasCover = item.artifacts['Conner_Jordan_Cover_Letter.pdf'];
-                        return (
-                            <div
-                                key={item.slug}
-                                onClick={() => setActiveSlug(item.slug)}
-                                style={{
-                                    padding: '10px 14px', cursor: 'pointer',
-                                    borderBottom: '1px solid var(--border)',
-                                    borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
-                                    background: isChecked ? 'rgba(75,142,240,.06)' : isActive ? 'var(--accent-light)' : 'transparent',
-                                    transition: 'background .08s',
-                                    display: 'flex', gap: '8px', alignItems: 'flex-start',
-                                }}
-                                onMouseEnter={e => { if (!isActive && !isChecked) e.currentTarget.style.background = 'var(--surface-2)'; }}
-                                onMouseLeave={e => { if (!isActive && !isChecked) e.currentTarget.style.background = 'transparent'; }}
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={isChecked}
-                                    onClick={e => e.stopPropagation()}
-                                    onChange={() => {
-                                        setSelectedSlugs(prev => {
-                                            const next = new Set(prev);
-                                            next.has(item.slug) ? next.delete(item.slug) : next.add(item.slug);
-                                            return next;
-                                        });
-                                    }}
-                                    style={{ accentColor: 'var(--accent)', width: 16, height: 16, marginTop: 2, flexShrink: 0 }}
-                                />
-                                <div style={{ flex: 1, minWidth: 0 }}>
+                    {groupedFilteredData.map((group) => (
+                        <div key={group.key} style={{ borderBottom: '1px solid var(--border)' }}>
+                            <div style={{
+                                padding: '9px 14px 8px',
+                                background: 'var(--surface-2)',
+                                borderBottom: '1px solid var(--border)',
+                            }}>
                                 <div style={{
-                                    fontWeight: 600, fontSize: '.8rem', lineHeight: 1.3,
-                                    overflow: 'hidden', textOverflow: 'ellipsis',
-                                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
+                                    marginBottom: '4px',
                                 }}>
-                                    {item.meta?.job_title || item.meta?.title || item.slug}
+                                    <div style={{
+                                        fontWeight: 700, fontSize: '.76rem', lineHeight: 1.3,
+                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                    }}>
+                                        {group.title}
+                                    </div>
+                                    <span style={{
+                                        fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 700,
+                                        color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.08em',
+                                        whiteSpace: 'nowrap',
+                                    }}>
+                                        {group.items.length} run{group.items.length === 1 ? '' : 's'}
+                                    </span>
                                 </div>
                                 <div style={{
-                                    display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px',
-                                    fontFamily: 'var(--font-mono)', fontSize: '.66rem', color: 'var(--text-secondary)',
+                                    display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap',
+                                    fontFamily: 'var(--font-mono)', fontSize: '.62rem', color: 'var(--text-secondary)',
                                 }}>
-                                    <span>{item.meta?.company_name || item.meta?.company || '--'}</span>
-                                    <span style={{ opacity: 0.4 }}>&middot;</span>
-                                    <span>{timeAgo(item.updated_at)}</span>
-                                </div>
-                                <div style={{ display: 'flex', gap: '4px', marginTop: '5px', flexWrap: 'wrap' }}>
-                                    <span style={{
-                                        fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 500,
-                                        padding: '1px 5px', borderRadius: '2px',
-                                        background: hasResume ? 'rgba(60,179,113,.10)' : 'rgba(217,79,79,.08)',
-                                        color: hasResume ? 'var(--green)' : 'var(--red)',
-                                    }}>RES</span>
-                                    <span style={{
-                                        fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 500,
-                                        padding: '1px 5px', borderRadius: '2px',
-                                        background: hasCover ? 'rgba(60,179,113,.10)' : 'rgba(217,79,79,.08)',
-                                        color: hasCover ? 'var(--green)' : 'var(--red)',
-                                    }}>CVR</span>
-                                    {(item.doc_status?.resume || item.doc_status?.cover) && (
+                                    {group.jobId != null && <span style={{ color: 'var(--accent)' }}>#{group.jobId}</span>}
+                                    {group.jobId != null && <span style={{ opacity: 0.4 }}>&middot;</span>}
+                                    <span>{group.company}</span>
+                                    {group.items.length > 1 && (
                                         <>
-                                            {item.doc_status?.resume && (
-                                                <span style={{
-                                                    fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 500,
-                                                    padding: '1px 5px', borderRadius: '2px',
-                                                    background: item.doc_status.resume === 'passed' ? 'rgba(60,179,113,.10)' : 'rgba(217,79,79,.08)',
-                                                    color: item.doc_status.resume === 'passed' ? 'var(--green)' : 'var(--red)',
-                                                }}>
-                                                    RES {item.doc_status.resume}
-                                                </span>
-                                            )}
-                                            {item.doc_status?.cover && (
-                                                <span style={{
-                                                    fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 500,
-                                                    padding: '1px 5px', borderRadius: '2px',
-                                                    background: item.doc_status.cover === 'passed' ? 'rgba(60,179,113,.10)' : 'rgba(217,79,79,.08)',
-                                                    color: item.doc_status.cover === 'passed' ? 'var(--green)' : 'var(--red)',
-                                                }}>
-                                                    CVR {item.doc_status.cover}
-                                                </span>
-                                            )}
+                                            <span style={{ opacity: 0.4 }}>&middot;</span>
+                                            <span style={{ color: 'var(--amber, #d1a23b)' }}>history preserved</span>
                                         </>
                                     )}
-                                    {item.applied && (
-                                        <span style={{
-                                            fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 600,
-                                            padding: '1px 5px', borderRadius: '2px',
-                                            background: 'rgba(75,142,240,.12)', color: 'var(--accent)',
-                                        }}>
-                                            APPLIED
-                                        </span>
-                                    )}
-                                    {item.decision && item.decision !== 'qa_approved' && !item.applied && (
-                                        <span style={{
-                                            fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 600,
-                                            padding: '1px 5px', borderRadius: '2px',
-                                            background: 'rgba(209,162,59,.12)', color: 'var(--amber, #d1a23b)',
-                                        }}>
-                                            RETURNED
-                                        </span>
-                                    )}
-                                </div>
                                 </div>
                             </div>
-                        );
-                    })}
+                            {group.items.map((item, index) => {
+                                const isActive = activeSlug === item.slug;
+                                const isChecked = selectedSlugs.has(item.slug);
+                                const hasResume = item.artifacts['Conner_Jordan_Resume.pdf'];
+                                const hasCover = item.artifacts['Conner_Jordan_Cover_Letter.pdf'];
+                                const isLatest = index === 0;
+                                return (
+                                    <div
+                                        key={item.slug}
+                                        onClick={() => setActiveSlug(item.slug)}
+                                        style={{
+                                            padding: '10px 14px', cursor: 'pointer',
+                                            borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+                                            background: isChecked ? 'rgba(75,142,240,.06)' : isActive ? 'var(--accent-light)' : 'transparent',
+                                            transition: 'background .08s',
+                                            display: 'flex', gap: '8px', alignItems: 'flex-start',
+                                        }}
+                                        onMouseEnter={e => { if (!isActive && !isChecked) e.currentTarget.style.background = 'var(--surface-2)'; }}
+                                        onMouseLeave={e => { if (!isActive && !isChecked) e.currentTarget.style.background = 'transparent'; }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onClick={e => e.stopPropagation()}
+                                            onChange={() => {
+                                                setSelectedSlugs(prev => {
+                                                    const next = new Set(prev);
+                                                    next.has(item.slug) ? next.delete(item.slug) : next.add(item.slug);
+                                                    return next;
+                                                });
+                                            }}
+                                            style={{ accentColor: 'var(--accent)', width: 16, height: 16, marginTop: 2, flexShrink: 0 }}
+                                        />
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{
+                                                display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '4px',
+                                            }}>
+                                                <span style={{
+                                                    fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 700,
+                                                    padding: '1px 6px', borderRadius: '999px',
+                                                    background: isLatest ? 'rgba(75,142,240,.12)' : 'rgba(255,255,255,.04)',
+                                                    color: isLatest ? 'var(--accent)' : 'var(--text-secondary)',
+                                                    border: `1px solid ${isLatest ? 'rgba(75,142,240,.28)' : 'var(--border)'}`,
+                                                    textTransform: 'uppercase', letterSpacing: '.05em',
+                                                }}>
+                                                    {isLatest ? 'Latest' : `Previous ${index}`}
+                                                </span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.62rem', color: 'var(--text-secondary)' }}>
+                                                    {timeAgo(item.updated_at)}
+                                                </span>
+                                            </div>
+                                            <div style={{
+                                                fontWeight: 600, fontSize: '.74rem', lineHeight: 1.3,
+                                                overflow: 'hidden', textOverflow: 'ellipsis',
+                                                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                                            }}>
+                                                {item.slug}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '4px', marginTop: '5px', flexWrap: 'wrap' }}>
+                                                <span style={{
+                                                    fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 500,
+                                                    padding: '1px 5px', borderRadius: '2px',
+                                                    background: hasResume ? 'rgba(60,179,113,.10)' : 'rgba(217,79,79,.08)',
+                                                    color: hasResume ? 'var(--green)' : 'var(--red)',
+                                                }}>RES</span>
+                                                <span style={{
+                                                    fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 500,
+                                                    padding: '1px 5px', borderRadius: '2px',
+                                                    background: hasCover ? 'rgba(60,179,113,.10)' : 'rgba(217,79,79,.08)',
+                                                    color: hasCover ? 'var(--green)' : 'var(--red)',
+                                                }}>CVR</span>
+                                                {(item.doc_status?.resume || item.doc_status?.cover) && (
+                                                    <>
+                                                        {item.doc_status?.resume && (
+                                                            <span style={{
+                                                                fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 500,
+                                                                padding: '1px 5px', borderRadius: '2px',
+                                                                background: item.doc_status.resume === 'passed' ? 'rgba(60,179,113,.10)' : 'rgba(217,79,79,.08)',
+                                                                color: item.doc_status.resume === 'passed' ? 'var(--green)' : 'var(--red)',
+                                                            }}>
+                                                                RES {item.doc_status.resume}
+                                                            </span>
+                                                        )}
+                                                        {item.doc_status?.cover && (
+                                                            <span style={{
+                                                                fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 500,
+                                                                padding: '1px 5px', borderRadius: '2px',
+                                                                background: item.doc_status.cover === 'passed' ? 'rgba(60,179,113,.10)' : 'rgba(217,79,79,.08)',
+                                                                color: item.doc_status.cover === 'passed' ? 'var(--green)' : 'var(--red)',
+                                                            }}>
+                                                                CVR {item.doc_status.cover}
+                                                            </span>
+                                                        )}
+                                                    </>
+                                                )}
+                                                {item.applied && (
+                                                    <span style={{
+                                                        fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 600,
+                                                        padding: '1px 5px', borderRadius: '2px',
+                                                        background: 'rgba(75,142,240,.12)', color: 'var(--accent)',
+                                                    }}>
+                                                        APPLIED
+                                                    </span>
+                                                )}
+                                                {item.decision && item.decision !== 'qa_approved' && !item.applied && (
+                                                    <span style={{
+                                                        fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 600,
+                                                        padding: '1px 5px', borderRadius: '2px',
+                                                        background: 'rgba(209,162,59,.12)', color: 'var(--amber, #d1a23b)',
+                                                    }}>
+                                                        RETURNED
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ))}
                 </div>
             </div>
 
@@ -560,6 +747,16 @@ export default function PackagesView() {
                                             }}
                                         >
                                             Return to QA
+                                        </button>
+                                    )}
+                                    {!appliedSummary && (
+                                        <button
+                                            className="btn btn-ghost btn-sm"
+                                            style={{ fontSize: '.68rem', color: 'var(--red)' }}
+                                            disabled={deleteBusy}
+                                            onClick={() => activeSlug && handleDelete(activeSlug)}
+                                        >
+                                            {deleteBusy ? 'Deleting...' : (<><Trash2 size={12} /> Delete</>)}
                                         </button>
                                     )}
                                 </div>

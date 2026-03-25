@@ -4,7 +4,6 @@ import {
   ReactFlowProvider,
   Background,
   Controls,
-  MiniMap,
   Handle,
   Position,
   BackgroundVariant,
@@ -16,13 +15,17 @@ import {
 import '@xyflow/react/dist/style.css';
 import '../../../../styles/pipeline-editor.css';
 import { api } from '../../../../api';
-import { fmt, timeAgo } from '../../../../utils';
+import { fmt, timeAgo, fmtDate, fmtDuration } from '../../../../utils';
 import {
   Search, Globe, Database, Filter, Fingerprint, FileText,
-  HardDrive, Settings, X, GripVertical,
-  Briefcase, Shield, Activity, Plus, Brain, Sparkles, CheckCircle, XCircle,
+  HardDrive, Settings, X,
+  Briefcase, Shield, Activity, Plus, Brain, CheckCircle, XCircle,
   Microscope, Target, PenTool, Mail, ShieldCheck, Printer,
+  Play, Square, ChevronDown, ChevronUp,
 } from 'lucide-react';
+import SourcesLanePanel from './panels/SourcesLanePanel';
+import IngestionLanePanel from './panels/IngestionLanePanel';
+import TailoringLanePanel from './panels/TailoringLanePanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -97,7 +100,19 @@ interface PipelineStats {
   inventory: { total: number; qa_pending: number; qa_approved: number; qa_rejected: number; rejected: number };
 }
 
-type InspectorTab = 'overview' | 'configure' | 'activity';
+interface RunSummary {
+  run_id: string;
+  started_at: string;
+  completed_at: string | null;
+  elapsed: number | null;
+  raw_count: number;
+  dedup_count: number;
+  filtered_count: number;
+  error_count: number;
+  status: string;
+}
+
+type InspectorTab = 'overview' | 'configure' | 'activity' | 'console' | 'history';
 type PipelineEventTone = 'accent' | 'green' | 'red' | 'amber' | 'muted';
 type PipelineEventScope = 'scrape' | 'inventory' | 'qa' | 'tailor';
 
@@ -352,6 +367,11 @@ function eventMatchesSelection(event: PipelineEvent, selectedNode: { id: string;
 
 function getNodeDisplayName(node: { id: string; type: string } | null) {
   if (!node) return 'Pipeline Overview';
+  if (node.type === 'lane') {
+    if (node.id === 'lane-sources') return 'Sources';
+    if (node.id === 'lane-core') return 'Ingestion & QA';
+    if (node.id === 'lane-tailor') return 'Tailoring';
+  }
   if (node.type === 'source') return SOURCE_DEFS.find((item) => item.id === node.id)?.label || node.id;
   if (node.type === 'stage') return STAGE_DEFS.find((item) => item.id === node.id)?.label || node.id;
   if (node.type === 'dbOutput') return 'Results DB';
@@ -365,14 +385,15 @@ function getNodeDisplayName(node: { id: string; type: string } | null) {
 function SwimlaneNodeComponent({ data }: NodeProps) {
   const d = data as any;
   return (
-    <div className={`pn-lane pn-lane-${d.tone}${d.active ? ' pn-lane-active' : ''}`}>
-      <div className="pn-lane-label">{d.label}</div>
-      <div className="pn-lane-subtitle">{d.subtitle}</div>
-      {d.active ? (
-        <div className="pn-lane-pill">
-          <span className="pn-live-dot" /> active
-        </div>
-      ) : null}
+    <div
+      className={`pn-lane pn-lane-${d.tone}${d.active ? ' pn-lane-active' : ''}${d.onSelect ? ' pn-lane-clickable' : ''}`}
+      onClick={(e: React.MouseEvent) => { e.stopPropagation(); d.onSelect?.(); }}
+    >
+      <div className="pn-lane-header">
+        <div className="pn-lane-label">{d.label}</div>
+        <div className="pn-lane-subtitle">{d.subtitle}</div>
+        {d.active && <div className="pn-lane-pill"><span className="pn-live-dot" /></div>}
+      </div>
     </div>
   );
 }
@@ -380,33 +401,11 @@ function SwimlaneNodeComponent({ data }: NodeProps) {
 function SourceNodeComponent({ data, selected }: NodeProps) {
   const d = data as any;
   return (
-    <div className={`pn-card pn-card-source${selected ? ' pn-selected' : ''}${d.enabled === false ? ' pn-disabled' : ''}`}
-         onClick={d.onSelect}>
-      <div className="pn-header">
-        <div className="pn-icon pn-icon-source">
-          {d.iconEl}
-        </div>
-        <div className="pn-title-block">
-          <div className="pn-title">{d.label}</div>
-          <div className="pn-subtitle">{d.count} {d.countLabel}</div>
-        </div>
-        <div className={`pn-badge pn-badge-status pn-badge-${d.enabled ? (d.active ? 'accent' : 'muted') : 'muted'}`}>
-          {d.enabled ? (d.active ? 'active' : 'ready') : 'off'}
-        </div>
-        <div className="pn-toggle" onClick={(e) => { e.stopPropagation(); d.onToggle?.(); }}>
-          <div className={`pn-switch${d.enabled !== false ? ' pn-switch-on' : ''}`} />
-        </div>
-      </div>
-      <div className="pn-body pn-body-stack pn-body-emphasis">
-        <div className="pn-kpi">
-          <div className="pn-kpi-value">{fmt(d.stat)}</div>
-          <div className="pn-kpi-label">items last run</div>
-        </div>
-        <div className="pn-stat">
-          <div className="pn-stat-dot" style={{ background: d.enabled ? 'var(--green)' : 'var(--text-secondary)' }} />
-          <span className="pn-stat-value">{d.enabled ? 'enabled' : 'disabled'}</span>
-          <span>{d.count} {d.countLabel}</span>
-        </div>
+    <div className={`pn-pill pn-pill-source${selected ? ' pn-selected' : ''}${d.enabled === false ? ' pn-disabled' : ''}${d.active ? ' pn-active' : ''}`} onClick={d.onSelect}>
+      <div className="pn-pill-icon">{d.iconEl}</div>
+      <div className="pn-pill-label">{d.label}</div>
+      <div className="pn-pill-badge" style={{ color: d.enabled ? 'var(--text-secondary)' : 'var(--border)' }}>
+        {d.enabled ? (d.active ? <span className="pn-live-dot" /> : d.count) : 'off'}
       </div>
       <Handle type="source" position={Position.Right} />
     </div>
@@ -415,45 +414,15 @@ function SourceNodeComponent({ data, selected }: NodeProps) {
 
 function StageNodeComponent({ data, selected }: NodeProps) {
   const d = data as any;
-  const primaryValue = d.passCount != null ? fmt(d.passCount) : d.dropCount != null ? fmt(d.dropCount) : String(d.order);
-  const primaryLabel = d.passCount != null ? 'pass' : d.dropCount != null ? 'drop' : 'order';
   return (
-    <div className={`pn-card pn-card-stage${selected ? ' pn-selected' : ''}${d.active ? ' pn-card-active' : ''}`} onClick={d.onSelect}>
-      <div className="pn-header">
-        <div className="pn-drag-hint">
-          <GripVertical size={12} />
-        </div>
-        <div className="pn-icon pn-icon-stage">
-          {d.iconEl}
-        </div>
-        <div className="pn-title-block">
-          <div className="pn-title">{d.label}</div>
-          <div className="pn-subtitle">{d.desc}</div>
-        </div>
-        <div className="pn-badge">#{d.order}</div>
-      </div>
-      <div className="pn-body pn-body-emphasis">
-        <div className="pn-kpi">
-          <div className="pn-kpi-value">{primaryValue}</div>
-          <div className="pn-kpi-label">{primaryLabel}</div>
-        </div>
-        {(d.passCount != null || d.dropCount != null) && (
-          <div className="pn-stat-row">
-          {d.passCount != null && (
-            <div className="pn-stat">
-              <div className="pn-stat-dot" style={{ background: 'var(--green)' }} />
-              <span className="pn-stat-value">{d.passCount}</span> pass
-            </div>
-          )}
-          {d.dropCount != null && (
-            <div className="pn-stat">
-              <div className="pn-stat-dot" style={{ background: 'var(--red)' }} />
-              <span className="pn-stat-value">{d.dropCount}</span> drop
-            </div>
-          )}
-          </div>
-        )}
-      </div>
+    <div className={`pn-pill pn-pill-stage${selected ? ' pn-selected' : ''}${d.active ? ' pn-active' : ''}`} onClick={d.onSelect}>
+      <div className="pn-pill-icon">{d.iconEl}</div>
+      <div className="pn-pill-label">{d.label}</div>
+      {d.dropCount != null && d.dropCount > 0 ? (
+        <div className="pn-pill-badge" style={{ color: 'var(--amber)' }}>-{fmt(d.dropCount)}</div>
+      ) : d.passCount != null ? (
+        <div className="pn-pill-badge" style={{ color: 'var(--text-secondary)' }}>{fmt(d.passCount)}</div>
+      ) : null}
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
     </div>
@@ -464,34 +433,10 @@ function OutputNodeComponent({ data, selected }: NodeProps) {
   const d = data as any;
   const inv = d.inventory;
   return (
-    <div className={`pn-card pn-card-output${selected ? ' pn-selected' : ''}${d.active ? ' pn-card-active' : ''}`} onClick={d.onSelect}>
-      <div className="pn-header">
-        <div className="pn-icon pn-icon-output">
-          <Database size={14} />
-        </div>
-        <div className="pn-title-block">
-          <div className="pn-title">Results DB</div>
-          <div className="pn-subtitle">{fmt(inv?.total)} stored jobs</div>
-        </div>
-      </div>
-      {inv && (
-        <div className="pn-body pn-body-emphasis">
-          <div className="pn-kpi">
-            <div className="pn-kpi-value">{fmt(inv.qa_pending)}</div>
-            <div className="pn-kpi-label">awaiting QA</div>
-          </div>
-          <div className="pn-stat">
-            <div className="pn-stat-dot" style={{ background: 'var(--green)' }} />
-            <span className="pn-stat-value">{inv.qa_approved}</span>
-            <span>ready</span>
-          </div>
-          <div className="pn-stat">
-            <div className="pn-stat-dot" style={{ background: 'var(--text-secondary)' }} />
-            <span className="pn-stat-value">{inv.rejected}</span>
-            <span>scraper-rejected</span>
-          </div>
-        </div>
-      )}
+    <div className={`pn-pill pn-pill-output${selected ? ' pn-selected' : ''}${d.active ? ' pn-active' : ''}`} onClick={d.onSelect}>
+      <div className="pn-pill-icon"><Database size={14} /></div>
+      <div className="pn-pill-label">Results DB</div>
+      {inv && <div className="pn-pill-badge" style={{ color: 'var(--green)' }}>{fmt(inv.total)}</div>}
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} id="right" />
       <Handle type="source" position={Position.Bottom} id="bottom" />
@@ -502,52 +447,11 @@ function OutputNodeComponent({ data, selected }: NodeProps) {
 function QAReviewNodeComponent({ data, selected }: NodeProps) {
   const d = data as any;
   return (
-    <div className={`pn-card pn-card-qa${selected ? ' pn-selected' : ''}${d.running ? ' pn-card-active' : ''}`} onClick={d.onSelect}>
-      <div className="pn-header">
-        <div className="pn-icon" style={{ background: 'rgba(139, 124, 246, .12)', color: 'var(--purple)' }}>
-          <Brain size={16} />
-        </div>
-        <div className="pn-title-block">
-          <div className="pn-title">QA LLM Review</div>
-          <div className="pn-subtitle">Candidate-job fit eval</div>
-        </div>
-        {d.running && (
-          <div className="pn-badge pn-live-badge">
-            <span className="pn-live-dot" /> live
-          </div>
-        )}
-      </div>
-      <div className="pn-body pn-body-emphasis">
-        <div className="pn-kpi">
-          <div className="pn-kpi-value">{fmt(d.pending)}</div>
-          <div className="pn-kpi-label">pending</div>
-        </div>
-        {d.running && d.model && (
-          <div className="pn-stat">
-            <Brain size={10} style={{ opacity: .4 }} />
-            <span className="pn-stat-value" style={{ fontSize: '.65rem' }}>{d.model.split('/').pop()}</span>
-          </div>
-        )}
-        {d.running && d.progress && (
-          <div className="pn-stat">
-            <span style={{ opacity: .5 }}>progress</span>
-            <span className="pn-stat-value">{d.progress.completed}/{d.progress.total}</span>
-          </div>
-        )}
-        {d.passed != null && (
-          <div className="pn-stat">
-            <div className="pn-stat-dot" style={{ background: 'var(--green)' }} />
-            <span className="pn-stat-value">{d.passed}</span>
-            <span>approved</span>
-          </div>
-        )}
-        {d.failed != null && (
-          <div className="pn-stat">
-            <div className="pn-stat-dot" style={{ background: 'var(--red)' }} />
-            <span className="pn-stat-value">{d.failed}</span>
-            <span>rejected</span>
-          </div>
-        )}
+    <div className={`pn-pill pn-pill-qa${selected ? ' pn-selected' : ''}${d.running ? ' pn-active' : ''}`} onClick={d.onSelect}>
+      <div className="pn-pill-icon"><Brain size={14} /></div>
+      <div className="pn-pill-label">QA Review</div>
+      <div className="pn-pill-badge" style={{ color: d.running ? 'var(--cyan)' : 'var(--text-secondary)' }}>
+        {d.running ? <span className="pn-live-dot" style={{ background: 'var(--cyan)' }} /> : d.pending > 0 ? d.pending : 'ready'}
       </div>
       <Handle type="target" position={Position.Top} id="top" />
       <Handle type="source" position={Position.Bottom} id="bottom" />
@@ -558,49 +462,13 @@ function QAReviewNodeComponent({ data, selected }: NodeProps) {
 function TailorStageNodeComponent({ data, selected }: NodeProps) {
   const d = data as any;
   return (
-    <div className={`pn-card pn-card-tailor${selected ? ' pn-selected' : ''}${d.entryActive ? ' pn-card-tailor-entry-active' : ''}${d.active ? ' pn-card-active' : ''}`} onClick={d.onSelect}>
-      <div className="pn-header">
-        <div className="pn-icon" style={{ background: 'rgba(139, 124, 246, .12)', color: 'var(--purple)' }}>
-          {d.iconEl}
-        </div>
-        <div className="pn-title-block">
-          <div className="pn-title">{d.label}</div>
-          <div className="pn-subtitle">{d.desc}</div>
-        </div>
-        {d.entryActive ? (
-          <div className="pn-badge pn-live-badge">
-            <span className="pn-live-dot" /> entry
-          </div>
-        ) : (
-          <div className="pn-badge">#{d.order}</div>
-        )}
-      </div>
-      <div className="pn-body pn-body-emphasis">
-        {d.isFirst ? (
-          <>
-            <div className="pn-kpi">
-              <div className="pn-kpi-value">{fmt(d.queue)}</div>
-              <div className="pn-kpi-label">queued</div>
-            </div>
-            {d.running && d.job && (
-              <div className="pn-stat">
-                <Sparkles size={10} style={{ opacity: .4 }} />
-                <span className="pn-stat-value" style={{ fontSize: '.65rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.job}</span>
-              </div>
-            )}
-            {d.approved != null && (
-              <div className="pn-stat">
-                <div className="pn-stat-dot" style={{ background: 'var(--green)' }} />
-                <span className="pn-stat-value">{d.approved}</span> ready
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="pn-kpi pn-kpi-compact">
-            <div className="pn-kpi-label">step</div>
-            <div className="pn-kpi-value">{d.order}</div>
-          </div>
-        )}
+    <div className={`pn-pill pn-pill-tailor${selected ? ' pn-selected' : ''}${d.entryActive ? ' pn-entry-active' : ''}${d.active ? ' pn-active' : ''}`} onClick={d.onSelect}>
+      <div className="pn-pill-icon">{d.iconEl}</div>
+      <div className="pn-pill-label">{d.label}</div>
+      <div className="pn-pill-badge" style={{ color: 'var(--text-secondary)' }}>
+        {d.running && d.job ? <span className="pn-live-dot" style={{ background: 'var(--orange)' }} /> :
+          d.isFirst ? (d.queue > 0 ? d.queue : 'idle') :
+            d.order}
       </div>
       <Handle type="target" position={d.handleIn ?? Position.Left} id="target" />
       {!d.isLast && <Handle type="source" position={d.handleOut ?? Position.Right} id="source" />}
@@ -685,7 +553,7 @@ function SourcePanel({ sourceId, config, onChange, onClose }: {
             <div className="ps-field">
               <div className="ps-field-label">Remote only</div>
               <div className={`pn-switch${u.remote ? ' pn-switch-on' : ''}`}
-                   onClick={() => update('remote', !u.remote)} style={{ cursor: 'pointer' }} />
+                onClick={() => update('remote', !u.remote)} style={{ cursor: 'pointer' }} />
             </div>
           </div>
           <div className="ps-section">
@@ -722,7 +590,7 @@ function SourcePanel({ sourceId, config, onChange, onClose }: {
             {boards.map((b, i) => (
               <div key={i} className={`ps-board-item${!b.enabled ? ' ps-board-disabled' : ''}`}>
                 <div className={`pn-switch${b.enabled ? ' pn-switch-on' : ''}`}
-                     onClick={() => toggleBoard(i)} style={{ cursor: 'pointer', transform: 'scale(.85)' }} />
+                  onClick={() => toggleBoard(i)} style={{ cursor: 'pointer', transform: 'scale(.85)' }} />
                 <div className="ps-board-name">{b.company}</div>
               </div>
             ))}
@@ -1183,12 +1051,16 @@ function TagList({ items, onUpdate }: { items: string[]; onUpdate: (v: string[])
         <input type="text" value={adding} onChange={e => setAdding(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && add()}
           placeholder="Add..."
-          style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)',
+          style={{
+            flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)',
             borderRadius: 'var(--radius)', color: 'var(--text)', fontFamily: 'var(--font-mono)',
-            fontSize: '.72rem', padding: '5px 8px', outline: 'none' }} />
-        <button onClick={add} style={{ background: 'var(--surface-3)', border: '1px solid var(--border)',
+            fontSize: '.72rem', padding: '5px 8px', outline: 'none'
+          }} />
+        <button onClick={add} style={{
+          background: 'var(--surface-3)', border: '1px solid var(--border)',
           borderRadius: 'var(--radius)', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px 8px',
-          display: 'flex', alignItems: 'center' }}>
+          display: 'flex', alignItems: 'center'
+        }}>
           <Plus size={12} />
         </button>
       </div>
@@ -1202,7 +1074,7 @@ function ToolbarStatusChip({
   detail,
 }: {
   label: string;
-  state: 'running' | 'idle' | 'draft';
+  state: 'running' | 'idle' | 'draft' | 'ready';
   detail: string;
 }) {
   return (
@@ -1226,6 +1098,14 @@ function CanvasToolbar({
   onRefresh,
   onReset,
   onSave,
+  onRunScrape,
+  onTerminate,
+  onRunQAReview,
+  onCancelQAReview,
+  onRunTailoring,
+  onStopTailoring,
+  scrapeRunning,
+  readyCount,
 }: {
   live: LiveStatus;
   dirty: boolean;
@@ -1236,6 +1116,14 @@ function CanvasToolbar({
   onRefresh: () => void;
   onReset: () => void;
   onSave: () => void;
+  onRunScrape: (withLlm: boolean) => void;
+  onTerminate: () => void;
+  onRunQAReview: () => void;
+  onCancelQAReview: () => void;
+  onRunTailoring: () => void;
+  onStopTailoring: () => void;
+  scrapeRunning: boolean;
+  readyCount: number;
 }) {
   const { fitView } = useReactFlow();
 
@@ -1264,6 +1152,11 @@ function CanvasToolbar({
           detail={live.tailoringRunning ? `${fmt(live.tailoringQueue)} queued` : 'idle'}
         />
         <ToolbarStatusChip
+          label="Ready"
+          state={readyCount > 0 ? 'ready' : 'idle'}
+          detail={readyCount > 0 ? `${fmt(readyCount)} to tailor` : 'none'}
+        />
+        <ToolbarStatusChip
           label="Draft"
           state={dirty ? 'draft' : 'idle'}
           detail={dirty ? 'unsaved changes' : 'in sync'}
@@ -1286,6 +1179,34 @@ function CanvasToolbar({
         <button className="pe-btn pe-btn-primary" onClick={onSave} disabled={!dirty || saving}>
           {saving ? 'Saving...' : 'Save config'}
         </button>
+        <span className="pe-toolbar-sep" />
+        {scrapeRunning ? (
+          <button className="pe-btn pe-btn-danger" onClick={onTerminate}>
+            <Square size={12} /> Stop Scrape
+          </button>
+        ) : (
+          <button className="pe-btn pe-btn-run" onClick={() => onRunScrape(true)} disabled={dirty}>
+            <Play size={12} /> Scrape
+          </button>
+        )}
+        {live.qaReviewRunning ? (
+          <button className="pe-btn pe-btn-danger" onClick={onCancelQAReview}>
+            <Square size={12} /> Stop QA
+          </button>
+        ) : (
+          <button className="pe-btn pe-btn-run" onClick={onRunQAReview}>
+            <Play size={12} /> QA Review
+          </button>
+        )}
+        {live.tailoringRunning ? (
+          <button className="pe-btn pe-btn-danger" onClick={onStopTailoring}>
+            <Square size={12} /> Stop Tailoring
+          </button>
+        ) : (
+          <button className="pe-btn pe-btn-run" onClick={onRunTailoring}>
+            <Play size={12} /> Tailor
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1585,6 +1506,170 @@ function InspectorActivityPanel({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Console panel — live scrape output
+// ---------------------------------------------------------------------------
+function InspectorConsolePanel({
+  live,
+  activeRun,
+  consoleLines,
+}: {
+  live: LiveStatus;
+  activeRun: any;
+  consoleLines: string;
+}) {
+  const logText = consoleLines || live.scrapeLogTail;
+  const lines = logText ? logText.split('\n').filter(Boolean) : [];
+
+  // Derive simple metrics from log text
+  let itemsScraped = 0;
+  let itemsDropped = 0;
+  let spidersOpened = 0;
+  let spidersClosed = 0;
+  for (const line of lines) {
+    let m = line.match(/'item_scraped_count': (\d+)/) || line.match(/Scraped (\d+) items/);
+    if (m) itemsScraped = Math.max(itemsScraped, Number(m[1]));
+    m = line.match(/'item_dropped_count': (\d+)/);
+    if (m) itemsDropped = Math.max(itemsDropped, Number(m[1]));
+    if (/opened spider|Spider opened/i.test(line)) spidersOpened++;
+    if (/closed spider|Spider closed/i.test(line)) spidersClosed++;
+  }
+
+  const isActive = live.scrapeRunning || activeRun?.status === 'running';
+
+  if (!isActive && !logText) {
+    return (
+      <div className="ps-section" style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px 0' }}>
+        No active scrape run. Use the toolbar to start one.
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="ps-section">
+        <div className="ps-section-title">
+          {isActive ? (
+            <><span className="pn-live-dot" /> Pipeline running</>
+          ) : 'Last run output'}
+        </div>
+        {live.scrapeStartedAt && (
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+            Started {timeAgo(live.scrapeStartedAt)}
+          </div>
+        )}
+        <div className="pi-metric-grid" style={{ marginBottom: '12px' }}>
+          <OverviewMetric label="Items" value={itemsScraped > 0 ? fmt(itemsScraped) : '—'} hint="scraped" />
+          <OverviewMetric label="Dropped" value={itemsDropped > 0 ? fmt(itemsDropped) : '—'} hint="filtered" />
+          <OverviewMetric label="Spiders" value={spidersOpened > 0 ? `${spidersClosed}/${spidersOpened}` : '—'} hint="closed/opened" />
+          <OverviewMetric
+            label="Duration"
+            value={activeRun?.elapsed ? fmtDuration(activeRun.elapsed) : (live.scrapeStartedAt ? timeAgo(live.scrapeStartedAt) : '—')}
+            hint={isActive ? 'running' : 'elapsed'}
+          />
+        </div>
+      </div>
+      <LogCard title="Output" content={logText} />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// History panel — run history cards
+// ---------------------------------------------------------------------------
+function InspectorHistoryPanel({
+  runs,
+  stats: runStats,
+  page,
+  pages,
+  loading,
+  onPageChange,
+}: {
+  runs: RunSummary[];
+  stats: { avg_duration: number; success_rate: number; avg_stored: number; total: number } | null;
+  page: number;
+  pages: number;
+  loading: boolean;
+  onPageChange: (p: number) => void;
+}) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  if (loading && runs.length === 0) {
+    return <div className="ps-section" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>Loading run history...</div>;
+  }
+
+  if (runs.length === 0) {
+    return <div className="ps-section" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>No runs recorded yet.</div>;
+  }
+
+  const statusColor = (s: string) => s === 'completed' ? 'var(--green)' : s === 'running' ? 'var(--accent)' : 'var(--red)';
+
+  return (
+    <>
+      {runStats && (
+        <div className="ps-section">
+          <div className="pi-metric-grid">
+            <OverviewMetric label="Avg Duration" value={runStats.avg_duration > 0 ? fmtDuration(runStats.avg_duration) : '—'} hint="per run" />
+            <OverviewMetric label="Success" value={`${Math.round(runStats.success_rate * 100)}%`} hint="completion" tone={runStats.success_rate >= 0.9 ? 'green' : 'amber'} />
+            <OverviewMetric label="Avg Stored" value={fmt(Math.round(runStats.avg_stored))} hint="per run" />
+            <OverviewMetric label="Total Runs" value={fmt(runStats.total)} hint="all time" />
+          </div>
+        </div>
+      )}
+      <div className="ps-section">
+        <div className="ps-section-title">Run History</div>
+        <div className="pi-history-list">
+          {runs.map((run) => {
+            const isExpanded = expanded === run.run_id;
+            const stored = run.dedup_count - run.filtered_count;
+            return (
+              <div key={run.run_id} className="pi-history-card">
+                <div className="pi-history-card-header" onClick={() => setExpanded(isExpanded ? null : run.run_id)}>
+                  <span className="pi-history-dot" style={{ background: statusColor(run.status) }} />
+                  <span className="pi-history-date">{fmtDate(run.started_at)}</span>
+                  <span className="pi-history-sep">·</span>
+                  <span className="pi-history-duration">{run.elapsed ? fmtDuration(run.elapsed) : '—'}</span>
+                  <span className="pi-history-sep">·</span>
+                  <span className="pi-history-stored">{stored} stored</span>
+                  <span style={{ marginLeft: 'auto' }}>{isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</span>
+                </div>
+                {isExpanded && (
+                  <div className="pi-history-detail">
+                    <div className="pi-history-funnel">
+                      <span>Raw {fmt(run.raw_count)}</span>
+                      <span>→</span>
+                      <span>Dedup {fmt(run.dedup_count)}</span>
+                      <span>→</span>
+                      <span>Filtered {fmt(run.filtered_count)}</span>
+                      <span>→</span>
+                      <span style={{ color: 'var(--green)', fontWeight: 600 }}>Stored {stored}</span>
+                    </div>
+                    {run.error_count > 0 && (
+                      <div style={{ fontSize: '0.72rem', color: 'var(--red)', marginTop: '4px' }}>
+                        {run.error_count} error{run.error_count !== 1 ? 's' : ''}
+                      </div>
+                    )}
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '4px', fontFamily: 'var(--font-mono)' }}>
+                      {run.run_id}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {pages > 1 && (
+          <div className="pi-history-pagination">
+            <button className="pe-btn" onClick={() => onPageChange(page - 1)} disabled={page <= 1}>Prev</button>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{page} / {pages}</span>
+            <button className="pe-btn" onClick={() => onPageChange(page + 1)} disabled={page >= pages}>Next</button>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 function PipelineInspector({
   selectedNode,
   inspectorTab,
@@ -1597,6 +1682,14 @@ function PipelineInspector({
   events,
   sourceStats,
   onConfigChange,
+  activeRun,
+  consoleLines,
+  historyRuns,
+  historyStats,
+  historyPage,
+  historyPages,
+  historyLoading,
+  onHistoryPageChange,
 }: {
   selectedNode: { id: string; type: string } | null;
   inspectorTab: InspectorTab;
@@ -1609,8 +1702,20 @@ function PipelineInspector({
   events: PipelineEvent[];
   sourceStats: SourceRollupStats;
   onConfigChange: (patch: Partial<ScraperConfig>) => void;
+  activeRun: any;
+  consoleLines: string;
+  historyRuns: RunSummary[];
+  historyStats: { avg_duration: number; success_rate: number; avg_stored: number; total: number } | null;
+  historyPage: number;
+  historyPages: number;
+  historyLoading: boolean;
+  onHistoryPageChange: (p: number) => void;
 }) {
-  const tabs: InspectorTab[] = selectedNode ? ['overview', 'configure', 'activity'] : ['overview', 'activity'];
+  const tabs: InspectorTab[] = selectedNode?.type === 'lane'
+    ? ['overview', 'activity']
+    : selectedNode
+      ? ['overview', 'configure', 'activity']
+      : ['overview', 'console', 'history', 'activity'];
   const title = getNodeDisplayName(selectedNode);
   const subtitle = selectedNode ? 'Selected node context and controls' : 'Live summary and recent activity';
 
@@ -1640,7 +1745,11 @@ function PipelineInspector({
 
       <div className="ps-body">
         {inspectorTab === 'overview' ? (
-          selectedNode ? (
+          selectedNode?.type === 'lane' ? (
+            selectedNode.id === 'lane-sources' ? <SourcesLanePanel /> :
+            selectedNode.id === 'lane-core' ? <IngestionLanePanel /> :
+            selectedNode.id === 'lane-tailor' ? <TailoringLanePanel /> : null
+          ) : selectedNode ? (
             <SelectedOverviewPanel
               selectedNode={selectedNode}
               config={config}
@@ -1669,6 +1778,21 @@ function PipelineInspector({
           </div>
         ) : null}
 
+        {inspectorTab === 'console' && !selectedNode ? (
+          <InspectorConsolePanel live={live} activeRun={activeRun} consoleLines={consoleLines} />
+        ) : null}
+
+        {inspectorTab === 'history' && !selectedNode ? (
+          <InspectorHistoryPanel
+            runs={historyRuns}
+            stats={historyStats}
+            page={historyPage}
+            pages={historyPages}
+            loading={historyLoading}
+            onPageChange={onHistoryPageChange}
+          />
+        ) : null}
+
         {inspectorTab === 'activity' ? (
           <InspectorActivityPanel selectedNode={selectedNode} live={live} qaStatus={qaStatus} events={events} />
         ) : null}
@@ -1681,26 +1805,24 @@ function PipelineInspector({
 // Layout helpers — DAG topology
 // ---------------------------------------------------------------------------
 // Sources fan-in left column
-const SRC_X = 50;
-const SRC_Y = 50;
-const SRC_GAP = 142;
-const SRC_LANE_W = 294;
+const SRC_X = 40;
+const SRC_Y = 80;
+const SRC_GAP = 66;
+const SRC_LANE_W = 230;
 
 // Ingestion stages — horizontal row
-const STAGE_X = 350;
-const STAGE_Y = 150;
-const STAGE_GAP = 238;
+const STAGE_X = 330;
+const STAGE_Y = 220;
+const STAGE_GAP = 280;
 
 // Results DB — hub node right of stages
-const DB_GAP = 20;
+const DB_GAP = 80;
 
 // QA Review — below Results DB
-const QA_DROP = 200;
+const QA_DROP = 130;
 
-// Tailoring — serpentine: 3 right, drop, 3 right
-const TAILOR_ROW_GAP = 190;
-const TAILOR_COL_GAP = 218;
-const TAILOR_DROP = 140;
+// Tailoring — S-curve snake (flows right-to-left)
+const TAILOR_GAP = 270;
 
 function buildNodes(
   config: ScraperConfig,
@@ -1716,44 +1838,44 @@ function buildNodes(
   // ── Computed positions ──
   const stageCount = config.pipeline_order.length;
   const dbX = STAGE_X + stageCount * STAGE_GAP + DB_GAP;
-  const dbY = STAGE_Y - 10;
+  const dbY = STAGE_Y;
   const qaX = dbX;
   const qaY = dbY + QA_DROP;
 
-  // Tailoring serpentine: row 1 = indices 0,1,2 left-to-right; row 2 = indices 3,4,5 left-to-right (shifted right under Resume)
-  const tailorBaseX = STAGE_X + 60;
-  const tailorRow1Y = qaY + TAILOR_ROW_GAP;
-  const tailorRow2Y = tailorRow1Y + TAILOR_DROP;
+  // Tailoring flows right-to-left from QA Review
+  const tailorY = qaY + 160;
 
-  const srcLaneH = SRC_GAP * (SOURCE_DEFS.length - 1) + 122;
+  const srcLaneH = SRC_GAP * (SOURCE_DEFS.length - 1) + 140;
   const coreLaneW = dbX - STAGE_X + 240;
-  const coreLaneH = qaY - STAGE_Y + 204;
-  const tailorLaneW = Math.max(TAILOR_COL_GAP * 2 + 200, dbX - tailorBaseX + 200);
-  const tailorLaneH = TAILOR_DROP + 174;
+  const coreLaneH = qaY - STAGE_Y + 140;
+
+  const tailorLaneW = (TAILOR_STAGE_DEFS.length - 1) * TAILOR_GAP + 240;
+  const tailorLaneX = dbX - (TAILOR_STAGE_DEFS.length - 1) * TAILOR_GAP - 20;
+  const tailorLaneH = 140;
 
   // ── Swimlanes ──
   nodes.push(
     {
       id: 'lane-sources',
       type: 'swimlane',
-      position: { x: SRC_X - 20, y: SRC_Y - 44 },
-      data: { label: 'Sources', subtitle: 'Search providers & board crawlers', tone: 'source', active: live.scrapeRunning },
+      position: { x: SRC_X - 24, y: SRC_Y - 64 },
+      data: { label: 'Sources', subtitle: 'Search providers & board crawlers', tone: 'source', active: live.scrapeRunning, onSelect: () => onSelect('lane-sources', 'lane') },
       style: { width: SRC_LANE_W, height: srcLaneH },
       draggable: false, selectable: false, focusable: false,
     },
     {
       id: 'lane-core',
       type: 'swimlane',
-      position: { x: STAGE_X - 28, y: STAGE_Y - 54 },
-      data: { label: 'Ingestion & QA', subtitle: 'Process, persist, review', tone: 'stage', active: live.scrapeRunning || live.qaReviewRunning },
+      position: { x: STAGE_X - 24, y: STAGE_Y - 64 },
+      data: { label: 'Ingestion & QA', subtitle: 'Process, persist, review', tone: 'stage', active: live.scrapeRunning || live.qaReviewRunning, onSelect: () => onSelect('lane-core', 'lane') },
       style: { width: coreLaneW, height: coreLaneH },
       draggable: false, selectable: false, focusable: false,
     },
     {
       id: 'lane-tailor',
       type: 'swimlane',
-      position: { x: tailorBaseX - 24, y: tailorRow1Y - 50 },
-      data: { label: 'Tailoring', subtitle: 'LLM generation → PDF compilation', tone: 'tailor', active: live.tailoringRunning },
+      position: { x: tailorLaneX, y: tailorY - 64 },
+      data: { label: 'Tailoring', subtitle: 'LLM generation → PDF compilation', tone: 'tailor', active: live.tailoringRunning, onSelect: () => onSelect('lane-tailor', 'lane') },
       style: { width: tailorLaneW, height: tailorLaneH },
       draggable: false, selectable: false, focusable: false,
     },
@@ -1863,20 +1985,13 @@ function buildNodes(
     },
   });
 
-  // ── Tailoring — serpentine layout ──
-  // Row 1: Analysis → Strategy → Resume Draft  (left to right)
-  // Row 2: Cover Letter → Validate → Compile   (left to right, offset under Resume)
-  // Resume connects DOWN to Cover Letter
-  const tailorPositions: { x: number; y: number; handleIn: Position; handleOut: Position }[] = [
-    // Row 1
-    { x: tailorBaseX,                       y: tailorRow1Y, handleIn: Position.Top,  handleOut: Position.Right },
-    { x: tailorBaseX + TAILOR_COL_GAP,      y: tailorRow1Y, handleIn: Position.Left, handleOut: Position.Right },
-    { x: tailorBaseX + TAILOR_COL_GAP * 2,  y: tailorRow1Y, handleIn: Position.Left, handleOut: Position.Bottom },
-    // Row 2
-    { x: tailorBaseX + TAILOR_COL_GAP * 2,  y: tailorRow2Y, handleIn: Position.Top,  handleOut: Position.Right },
-    { x: tailorBaseX + TAILOR_COL_GAP * 3,  y: tailorRow2Y, handleIn: Position.Left, handleOut: Position.Right },
-    { x: tailorBaseX + TAILOR_COL_GAP * 4,  y: tailorRow2Y, handleIn: Position.Left, handleOut: Position.Right },
-  ];
+  // ── Tailoring — S-curve snake (right to left) ──
+  const tailorPositions: { x: number; y: number; handleIn: Position; handleOut: Position }[] = TAILOR_STAGE_DEFS.map((_, i) => ({
+    x: dbX - i * TAILOR_GAP,
+    y: tailorY,
+    handleIn: i === 0 ? Position.Top : Position.Right,
+    handleOut: Position.Left,
+  }));
 
   TAILOR_STAGE_DEFS.forEach((def, i) => {
     const Icon = def.icon;
@@ -1916,8 +2031,9 @@ function buildEdges(config: ScraperConfig, live: LiveStatus): Edge[] {
   const firstStage = config.pipeline_order[0];
   const lastStage = config.pipeline_order[config.pipeline_order.length - 1];
   const labelBaseStyle = {
-    fill: 'var(--text-secondary)',
-    fontSize: 10,
+    fill: 'var(--text)',
+    fontSize: 12,
+    fontWeight: 500,
     fontFamily: 'var(--font-mono)',
   };
   const labelBgStyle = {
@@ -1951,18 +2067,18 @@ function buildEdges(config: ScraperConfig, live: LiveStatus): Edge[] {
       target,
       sourceHandle,
       targetHandle,
-      type: 'default',
+      type: 'smoothstep',
       animated: active,
       className: `pn-edge ${active ? 'pn-edge-active' : 'pn-edge-idle'} pn-edge-${tone}`,
       style: { strokeWidth: active ? 2.4 : 1.8 },
       ...(label
         ? {
-            label,
-            labelStyle: labelBaseStyle,
-            labelBgStyle,
-            labelBgPadding: [6, 3] as [number, number],
-            labelBgBorderRadius: 4,
-          }
+          label,
+          labelStyle: labelBaseStyle,
+          labelBgStyle,
+          labelBgPadding: [6, 3] as [number, number],
+          labelBgBorderRadius: 4,
+        }
         : {}),
     });
   };
@@ -2075,6 +2191,18 @@ export default function PipelineEditorView() {
   const [error, setError] = useState<string | null>(null);
   const snapshotRef = useRef<PipelineSnapshot | null>(null);
 
+  // Run controls state
+  const [activeRun, setActiveRun] = useState<any>(null);
+  const [consoleLines, setConsoleLines] = useState('');
+
+  // History state (lazy-loaded)
+  const [historyRuns, setHistoryRuns] = useState<RunSummary[]>([]);
+  const [historyStats, setHistoryStats] = useState<{ avg_duration: number; success_rate: number; avg_stored: number; total: number } | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPages, setHistoryPages] = useState(1);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const historyLoaded = useRef(false);
+
   const refreshLiveSnapshot = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
     try {
@@ -2132,9 +2260,38 @@ export default function PipelineEditorView() {
   useEffect(() => {
     const id = setInterval(() => {
       void refreshLiveSnapshot(false);
+      // Poll active run + console lines
+      api.getActiveRun().catch(() => null).then((run) => {
+        setActiveRun(run);
+        if (run?.run_id && run?.status === 'running') {
+          api.getRunLogs(run.run_id, 80).catch(() => null).then((logs) => {
+            if (logs?.lines) setConsoleLines(logs.lines.join('\n'));
+          });
+        }
+      });
     }, 4000);
     return () => clearInterval(id);
   }, [refreshLiveSnapshot]);
+
+  // Lazy-load history when tab is opened
+  const loadHistory = useCallback(async (p: number) => {
+    setHistoryLoading(true);
+    try {
+      const data = await api.getRuns({ page: p, per_page: 15 });
+      setHistoryRuns(data.runs || []);
+      setHistoryPages(data.pages || 1);
+      setHistoryPage(p);
+      if (data.stats) setHistoryStats(data.stats);
+      historyLoaded.current = true;
+    } catch { /* ignore */ }
+    setHistoryLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (inspectorTab === 'history' && !historyLoaded.current) {
+      void loadHistory(1);
+    }
+  }, [inspectorTab, loadHistory]);
 
   const dirty = useMemo(() => {
     if (!config || !origConfig) return false;
@@ -2188,8 +2345,66 @@ export default function PipelineEditorView() {
     if (origConfig) setConfig(JSON.parse(JSON.stringify(origConfig)));
   }, [origConfig]);
 
+  const handleRunScrape = useCallback(async (withLlm: boolean) => {
+    try {
+      await api.runScrapeNow(withLlm);
+      void refreshLiveSnapshot(true);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }, [refreshLiveSnapshot]);
+
+  const handleTerminate = useCallback(async () => {
+    if (!activeRun?.run_id) return;
+    try {
+      await api.terminateRun(activeRun.run_id);
+      void refreshLiveSnapshot(true);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }, [activeRun, refreshLiveSnapshot]);
+
+  const handleRunQAReview = useCallback(async () => {
+    try {
+      const pending = await api.getQAPending();
+      const ids = (pending.jobs || []).map((j: any) => j.id);
+      if (ids.length === 0) return;
+      await api.llmReviewQA(ids);
+      void refreshLiveSnapshot(true);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }, [refreshLiveSnapshot]);
+
+  const handleCancelQAReview = useCallback(async () => {
+    try {
+      await api.cancelQAReview();
+      void refreshLiveSnapshot(true);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }, [refreshLiveSnapshot]);
+
+  const handleRunTailoring = useCallback(async () => {
+    try {
+      await api.runTailoringLatest();
+      void refreshLiveSnapshot(true);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }, [refreshLiveSnapshot]);
+
+  const handleStopTailoring = useCallback(async () => {
+    try {
+      await api.stopTailoringRunner({ clear_queue: true });
+      void refreshLiveSnapshot(true);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }, [refreshLiveSnapshot]);
+
   useEffect(() => {
-    setInspectorTab(selectedNode ? 'configure' : 'overview');
+    setInspectorTab(selectedNode?.type === 'lane' ? 'overview' : selectedNode ? 'configure' : 'overview');
   }, [selectedNode]);
 
   // Build React Flow nodes/edges from config
@@ -2251,6 +2466,14 @@ export default function PipelineEditorView() {
             onRefresh={() => { void refreshLiveSnapshot(true); }}
             onReset={handleReset}
             onSave={() => { void handleSave(); }}
+            onRunScrape={(withLlm) => { void handleRunScrape(withLlm); }}
+            onTerminate={() => { void handleTerminate(); }}
+            onRunQAReview={() => { void handleRunQAReview(); }}
+            onCancelQAReview={() => { void handleCancelQAReview(); }}
+            onRunTailoring={() => { void handleRunTailoring(); }}
+            onStopTailoring={() => { void handleStopTailoring(); }}
+            scrapeRunning={live.scrapeRunning}
+            readyCount={stats?.inventory?.qa_approved ?? 0}
           />
           <ReactFlow
             nodes={nodes}
@@ -2266,7 +2489,6 @@ export default function PipelineEditorView() {
             defaultEdgeOptions={{ animated: false }}
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--border)" />
-            <MiniMap pannable zoomable />
             <Controls showInteractive={false} />
           </ReactFlow>
         </div>
@@ -2283,6 +2505,14 @@ export default function PipelineEditorView() {
           events={events}
           sourceStats={sourceStats}
           onConfigChange={handleConfigChange}
+          activeRun={activeRun}
+          consoleLines={consoleLines}
+          historyRuns={historyRuns}
+          historyStats={historyStats}
+          historyPage={historyPage}
+          historyPages={historyPages}
+          historyLoading={historyLoading}
+          onHistoryPageChange={(p) => { void loadHistory(p); }}
         />
       </ReactFlowProvider>
     </div>

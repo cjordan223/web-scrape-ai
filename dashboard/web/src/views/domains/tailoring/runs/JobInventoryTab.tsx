@@ -261,7 +261,7 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                                     {hasPriorRun && (
                                         <div style={{ marginBottom: '4px' }}>
                                             <span
-                                                title={`Tailoring has already been run ${priorRunCount} time${priorRunCount === 1 ? '' : 's'} for this job. Latest run status: ${runStatus.label}.`}
+                                                title={`This job already has ${priorRunCount} package run${priorRunCount === 1 ? '' : 's'} available for reference. Latest run status: ${runStatus.label}.`}
                                                 style={{
                                                     display: 'inline-flex', alignItems: 'center', gap: '4px',
                                                     borderRadius: '999px',
@@ -272,9 +272,9 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                                                     fontFamily: 'var(--font-mono)', fontSize: '.62rem', fontWeight: 600, letterSpacing: '.02em',
                                                 }}
                                             >
-                                                Already run ({priorRunCount}) •
+                                                Prior packages ({priorRunCount}) •
                                                 <span aria-hidden="true" style={{ width: '6px', height: '6px', borderRadius: '999px', background: runStatus.color, display: 'inline-block', marginLeft: '2px' }} />
-                                                <span style={{ color: runStatus.color }}>{runStatus.label}</span>
+                                                <span style={{ color: runStatus.color }}>latest {runStatus.label}</span>
                                             </span>
                                         </div>
                                     )}

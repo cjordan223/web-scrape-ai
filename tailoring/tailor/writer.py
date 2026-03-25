@@ -22,6 +22,13 @@ from typing import Callable
 
 from . import config as cfg
 from .compiler import compile_tex
+from .grounding import (
+    build_grounding_context,
+    enrich_cover_strategy_with_grounding,
+    enrich_resume_strategy_with_grounding,
+    grounding_prompt_block,
+    write_grounding_artifacts,
+)
 from .ollama import chat, chat_expect_json, extract_latex
 from .persona import get_store as get_persona
 from .selector import SelectedJob
@@ -41,7 +48,10 @@ STYLE GUARDRAILS (HARD):
 - No hallucinations: do not invent projects, tools, scope, timelines, outcomes, or responsibilities.
 - No fake metrics: only keep quantitative claims if they are directly supported by provided source material.
 - If a number is uncertain, remove the number and keep a factual qualitative claim instead.
-- Avoid empty corporate language. Prefer concrete technical actions and outcomes."""
+- Avoid empty corporate language. Prefer concrete technical actions and outcomes.
+- Immutable facts stay immutable: do not rename employers, role titles, or dates.
+- Skills inventory proves the candidate can claim a skill, but it does NOT prove that the skill was used in a specific employer bullet.
+- Persona text is for voice and emphasis only. Do not infer new implementation details from persona prose alone."""
 
 _RESUME_STRATEGY_SYSTEM = f"""\
 You are a resume tailoring strategist. Build a precise writing plan for a LaTeX generator.
@@ -59,6 +69,7 @@ SKILLS TAILORING RULES:
 - Your strategy should describe how to REORDER items within each category (JD-relevant first).
 - You may suggest ADDING items from the Skills Inventory, but NEVER removing baseline items.
 - Do NOT rename, delete, merge, or consolidate categories.
+- Treat prior employer names, role titles, and dates as immutable. They are not tailoring knobs.
 
 Return ONLY JSON:
 {{
@@ -78,12 +89,22 @@ Return ONLY JSON:
         {{
           "baseline_topic": "short description of which baseline bullet to rewrite",
           "rewrite_angle": "how to reframe this bullet to address the JD requirement",
-          "jd_requirement_addressed": "the specific JD requirement this rewrite targets"
+          "jd_requirement_addressed": "the specific JD requirement this rewrite targets",
+          "allowed_evidence": {{
+            "immutable_role": "baseline role title for this employer",
+            "approved_terms": ["grounded terms already present in source truth"],
+            "approved_metrics": ["grounded metrics already present in source truth"]
+          }}
         }}
       ],
       "bullets_to_preserve": ["baseline bullet topics that need minor polish only"],
       "safe_metrics_to_keep": ["specific numeric claims known to be grounded in source"],
-      "claims_to_avoid": ["specific risky claim patterns to avoid"]
+      "claims_to_avoid": ["specific risky claim patterns to avoid"],
+      "allowed_evidence": {{
+        "company": "employer name",
+        "immutable_role": "baseline role title for this employer",
+        "approved_terms": ["grounded terms already present in source truth"]
+      }}
     }},
     {{
       "company": "Great Wolf Resorts",
@@ -112,11 +133,12 @@ EXPERIENCE REWRITE RULES:
 - bullets_to_preserve lists bullet topics that should get minor polish only (no reframing).
 - Every baseline bullet must appear in EITHER bullet_rewrites OR bullets_to_preserve.
 - When the JD mentions a specific tool and the candidate knows it (per skills inventory), the rewrite_angle MUST name that tool.
+- Every rewrite must stay inside allowed_evidence. If a term is not in allowed_evidence or the grounding contract, do not propose it.
 
 CRITICAL — WHAT A REWRITE ANGLE IS:
 - A rewrite angle tells the draft writer to COMPLETELY RESTRUCTURE the bullet to focus on the JD requirement.
 - Do NOT just copy the baseline sentence and add a wrapper. You must instruct the writer to rethink the sentence structure completely.
-- ALL baseline metrics (numbers, tool names, concrete outcomes) MUST survive into the rewritten bullet, but you can incorporate additional facts from the Candidate Persona or Skills Inventory if they support the JD requirement and fit the project.
+- ALL baseline metrics (numbers, tool names, concrete outcomes) MUST survive into the rewritten bullet, but you may only incorporate supplemental facts if they are explicitly present in the grounding contract.
 - The candidate persona includes narrative vignettes — specific stories with problem/approach/outcome. Use the most relevant vignette to shape each rewrite angle. The candidate is a "builder-operator" who ships production systems, not an analyst who writes reports.
 - Good angle: "Keep 5-source ingestion, 500 drifted assets, 7,000+ endpoints. Rewrite completely to lead with the correlation logic as the candidate's core pattern: reconciling inconsistent records into actionable data. Structure the sentence around the Flask/React/Docker stack as production security tooling built and operated."
 - Bad angle: "Reframe to emphasize secure-by-design principles" — vague corporate filler with no connection to baseline facts or candidate voice. NEVER write angles like this.
@@ -155,8 +177,9 @@ Output requirements:
     5. DevOps and CI/CD — reorder, may add
     6. Databases (10 items) — reorder only, keep ALL 10
   - NEVER delete items from Languages or Databases. NEVER drop a category. NEVER merge categories.
-  - Tailoring means moving JD-relevant items to the FRONT of each line, not removing irrelevant ones.
-  - Example: if the JD emphasizes Rust, change Languages to: Rust, Python, C, C++, TypeScript, Java, SQL, PowerShell, Bash, Swift, Go
+- Tailoring means moving JD-relevant items to the FRONT of each line, not removing irrelevant ones.
+- Example: if the JD emphasizes Rust, change Languages to: Rust, Python, C, C++, TypeScript, Java, SQL, PowerShell, Bash, Swift, Go
+- Never change the role title shown under any employer heading.
 - BULLET ORDERING: Within each company's bullets, place bullets addressing HIGH priority JD requirements first. The most JD-relevant bullet should come first.
 - BULLET REWRITES ARE MANDATORY: The prompt will list specific bullets to rewrite with explicit angles. You MUST execute them. Do NOT copy the baseline sentence structure. You MUST write a completely new sentence using DIFFERENT verbiage, DIFFERENT sentence structure, and DIFFERENT ordering of information. If a rewritten bullet looks structurally similar to the baseline, it has failed.
 - VOICE: Apply the candidate voice and thematic priorities from the persona section to all rewrites. Concrete actions and outcomes. Pragmatic, operationally focused. No corporate filler."""
@@ -171,6 +194,8 @@ Task:
 - Repair issues directly and return corrected LaTeX only.
 - Preserve the exact structure and fixed bullet counts (exactly 14 \\resumeItem: 6 + 5 + 3).
 - Remove or rewrite risky claims rather than inventing evidence.
+- Restore canonical role titles if they drift.
+- Remove unsupported tools, compliance labels, identity stacks, AI deployment details, or release mechanics that are not grounded in the contract.
 - CRITICAL LENGTH CHECK: Compare the draft against the baseline template provided.
   The output body text must stay within ±20% of the baseline's character count.
   If the structural checks say the draft is too short, expand with grounded detail.
@@ -238,6 +263,7 @@ PERSONALIZATION RULES:
 - Adapt voice to the company type provided in the analysis (large_tech, startup, security_focused, etc.).
 - Preserve attribution exactly. If evidence comes from a Great Wolf Resorts bullet, name Great Wolf Resorts, not a vendor or tool mentioned inside that bullet.
 - School, capstone, and personal projects must stay labeled as school, capstone, or personal. Never rewrite them as internal employer recognition or on-the-job work.
+- Each paragraph must stay inside the allowed_evidence attached to its chosen source material.
 
 Return ONLY JSON:
 {{
@@ -246,7 +272,8 @@ Return ONLY JSON:
     {{
       "focus": "what this paragraph covers",
       "experience_sources": ["which roles/projects to draw from"],
-      "theme": "the organizing principle (not just a company name)"
+      "theme": "the organizing principle (not just a company name)",
+      "allowed_evidence": ["grounded terms allowed in this paragraph"]
     }}
   ],
   "closing_angle": "how to close — must tie back to the company hook, not generic",
@@ -276,6 +303,8 @@ Output requirements:
 - Keep tone grounded, direct, and technically credible.
 - Do not use literal \\n tokens or Python list syntax.
 - Keep content factual and grounded in provided source text only.
+- Never rename a prior employer role to sound like the target role.
+- Never add tools, frameworks, compliance labels, identity platforms, or deployment architecture unless they appear in the allowed_evidence for that paragraph.
 - Apply the candidate voice from the persona section. Use the narrative vignettes as source material to reshape, not to copy.
 - Preserve attribution exactly:
   - do not reassign an employer's work to a vendor, product, or tool named inside the evidence
@@ -292,6 +321,7 @@ Task:
 - Repair issues directly and return corrected LaTeX only.
 - Preserve the paragraph structure from the strategy.
 - Remove or rewrite risky claims rather than inventing evidence.
+- Fix any drift from canonical role titles, employer attribution, or company rendering.
 - LENGTH CHECK: If the structural checks section reports the letter is too short or too long, fix it.
   Too short: expand with grounded detail. Too long: tighten language. Target ±15% of baseline length.
 
@@ -304,6 +334,119 @@ DIFFERENTIATION CHECKS (fix if violated):
   - if a tool or vendor name (for example Rapid7 or KnowBe4) appears inside Great Wolf evidence, do not turn it into a separate employer
   - if a project is a school, capstone, or personal project, label it as such and remove any "internal recognition" wording."""
 
+# ---------------------------------------------------------------------------
+# Stage 4 – Humanize: remove AI writing patterns
+# Curated from https://github.com/conorbronsdon/avoid-ai-writing (v3.0.0)
+# ---------------------------------------------------------------------------
+_COVER_HUMANIZE_SYSTEM = f"""\
+You are a final-pass editor. Your sole job is to remove AI writing patterns \
+("AI-isms") from a LaTeX cover letter so it reads like a human wrote it.
+
+You receive QA-cleaned LaTeX. Return ONLY the corrected LaTeX document — no \
+markdown fences, no commentary, no explanation.
+
+{_STYLE_GUARDRAILS}
+
+PRESERVE (never change):
+- All LaTeX commands, preamble, \\documentclass, \\begin{{document}}, \\end{{document}}
+- The \\companyname macro and every place it appears
+- Company names, employer names, role titles, dates, tool/framework names
+- All grounded claims and evidence (do not invent, remove, or rephrase factual content)
+- Overall letter structure, paragraph count, and paragraph order
+
+─── P0 — CREDIBILITY KILLERS (fix immediately) ───
+- Significance inflation: "marking a pivotal moment", "watershed moment", \
+"the future looks bright", "only time will tell" → state what happened or cut.
+- Vague attributions: "Experts believe", "Industry leaders agree" → cite a \
+source or drop the attribution.
+- Promotional language: "vibrant", "nestled", "thriving", "bustling" → plain \
+description or cut.
+- Formulaic challenges: "Despite challenges… continues to thrive" → name the \
+challenge and response, or cut.
+
+─── P1 — OBVIOUS AI SMELL (fix before output) ───
+
+TIER 1 WORDS — always replace:
+  delve/delve into → explore, dig into, look at
+  landscape (metaphor) → field, space, area
+  tapestry → (describe the complexity)
+  realm → area, field, domain
+  paradigm → model, approach, framework
+  embark → start, begin
+  beacon → (rewrite entirely)
+  testament to → shows, proves, demonstrates
+  robust → strong, reliable, solid
+  comprehensive → thorough, complete, full
+  cutting-edge → latest, advanced
+  leverage (verb) → use
+  pivotal → important, key, critical
+  underscores → highlights, shows
+  meticulous/meticulously → careful, detailed, precise
+  seamless/seamlessly → smooth, easy, without friction
+  game-changer → (describe what changed and why)
+  utilize → use
+  showcasing → showing, demonstrating
+  deep dive → examine, explore
+  unpack → explain, break down
+  intricate/intricacies → complex, detailed
+  ever-evolving → changing, growing
+  holistic → complete, full, whole
+  actionable → practical, useful, concrete
+  impactful → effective, significant
+  learnings → lessons, findings, takeaways
+  best practices → what works, proven methods
+  at its core → (cut — just state the thing)
+  synergy → (describe the actual combined effect)
+  in order to → to
+  due to the fact that → because
+  serves as → is
+  features (verb) → has, includes
+  boasts → has
+  commence → start, begin
+  ascertain → find out, determine
+  endeavor → effort, attempt, try
+
+TIER 2 — flag when 2+ appear in the SAME paragraph:
+  harness, navigate, foster, elevate, unleash, streamline, empower, bolster, \
+spearhead, resonate, revolutionize, facilitate, underpin, nuanced, crucial, \
+ecosystem (metaphor), myriad, plethora, encompass, catalyze, reimagine, \
+cultivate, illuminate, transformative, cornerstone, paramount, poised, \
+burgeoning, nascent, overarching.
+  If two or more appear together → rewrite the paragraph using plain words.
+
+TIER 3 — flag only when the letter is saturated with them:
+  significant, innovative, dynamic, scalable, compelling, unprecedented, \
+exceptional, remarkable, sophisticated, instrumental.
+  Replace some with specifics: numbers, comparisons, concrete examples.
+
+SENTENCE-LEVEL FIXES:
+- Hollow intensifiers: cut "genuine", "truly", "quite frankly", "to be honest", \
+"it's worth noting that". Just state the fact.
+- Hedging: cut "perhaps", "could potentially", "it's important to note that". \
+Make the point directly.
+- Copula avoidance: "serves as" → "is", "features" → "has", "boasts" → "has". \
+Default to "is"/"has" unless a specific verb genuinely adds meaning.
+- Synonym cycling: if the same noun appears 3 times and it's the right word, \
+keep all three. Forced variation reads as thesaurus abuse.
+- Template phrases: "a [adj] step toward [noun]" → describe the specific outcome.
+- Transition padding: "Moreover", "Furthermore", "Additionally" → restructure \
+so the connection is obvious, or use "and", "also".
+
+─── P2 — STYLISTIC POLISH ───
+- Vary sentence length: mix short (3-8 words) with longer (20+). Fragments OK.
+- Vary paragraph length: not every paragraph should be the same size.
+- Compulsive rule of three: vary groupings. Two items or four, not always three.
+- If a sentence works after deleting an inflation clause, delete it.
+
+TONE TARGET:
+1. Vary sentence length — mix short with long. Fragments are fine.
+2. Be concrete — replace vague claims with specifics.
+3. Have a voice — use first person, state preferences, show reactions where natural.
+4. Cut neutrality — if the letter takes a position, commit to it.
+5. Earn emphasis — don't tell the reader something is interesting. Make it interesting.
+
+If the letter is already clean, return it unchanged. Do not over-edit."""
+
 
 def _strip_disallowed_dashes(text: str) -> str:
     """Normalize Unicode dash variants to ASCII fallback punctuation."""
@@ -315,6 +458,7 @@ def _resume_strategy(
     analysis: dict,
     baseline: str,
     skills_data: dict,
+    grounding: dict,
     attempt: int,
     trace_recorder: Callable[[dict], None] | None = None,
 ) -> dict:
@@ -331,6 +475,7 @@ def _resume_strategy(
         f"## Analysis Mapping\n{json.dumps(analysis, indent=2)}\n\n"
         f"## Candidate Persona (voice, contribution patterns, evidence anchors)\n"
         f"{persona_text}\n\n"
+        f"{grounding_prompt_block(grounding)}\n\n"
         f"## JD-Relevant Tools (from analysis — use these names in rewrite angles)\n"
         f"{', '.join(matched_tools) if matched_tools else 'none extracted'}\n\n"
         f"## Skills Inventory (supplemental — these category names are NOT resume section names)\n"
@@ -339,7 +484,7 @@ def _resume_strategy(
         f"Target Company: {analysis.get('company_name', job.company)}\n"
         f"Summary Angle: {analysis.get('summary_angle', 'general security engineering')}\n"
     )
-    return chat_expect_json(
+    strategy = chat_expect_json(
         _RESUME_STRATEGY_SYSTEM,
         user_prompt,
         max_tokens=3000,
@@ -353,12 +498,14 @@ def _resume_strategy(
         },
         trace_recorder=trace_recorder,
     )
+    return enrich_resume_strategy_with_grounding(strategy, grounding)
 
 
 def _cover_strategy(
     job: SelectedJob,
     analysis: dict,
     baseline: str,
+    grounding: dict,
     attempt: int,
     trace_recorder: Callable[[dict], None] | None = None,
     resume_strategy: dict | None = None,
@@ -376,6 +523,7 @@ def _cover_strategy(
         f"Company type: {company_ctx.get('company_type', 'other')}\n"
         f"Suggested hook: {company_ctx.get('cover_letter_hook', 'none')}\n\n"
         f"## Candidate Persona\n{persona_text}\n\n"
+        f"{grounding_prompt_block(grounding)}\n\n"
     )
     if resume_strategy:
         user_prompt += (
@@ -391,7 +539,7 @@ def _cover_strategy(
         f"Today's Date: {today}\n"
         f"Tone Notes: {analysis.get('tone_notes', 'standard professional tone')}\n"
     )
-    return chat_expect_json(
+    strategy = chat_expect_json(
         _COVER_STRATEGY_SYSTEM,
         user_prompt,
         max_tokens=1400,
@@ -405,6 +553,7 @@ def _cover_strategy(
         },
         trace_recorder=trace_recorder,
     )
+    return enrich_cover_strategy_with_grounding(strategy, grounding)
 
 
 def _extract_rewrite_directives(strategy: dict) -> tuple[list[dict], list[dict]]:
@@ -426,6 +575,7 @@ def _extract_rewrite_directives(strategy: dict) -> tuple[list[dict], list[dict]]
                 "baseline_topic": rw.get("baseline_topic", ""),
                 "rewrite_angle": rw.get("rewrite_angle", ""),
                 "jd_req": rw.get("jd_requirement_addressed", ""),
+                "allowed_evidence": rw.get("allowed_evidence", {}),
             })
         bp = entry.get("bullets_to_preserve", [])
         if isinstance(bp, str):
@@ -512,6 +662,7 @@ def _run_resume_fit_pass(
     analysis: dict,
     baseline: str,
     strategy: dict,
+    grounding: dict,
     rewrite_block: str,
     current_tex: str,
     metrics: ResumeFitMetrics,
@@ -525,6 +676,7 @@ def _run_resume_fit_pass(
         f"## Baseline Resume Template\n```latex\n{baseline}\n```\n\n"
         f"## Analysis Mapping\n{json.dumps(analysis, indent=2)}\n\n"
         f"## Resume Strategy\n{json.dumps(strategy, indent=2)}\n\n"
+        f"{grounding_prompt_block(grounding)}\n\n"
         f"## Current Resume\n```latex\n{current_tex}\n```\n\n"
         f"## Rendered Fit Diagnostics\n{_resume_fit_metrics_block(metrics)}\n\n"
         f"## Current Bullet Counts\n{json.dumps(counts, indent=2)}\n\n"
@@ -569,6 +721,7 @@ def _fit_resume_to_one_page(
     analysis: dict,
     baseline: str,
     strategy: dict,
+    grounding: dict,
     rewrite_block: str,
     tex: str,
     output_dir: Path,
@@ -598,6 +751,7 @@ def _fit_resume_to_one_page(
             analysis=analysis,
             baseline=baseline,
             strategy=strategy,
+            grounding=grounding,
             rewrite_block=rewrite_block,
             current_tex=current_tex,
             metrics=metrics,
@@ -655,6 +809,7 @@ def _fit_resume_to_one_page(
         analysis=analysis,
         baseline=baseline,
         strategy=strategy,
+        grounding=grounding,
         rewrite_block=rewrite_block,
         current_tex=_set_resume_fit_flags(current_tex, compact=compact_active, pruned=False),
         metrics=metrics,
@@ -687,15 +842,18 @@ def write_resume(
     """Generate a tailored resume with a 3-stage pipeline: strategy, draft, QA."""
     baseline = cfg.RESUME_TEX.read_text()
     skills_data = json.loads(cfg.SKILLS_JSON.read_text())
+    grounding = build_grounding_context(baseline_tex=baseline, skills_data=skills_data)
     strategy = _resume_strategy(
         job,
         analysis,
         baseline,
         skills_data,
+        grounding,
         attempt=attempt,
         trace_recorder=trace_recorder,
     )
     (output_dir / "resume_strategy.json").write_text(json.dumps(strategy, indent=2))
+    write_grounding_artifacts(output_dir, grounding=grounding, analysis=analysis, resume_strategy=strategy)
 
     # Extract rewrite directives into a flat, numbered list the draft LLM cannot ignore
     rewrites, preserves = _extract_rewrite_directives(strategy)
@@ -709,6 +867,16 @@ def write_resume(
                 f"     → Rewrite angle: {rw['rewrite_angle']}\n"
                 f"     → JD requirement addressed: {rw['jd_req']}\n"
             )
+            allowed = rw.get("allowed_evidence") or {}
+            approved_terms = allowed.get("approved_terms") or []
+            approved_metrics = allowed.get("approved_metrics") or []
+            immutable_role = allowed.get("immutable_role")
+            if immutable_role or approved_terms or approved_metrics:
+                rewrite_block += (
+                    f"     → Immutable role: {immutable_role or 'unknown'}\n"
+                    f"     → Approved terms only: {', '.join(approved_terms) if approved_terms else 'none'}\n"
+                    f"     → Approved metrics only: {', '.join(approved_metrics) if approved_metrics else 'none'}\n"
+                )
     if preserves:
         rewrite_block += "\nBULLETS TO POLISH ONLY (preserve framing, minor wording improvements only):\n"
         for p in preserves:
@@ -717,6 +885,7 @@ def write_resume(
     draft_prompt = (
         f"## Baseline Resume Template\n```latex\n{baseline}\n```\n\n"
         f"## Analysis Mapping\n{json.dumps(analysis, indent=2)}\n\n"
+        f"{grounding_prompt_block(grounding)}\n\n"
         f"## Candidate Persona (voice, contribution patterns, evidence anchors — use this to guide HOW bullets are written)\n"
         f"{get_persona().for_draft(analysis, 'resume')}\n\n"
         f"## Skills Inventory (supplemental context — these category names are NOT resume section names)\n"
@@ -778,6 +947,7 @@ def write_resume(
     qa_prompt = (
         f"## Baseline Resume Template\n```latex\n{baseline}\n```\n\n"
         f"## Resume Strategy\n{json.dumps(strategy, indent=2)}\n\n"
+        f"{grounding_prompt_block(grounding)}\n\n"
         f"## Draft Resume\n```latex\n{draft_tex}\n```\n\n"
         f"## STRUCTURAL CHECKS (fix these before anything else)\n"
         f"- {length_status}\n"
@@ -811,6 +981,7 @@ def write_resume(
         analysis,
         baseline,
         strategy,
+        grounding,
         rewrite_block,
         tex,
         output_dir,
@@ -820,6 +991,7 @@ def write_resume(
 
     out_path = output_dir / "Conner_Jordan_Resume.tex"
     out_path.write_text(tex)
+    write_grounding_artifacts(output_dir, grounding=grounding, analysis=analysis, resume_strategy=strategy)
     logger.info("Resume written to %s (%d chars)", out_path, len(tex))
     return out_path
 
@@ -832,8 +1004,10 @@ def write_cover_letter(
     attempt: int = 1,
     trace_recorder: Callable[[dict], None] | None = None,
 ) -> Path:
-    """Generate a tailored cover letter with a 3-stage pipeline: strategy, draft, QA."""
+    """Generate a tailored cover letter with a 4-stage pipeline: strategy, draft, QA, humanize."""
     baseline = cfg.COVER_TEX.read_text()
+    skills_data = json.loads(cfg.SKILLS_JSON.read_text())
+    grounding = build_grounding_context(skills_data=skills_data)
 
     # Load resume strategy for cross-document consistency
     resume_strat_path = output_dir / "resume_strategy.json"
@@ -848,11 +1022,19 @@ def write_cover_letter(
         job,
         analysis,
         baseline,
+        grounding,
         attempt=attempt,
         trace_recorder=trace_recorder,
         resume_strategy=resume_strategy,
     )
     (output_dir / "cover_strategy.json").write_text(json.dumps(strategy, indent=2))
+    write_grounding_artifacts(
+        output_dir,
+        grounding=grounding,
+        analysis=analysis,
+        resume_strategy=resume_strategy,
+        cover_strategy=strategy,
+    )
 
     from datetime import date
     today = date.today().strftime("%B %d, %Y")
@@ -862,6 +1044,7 @@ def write_cover_letter(
         f"## Baseline Cover Letter Template\n```latex\n{baseline}\n```\n\n"
         f"## Analysis Mapping\n{json.dumps(analysis, indent=2)}\n\n"
         f"## Cover Strategy\n{json.dumps(strategy, indent=2)}\n\n"
+        f"{grounding_prompt_block(grounding)}\n\n"
         f"## Company Context\n"
         f"What they build: {company_ctx.get('what_they_build', 'unknown')}\n"
         f"Engineering challenges: {company_ctx.get('engineering_challenges', 'unknown')}\n"
@@ -912,6 +1095,7 @@ def write_cover_letter(
     qa_prompt = (
         f"## Baseline Cover Template\n```latex\n{baseline}\n```\n\n"
         f"## Cover Strategy\n{json.dumps(strategy, indent=2)}\n\n"
+        f"{grounding_prompt_block(grounding)}\n\n"
         f"## Draft Cover Letter\n```latex\n{draft_tex}\n```\n\n"
         f"## STRUCTURAL CHECKS\n"
         f"- {cover_length_status}\n\n"
@@ -939,7 +1123,44 @@ def write_cover_letter(
     )
     tex = _strip_disallowed_dashes(extract_latex(qa_raw))
 
+    # --- Stage 4: Humanize (remove AI writing patterns) ---
+    pre_humanize_tex = tex
+
+    humanize_prompt = (
+        f"## Cover Letter to Edit\n```latex\n{tex}\n```\n\n"
+        f"## Grounding Context (DO NOT MODIFY THESE FACTS)\n"
+        f"Company: {analysis.get('company_name', job.company)}\n"
+        f"Role: {analysis.get('role_title', job.title)}\n"
+        f"{grounding_prompt_block(grounding)}\n"
+    )
+
+    humanize_raw = chat(
+        _COVER_HUMANIZE_SYSTEM,
+        humanize_prompt,
+        max_tokens=4096,
+        temperature=0.15,
+        trace={
+            "doc_type": "cover",
+            "phase": "humanize",
+            "attempt": attempt,
+            "response_parse_kind": "latex",
+            "response_parse_status": "ok",
+        },
+        trace_recorder=trace_recorder,
+    )
+    tex = _strip_disallowed_dashes(extract_latex(humanize_raw))
+
+    # Save pre-humanize draft for diff inspection
+    (output_dir / "cover_pre_humanize.tex").write_text(pre_humanize_tex)
+
     out_path = output_dir / "Conner_Jordan_Cover_Letter.tex"
     out_path.write_text(tex)
+    write_grounding_artifacts(
+        output_dir,
+        grounding=grounding,
+        analysis=analysis,
+        resume_strategy=resume_strategy,
+        cover_strategy=strategy,
+    )
     logger.info("Cover letter written to %s (%d chars)", out_path, len(tex))
     return out_path

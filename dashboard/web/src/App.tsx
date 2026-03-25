@@ -14,7 +14,6 @@ import './styles/global.css';
 
 const JobsView = lazy(() => import('./views/domains/scraping/intake/JobsView'));
 const RejectedView = lazy(() => import('./views/domains/scraping/intake/RejectedView'));
-const RunsView = lazy(() => import('./views/domains/scraping/runs/RunsView'));
 const QAView = lazy(() => import('./views/domains/tailoring/qa/QAView'));
 const TailoringView = lazy(() => import('./views/domains/tailoring/runs/TailoringView'));
 const IngestView = lazy(() => import('./views/domains/tailoring/runs/IngestView'));
@@ -146,8 +145,7 @@ function App() {
           <Route path="/pipeline" element={<Navigate to="/pipeline/editor" replace />} />
           <Route path="/pipeline/ready" element={<LazyRoute><TailoringView /></LazyRoute>} />
           <Route path="/pipeline/ingest" element={<LazyRoute><IngestView /></LazyRoute>} />
-          <Route path="/pipeline/ingest/runs" element={<LazyRoute><RunsView /></LazyRoute>} />
-          <Route path="/pipeline/ingest/runs/:runId" element={<LazyRoute><RunsView /></LazyRoute>} />
+          <Route path="/pipeline/editor/:runId" element={<LegacyRedirect to="/pipeline/editor" />} />
           <Route path="/pipeline/qa" element={<LazyRoute><QAView /></LazyRoute>} />
           <Route path="/pipeline/packages" element={<LazyRoute><PackagesView /></LazyRoute>} />
           <Route path="/pipeline/rejected" element={<LazyRoute><TailoringRejectedView /></LazyRoute>} />
@@ -176,10 +174,10 @@ function App() {
           <Route path="/scraping" element={<LegacyRedirect to="/ops/inventory" />} />
           <Route path="/scraping/intake/jobs" element={<LegacyRedirect to="/ops/inventory" />} />
           <Route path="/scraping/intake/rejected" element={<LegacyRedirect to="/ops/rejected" />} />
-          <Route path="/pipeline/runs" element={<PrefixRedirect from="/pipeline/runs" to="/pipeline/ingest/runs" />} />
-          <Route path="/pipeline/runs/:runId" element={<PrefixRedirect from="/pipeline/runs" to="/pipeline/ingest/runs" />} />
-          <Route path="/scraping/runs" element={<PrefixRedirect from="/scraping/runs" to="/pipeline/ingest/runs" />} />
-          <Route path="/scraping/runs/:runId" element={<PrefixRedirect from="/scraping/runs" to="/pipeline/ingest/runs" />} />
+          <Route path="/pipeline/runs" element={<PrefixRedirect from="/pipeline/runs" to="/pipeline/editor" />} />
+          <Route path="/pipeline/runs/:runId" element={<PrefixRedirect from="/pipeline/runs" to="/pipeline/editor" />} />
+          <Route path="/scraping/runs" element={<PrefixRedirect from="/scraping/runs" to="/pipeline/editor" />} />
+          <Route path="/scraping/runs/:runId" element={<PrefixRedirect from="/scraping/runs" to="/pipeline/editor" />} />
           <Route path="/scraping/quality/dedup" element={<LegacyRedirect to="/pipeline/editor" />} />
           <Route path="/scraping/quality/schedules" element={<LegacyRedirect to="/pipeline/editor" />} />
           <Route path="/tailoring" element={<LegacyRedirect to="/pipeline/ready" />} />
@@ -194,8 +192,8 @@ function App() {
           <Route path="/pipeline/jobs" element={<LegacyRedirect to="/pipeline/ready" />} />
           <Route path="/jobs" element={<LegacyRedirect to="/ops/inventory" />} />
           <Route path="/rejected" element={<LegacyRedirect to="/ops/rejected" />} />
-          <Route path="/runs" element={<LegacyRedirect to="/pipeline/ingest/runs" />} />
-          <Route path="/runs/:runId" element={<PrefixRedirect from="/runs" to="/pipeline/ingest/runs" />} />
+          <Route path="/runs" element={<LegacyRedirect to="/pipeline/editor" />} />
+          <Route path="/runs/:runId" element={<PrefixRedirect from="/runs" to="/pipeline/editor" />} />
           <Route path="/packages" element={<LegacyRedirect to="/pipeline/packages" />} />
           <Route path="/applied" element={<LegacyRedirect to="/pipeline/applied" />} />
           <Route path="/dedup" element={<LegacyRedirect to="/pipeline/editor" />} />

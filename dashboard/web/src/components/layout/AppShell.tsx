@@ -4,7 +4,6 @@ import {
   GitBranch,
   Briefcase,
   XCircle,
-  Activity,
   Package,
   Terminal,
   FileCheck,
@@ -38,7 +37,6 @@ const domains: Domain[] = [
     items: [
       { label: 'Editor', to: '/pipeline/editor', icon: GitBranch, desc: 'Visual pipeline control', end: true },
       { label: 'Ingest', to: '/pipeline/ingest', icon: ClipboardPaste, end: true },
-      { label: 'Runs', to: '/pipeline/ingest/runs', icon: Activity, desc: 'Scrape run history' },
       { label: 'QA', to: '/pipeline/qa', icon: CheckSquare, desc: 'Approve, reject, LLM review' },
       { label: 'Ready', to: '/pipeline/ready', icon: Briefcase, desc: 'QA-approved backlog' },
       { label: 'Rejected', to: '/pipeline/rejected', icon: XCircle, desc: 'QA-rejected backlog' },
@@ -69,7 +67,6 @@ const labelBySegment: Record<string, string> = {
   packages: 'Packages',
   applied: 'Applied',
   rejected: 'Rejected',
-  runs: 'Runs',
   ops: 'Ops',
   inventory: 'Inventory',
   traces: 'Traces',

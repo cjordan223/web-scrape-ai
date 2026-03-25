@@ -79,6 +79,7 @@ class TestWriterSequence(unittest.TestCase):
                 ("cover", "strategy"),
                 ("cover", "draft"),
                 ("cover", "qa"),
+                ("cover", "humanize"),
             ],
         )
 

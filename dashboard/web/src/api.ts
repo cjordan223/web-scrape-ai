@@ -95,11 +95,6 @@ export const api = {
         return data;
     },
 
-    getSourceDiagnostics: async () => {
-        const { data } = await apiClient.get('/scrape/sources');
-        return data;
-    },
-
     getJobDetail: async (id: number) => {
         const { data } = await apiClient.get(`/jobs/${id}`);
         return data;
@@ -135,15 +130,6 @@ export const api = {
         return data;
     },
 
-    getTailoringRecentJobs: async () => {
-        return api.getTailoringReady();
-    },
-
-    runTailoring: async (id: number, skip_analysis: boolean) => {
-        const { data } = await apiClient.post(`/tailoring/run`, { job_id: id, skip_analysis });
-        return data;
-    },
-
     getTailoringRunnerStatus: async () => {
         const { data } = await apiClient.get('/tailoring/runner/status');
         return data;
@@ -159,16 +145,6 @@ export const api = {
         return data;
     },
 
-    getTailoringQueue: async () => {
-        const { data } = await apiClient.get('/tailoring/queue');
-        return data;
-    },
-
-    clearTailoringQueue: async () => {
-        const { data } = await apiClient.delete('/tailoring/queue');
-        return data;
-    },
-
     getPackages: async () => {
         const { data } = await apiClient.get('/packages');
         return data.items;
@@ -176,6 +152,11 @@ export const api = {
 
     getPackageDetail: async (slug: string) => {
         const { data } = await apiClient.get(`/packages/${slug}`);
+        return data;
+    },
+
+    deletePackage: async (slug: string) => {
+        const { data } = await apiClient.delete(`/packages/${slug}`);
         return data;
     },
 
@@ -284,8 +265,13 @@ export const api = {
         return data;
     },
 
-    cancelQALlmReview: async () => {
+    cancelQAReview: async () => {
         const { data } = await apiClient.delete('/tailoring/qa/llm-review');
+        return data;
+    },
+
+    runTailoringLatest: async () => {
+        const { data } = await apiClient.post('/tailoring/run-latest');
         return data;
     },
 
@@ -314,11 +300,6 @@ export const api = {
         return data;
     },
 
-    getStateLog: async (jobId?: number, limit?: number) => {
-        const { data } = await apiClient.get('/state-log', { params: { job_id: jobId, limit } });
-        return data;
-    },
-
     packageChatSend: async (slug: string, message: string, docFocus?: string) => {
         const { data } = await apiClient.post(`/packages/${slug}/chat`, { message, doc_focus: docFocus });
         return data;
@@ -334,21 +315,6 @@ export const api = {
         return data;
     },
 
-    createArchive: async (tag: string) => {
-        const { data } = await apiClient.post('/tailoring/archive', { tag });
-        return data;
-    },
-
-    getArchives: async () => {
-        const { data } = await apiClient.get('/tailoring/archives');
-        return data.archives;
-    },
-
-    getArchiveDetail: async (id: number) => {
-        const { data } = await apiClient.get(`/tailoring/archives/${id}`);
-        return data;
-    },
-
     getPipelinePackages: async () => {
         const { data } = await apiClient.get('/ops/pipeline/packages');
         return data.packages;
@@ -356,41 +322,6 @@ export const api = {
 
     getPipelineTrace: async (archiveId: number, slug: string) => {
         const { data } = await apiClient.get(`/ops/pipeline/trace/${archiveId}/${encodeURIComponent(slug)}`);
-        return data;
-    },
-
-    getFilterStats: async () => {
-        const { data } = await apiClient.get('/filters/stats');
-        return data;
-    },
-
-    dbQuery: async (query: string) => {
-        const { data } = await apiClient.get('/db/query', { params: { sql: query } });
-        return data;
-    },
-
-    dbSchema: async () => {
-        const { data } = await apiClient.get('/db/schema');
-        return data.tables;
-    },
-
-    dbTables: async () => {
-        const { data } = await apiClient.get('/db/tables');
-        return data.tables;
-    },
-
-    dbTableData: async (tableName: string, params: Record<string, any>) => {
-        const { data } = await apiClient.get(`/db/table/${tableName}`, { params });
-        return data;
-    },
-
-    dbAdminStatus: async () => {
-        const { data } = await apiClient.get('/db/admin/status');
-        return data;
-    },
-
-    dbAdminAction: async (action: string, tables: string[], confirm: string) => {
-        const { data } = await apiClient.post('/db/admin/action', { action, tables, confirm });
         return data;
     },
 

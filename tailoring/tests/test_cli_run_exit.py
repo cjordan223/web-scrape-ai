@@ -23,7 +23,7 @@ class TestCliRunExit(unittest.TestCase):
             conn = sqlite3.connect(db_path)
             conn.execute(
                 """
-                CREATE TABLE results (
+                CREATE TABLE jobs (
                     id INTEGER PRIMARY KEY,
                     url TEXT NOT NULL,
                     title TEXT NOT NULL,
@@ -31,13 +31,13 @@ class TestCliRunExit(unittest.TestCase):
                     seniority TEXT,
                     jd_text TEXT,
                     snippet TEXT,
-                    decision TEXT
+                    status TEXT
                 )
                 """
             )
             conn.execute(
                 """
-                INSERT INTO results (id, url, title, board, seniority, jd_text, snippet, decision)
+                INSERT INTO jobs (id, url, title, board, seniority, jd_text, snippet, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (

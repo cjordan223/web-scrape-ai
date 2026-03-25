@@ -6,6 +6,7 @@ Key tuning points: RESUME_CHAR_TOLERANCE, COVER_CHAR_TOLERANCE, RESUME_BULLET_CO
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -18,6 +19,7 @@ from typing import Any
 
 from . import config as cfg
 from .compiler import compile_tex
+from .grounding import build_grounding_context
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,7 @@ class ValidationResult:
     passed: bool
     failures: list[str] = field(default_factory=list)
     metrics: dict[str, Any] = field(default_factory=dict)
+    failure_details: list[dict[str, Any]] = field(default_factory=list)
 
     def __str__(self) -> str:
         if self.passed:
@@ -75,6 +78,30 @@ def _extract_work_experience_section(tex: str) -> str:
     if not m:
         return ""
     return m.group(1)
+
+
+def _extract_section(tex: str, section_name: str) -> str:
+    m = re.search(
+        rf"\\section\{{{re.escape(section_name)}\}}(.*?)(?=\\section\{{|\\end\{{document\}})",
+        tex,
+        re.DOTALL,
+    )
+    return m.group(1) if m else ""
+
+
+def _extract_resume_role_map(tex: str) -> dict[str, str]:
+    roles: dict[str, str] = {}
+    for company, _, role, _ in re.findall(
+        r"\\resumeSubheading\s*"
+        r"\{\s*([^}]*)\s*\}\s*"
+        r"\{\s*([^}]*)\s*\}\s*"
+        r"\{\s*([^}]*)\s*\}\s*"
+        r"\{\s*([^}]*)\s*\}",
+        _extract_work_experience_section(tex),
+        re.DOTALL,
+    ):
+        roles[_normalize_company_name(company)] = _normalize_company_name(role)
+    return roles
 
 
 def _normalize_company_name(name: str) -> str:
@@ -278,32 +305,136 @@ def inspect_resume_pdf_fit(pdf_path: Path) -> ResumeFitMetrics:
     return metrics
 
 
+def _add_failure(
+    failures: list[str],
+    failure_details: list[dict[str, Any]],
+    category: str,
+    message: str,
+    *,
+    snippet: str | None = None,
+) -> None:
+    failures.append(message)
+    detail: dict[str, Any] = {"category": category, "message": message}
+    if snippet:
+        detail["snippet"] = snippet
+    failure_details.append(detail)
+
+
+def _first_match_snippet(text: str, pattern: str) -> str | None:
+    m = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+    if not m:
+        return None
+    start = max(0, m.start() - 80)
+    end = min(len(text), m.end() + 80)
+    return re.sub(r"\s+", " ", text[start:end]).strip()
+
+
+def _validate_grounding_claims(
+    *,
+    text: str,
+    failures: list[str],
+    failure_details: list[dict[str, Any]],
+    grounding: dict[str, Any],
+) -> None:
+    patterns = grounding.get("high_risk_patterns", {})
+    category_map = {
+        "unsupported_tool_claim": "unsupported_tool_claim",
+        "unsupported_compliance_claim": "unsupported_compliance_claim",
+        "unsupported_identity_stack_claim": "unsupported_identity_stack_claim",
+        "unsupported_ai_deployment_claim": "unsupported_ai_deployment_claim",
+        "unsupported_operational_mechanic_claim": "unsupported_operational_mechanic_claim",
+        "unsupported_scale_claim": "unsupported_operational_mechanic_claim",
+    }
+    for rule_name, patterns_for_rule in patterns.items():
+        if rule_name == "role_title_renamed":
+            continue
+        for pattern in patterns_for_rule:
+            snippet = _first_match_snippet(text, pattern)
+            if snippet:
+                category = category_map.get(rule_name, rule_name)
+                _add_failure(
+                    failures,
+                    failure_details,
+                    category,
+                    f"{category}: unsupported claim pattern detected",
+                    snippet=snippet,
+                )
+                break
+
+
+def _validate_cover_company_rendering(
+    tex_path: Path,
+    tex: str,
+    failures: list[str],
+    failure_details: list[dict[str, Any]],
+) -> None:
+    def _norm(value: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "", value.lower())
+
+    analysis_path = tex_path.parent / "analysis.json"
+    if not analysis_path.exists():
+        return
+    try:
+        analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    canonical = str(analysis.get("company_name") or "").strip()
+    if not canonical:
+        return
+    m = re.search(r"\\newcommand\{\\companyname\}\{([^}]*)\}", tex)
+    if not m:
+        return
+    actual = m.group(1).strip()
+    if not actual:
+        return
+    if _norm(actual) == _norm(canonical) and actual != canonical and any(ch.isupper() for ch in canonical):
+        _add_failure(
+            failures,
+            failure_details,
+            "company_name_rendering_issue",
+            f"company name rendered as '{actual}' instead of canonical '{canonical}'",
+        )
+
+
 def validate_resume(tex_path: Path) -> ValidationResult:
     """Run all hard gates on a tailored resume."""
     failures = []
+    failure_details: list[dict[str, Any]] = []
     metrics: dict[str, Any] = {}
     tex = tex_path.read_text()
     baseline_tex = cfg.RESUME_TEX.read_text()
+    grounding = build_grounding_context(baseline_tex=baseline_tex)
 
     # Gate 1: Compilation
     pdf = compile_tex(tex_path)
     if pdf is None:
-        failures.append("compilation failed")
+        _add_failure(failures, failure_details, "compilation_failed", "compilation failed")
     else:
         fit_metrics = inspect_resume_pdf_fit(pdf)
         metrics.update(fit_metrics.as_dict())
         if fit_metrics.inspection_error:
-            failures.append(f"render inspection incomplete ({fit_metrics.inspection_error})")
+            _add_failure(
+                failures,
+                failure_details,
+                "render_inspection_incomplete",
+                f"render inspection incomplete ({fit_metrics.inspection_error})",
+            )
         if fit_metrics.page_count != cfg.RESUME_TARGET_PAGES:
             if fit_metrics.page_count is None and fit_metrics.inspection_error:
-                failures.append(
-                    f"rendered page count unavailable ({fit_metrics.inspection_error}), expected {cfg.RESUME_TARGET_PAGES}"
+                _add_failure(
+                    failures,
+                    failure_details,
+                    "page_count_unavailable",
+                    f"rendered page count unavailable ({fit_metrics.inspection_error}), expected {cfg.RESUME_TARGET_PAGES}",
                 )
             else:
-                failures.append(
+                _add_failure(
+                    failures,
+                    failure_details,
+                    "page_count_mismatch",
                     f"rendered page count {fit_metrics.page_count}, expected {cfg.RESUME_TARGET_PAGES} "
                     f"(page 2 words: {fit_metrics.page_2_word_count}, "
-                    f"widow-like lines: {'yes' if fit_metrics.has_suspicious_single_word_lines else 'no'})"
+                    f"widow-like lines: {'yes' if fit_metrics.has_suspicious_single_word_lines else 'no'})",
                 )
 
         if (
@@ -311,16 +442,19 @@ def validate_resume(tex_path: Path) -> ValidationResult:
             and fit_metrics.page_fill_ratio is None
             and fit_metrics.page_count == cfg.RESUME_TARGET_PAGES
         ):
-            failures.append("page fill ratio unavailable")
+            _add_failure(failures, failure_details, "page_fill_ratio_unavailable", "page fill ratio unavailable")
 
         if (
             fit_metrics.page_fill_ratio is not None
             and fit_metrics.page_count == cfg.RESUME_TARGET_PAGES
             and fit_metrics.page_fill_ratio < cfg.RESUME_MIN_FILL_RATIO
         ):
-            failures.append(
+            _add_failure(
+                failures,
+                failure_details,
+                "page_underfilled",
                 f"page underfilled: {fit_metrics.page_fill_ratio:.1%} vertical fill, "
-                f"need ≥{cfg.RESUME_MIN_FILL_RATIO:.0%}"
+                f"need ≥{cfg.RESUME_MIN_FILL_RATIO:.0%}",
             )
 
     # Gate 2: Bullet count
@@ -334,18 +468,29 @@ def validate_resume(tex_path: Path) -> ValidationResult:
             floor = cfg.RESUME_COMPANY_BULLET_FLOORS[company]
             cap = cfg.RESUME_COMPANY_BULLET_TARGETS[company]
             if not (floor <= count <= cap):
-                failures.append(
-                    f"{company} bullet count {count}, expected {floor}-{cap} in pruned mode"
+                _add_failure(
+                    failures,
+                    failure_details,
+                    "bullet_count_mismatch",
+                    f"{company} bullet count {count}, expected {floor}-{cap} in pruned mode",
                 )
     else:
         for company in cfg.RESUME_COMPANIES:
             count = counts_by_company.get(company, 0)
             expected = cfg.RESUME_COMPANY_BULLET_TARGETS[company]
             if count != expected:
-                failures.append(f"{company} bullet count {count}, expected {expected}")
+                _add_failure(
+                    failures,
+                    failure_details,
+                    "bullet_count_mismatch",
+                    f"{company} bullet count {count}, expected {expected}",
+                )
     if bullets != sum(counts_by_company.values()):
-        failures.append(
-            f"work experience bullet structure mismatch: counted {bullets} total vs {sum(counts_by_company.values())} attributed"
+        _add_failure(
+            failures,
+            failure_details,
+            "bullet_structure_mismatch",
+            f"work experience bullet structure mismatch: counted {bullets} total vs {sum(counts_by_company.values())} attributed",
         )
 
     # Gate 3: Character count (see RESUME_CHAR_TOLERANCE in config.py)
@@ -357,41 +502,80 @@ def validate_resume(tex_path: Path) -> ValidationResult:
         ratio = len(body) / len(baseline_body)
         metrics["char_ratio"] = round(ratio, 4)
         if abs(ratio - 1.0) > cfg.RESUME_CHAR_TOLERANCE:
-            failures.append(
+            _add_failure(
+                failures,
+                failure_details,
+                "char_ratio_out_of_bounds",
                 f"char count ratio {ratio:.2f} (±{cfg.RESUME_CHAR_TOLERANCE} allowed); "
                 f"draft has {len(body)} chars, baseline has {len(baseline_body)} chars, "
                 f"need {int(len(baseline_body) * (1 - cfg.RESUME_CHAR_TOLERANCE))}-"
-                f"{int(len(baseline_body) * (1 + cfg.RESUME_CHAR_TOLERANCE))}"
+                f"{int(len(baseline_body) * (1 + cfg.RESUME_CHAR_TOLERANCE))}",
             )
 
     # Gate 4: No Python list literals
     if re.search(r"\['", tex) or re.search(r'"\]', tex):
-        failures.append("Python list literal found in .tex")
+        _add_failure(failures, failure_details, "python_list_literal", "Python list literal found in .tex")
 
     # Gate 5: No literal \\n tokens
     if "\\n" in tex and "\\newcommand" not in tex[tex.index("\\n") - 20 : tex.index("\\n")]:
         # More precise: look for \n that isn't part of a command name
         if re.search(r"(?<!\\newcommand)(?<!\\noindent)(?<!\\newpage)\\n(?![a-zA-Z])", tex):
-            failures.append("literal \\n token found in .tex")
+            _add_failure(failures, failure_details, "literal_newline_token", "literal \\n token found in .tex")
 
     # Gate 6: Section order (see RESUME_SECTIONS in config.py)
     if not _check_section_order(tex):
-        failures.append("section order does not match canonical template")
+        _add_failure(failures, failure_details, "section_order_mismatch", "section order does not match canonical template")
 
-    return ValidationResult(passed=len(failures) == 0, failures=failures, metrics=metrics)
+    role_map = _extract_resume_role_map(tex)
+    expected_roles = {
+        exp["company"]: exp["role"]
+        for exp in grounding.get("immutable_facts", {}).get("experience", [])
+    }
+    for company, expected_role in expected_roles.items():
+        actual_role = role_map.get(company)
+        if actual_role and actual_role != expected_role:
+            _add_failure(
+                failures,
+                failure_details,
+                "role_title_renamed",
+                f"{company} role changed to '{actual_role}' (expected '{expected_role}')",
+            )
+
+    resume_narrative = "\n".join(
+        [
+            _extract_section(tex, "PROFESSIONAL SUMMARY"),
+            _extract_section(tex, "WORK EXPERIENCE"),
+            _extract_section(tex, "EDUCATION"),
+        ]
+    )
+    _validate_grounding_claims(
+        text=resume_narrative,
+        failures=failures,
+        failure_details=failure_details,
+        grounding=grounding,
+    )
+    metrics["failure_details"] = failure_details
+    return ValidationResult(
+        passed=len(failures) == 0,
+        failures=failures,
+        metrics=metrics,
+        failure_details=failure_details,
+    )
 
 
 def validate_cover_letter(tex_path: Path) -> ValidationResult:
     """Run hard gates on a tailored cover letter."""
     failures = []
+    failure_details: list[dict[str, Any]] = []
     metrics: dict[str, Any] = {}
     tex = tex_path.read_text()
     baseline_tex = cfg.COVER_TEX.read_text()
+    grounding = build_grounding_context()
 
     # Gate 1: Compilation
     pdf = compile_tex(tex_path)
     if pdf is None:
-        failures.append("compilation failed")
+        _add_failure(failures, failure_details, "compilation_failed", "compilation failed")
 
     # Gate 2: Character count (see COVER_CHAR_TOLERANCE in config.py)
     body = _extract_body_text(tex)
@@ -400,14 +584,32 @@ def validate_cover_letter(tex_path: Path) -> ValidationResult:
         ratio = len(body) / len(baseline_body)
         metrics["char_ratio"] = round(ratio, 4)
         if abs(ratio - 1.0) > cfg.COVER_CHAR_TOLERANCE:
-            failures.append(f"char count ratio {ratio:.2f} (±{cfg.COVER_CHAR_TOLERANCE} allowed)")
+            _add_failure(
+                failures,
+                failure_details,
+                "char_ratio_out_of_bounds",
+                f"char count ratio {ratio:.2f} (±{cfg.COVER_CHAR_TOLERANCE} allowed)",
+            )
 
     # Gate 3: No Python list literals
     if re.search(r"\['", tex) or re.search(r'"\]', tex):
-        failures.append("Python list literal found in .tex")
+        _add_failure(failures, failure_details, "python_list_literal", "Python list literal found in .tex")
 
     # Gate 4: No literal \\n tokens
     if re.search(r"(?<!\\newcommand)(?<!\\noindent)(?<!\\newpage)\\n(?![a-zA-Z])", tex):
-        failures.append("literal \\n token found in .tex")
+        _add_failure(failures, failure_details, "literal_newline_token", "literal \\n token found in .tex")
 
-    return ValidationResult(passed=len(failures) == 0, failures=failures, metrics=metrics)
+    _validate_grounding_claims(
+        text=tex,
+        failures=failures,
+        failure_details=failure_details,
+        grounding=grounding,
+    )
+    _validate_cover_company_rendering(tex_path, tex, failures, failure_details)
+    metrics["failure_details"] = failure_details
+    return ValidationResult(
+        passed=len(failures) == 0,
+        failures=failures,
+        metrics=metrics,
+        failure_details=failure_details,
+    )

@@ -149,6 +149,7 @@ def run(
                         "attempt": attempt,
                         "passed": result.passed,
                         "failures": result.failures,
+                        "failure_details": result.failure_details,
                         "metrics": result.metrics,
                         "timestamp": utc_now_iso(),
                     }

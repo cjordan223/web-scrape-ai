@@ -435,6 +435,8 @@ def _package_detail_payload(d: Path, summary: dict | None = None) -> dict:
         "summary": summary,
         "job_context": _package_job_context(summary),
         "analysis": _load_json_file(d / "analysis.json"),
+        "grounding": _load_json_file(d / "grounding.json"),
+        "grounding_audit": _load_json_file(d / "grounding_audit.json"),
         "resume_strategy": _load_json_file(d / "resume_strategy.json"),
         "cover_strategy": _load_json_file(d / "cover_strategy.json"),
         "latex": {
@@ -495,6 +497,33 @@ def package_detail(slug: str):
     if d is None:
         return JSONResponse({"error": "Package not found"}, 404)
     return _package_detail_payload(d)
+
+
+def package_delete(slug: str):
+    """Delete a tailoring package directory. Rolls back the job to qa_approved."""
+    _sync_app_state()
+    d = _safe_tailoring_slug(slug)
+    job_id = None
+
+    if d is not None:
+        summary = _tailoring_summary(d)
+        job_id = (summary.get("meta") or {}).get("job_id")
+        import shutil
+        shutil.rmtree(d)
+
+    # Roll back the job decision to qa_approved so it can be re-tailored
+    if job_id:
+        conn = get_db()
+        try:
+            conn.execute(
+                "UPDATE results SET decision = 'qa_approved' WHERE id = ?",
+                (job_id,),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    return {"ok": True, "slug": slug}
 
 
 def _package_regen_env() -> dict[str, str]:
@@ -1165,11 +1194,11 @@ def tailoring_ingest_commit(payload: dict = Body(...)):
         conn = get_db_write()
         cur = conn.execute(
             """INSERT INTO jobs
-               (url, title, board, seniority, experience_years, salary_k, score, status,
-                snippet, query, jd_text, filter_verdicts, run_id, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, NULL, 'qa_pending', ?, 'manual-ingest', ?, NULL, 'manual-ingest', ?)
-               ON CONFLICT(url, run_id) DO NOTHING""",
-            (url, title, board, seniority, experience_years, salary_k, snippet, jd_text, now),
+               (url, title, company, board, seniority, experience_years, salary_k, score, status,
+                snippet, query, source, jd_text, filter_verdicts, run_id, created_at, updated_at)
+               VALUES (?, ?, '', ?, ?, ?, ?, NULL, 'qa_pending', ?, 'manual-ingest', 'manual', ?, NULL, 'manual-ingest', ?, ?)
+               ON CONFLICT(url) DO NOTHING""",
+            (url, title, board, seniority, experience_years, salary_k, snippet, jd_text, now, now),
         )
         conn.commit()
         if cur.rowcount == 0:
