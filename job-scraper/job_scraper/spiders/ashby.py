@@ -4,6 +4,7 @@ import json, logging
 from datetime import datetime, timezone
 import scrapy
 from job_scraper.items import JobItem
+from job_scraper.spiders import title_matches
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,9 @@ class AshbySpider(scrapy.Spider):
 
         job_id = job["id"]
         title = job.get("title") or response.meta.get("brief_title") or "Unknown"
+        if not title_matches(title):
+            logger.debug("Ashby %s: skipping non-matching title: %s", org, title)
+            return
         location = job.get("locationName") or response.meta.get("brief_location") or ""
         salary_text = job.get("compensationTierSummary") or ""
         jd_html = job.get("descriptionHtml") or ""

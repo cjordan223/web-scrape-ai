@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone
 import scrapy
 from job_scraper.items import JobItem
+from job_scraper.spiders import title_matches
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,9 @@ class LeverSpider(scrapy.Spider):
     def parse_job(self, response):
         company = response.meta.get("company", "unknown")
         title = response.css(".posting-headline h2::text").get() or response.css("h1::text").get() or "Unknown"
+        if not title_matches(title):
+            logger.debug("Lever %s: skipping non-matching title: %s", company, title)
+            return
         jd_html = response.css(".posting-page-content").get() or response.css(".content").get() or response.text
         location = response.css(".sort-by-location::text").get() or ""
         yield JobItem(url=response.url, title=title.strip(), company=company, board="lever", location=location.strip(), jd_html=jd_html, source=self.name, created_at=datetime.now(timezone.utc).isoformat())

@@ -4,6 +4,7 @@ import json, logging
 from datetime import datetime, timezone
 import scrapy
 from job_scraper.items import JobItem
+from job_scraper.spiders import title_matches
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,9 @@ class GreenhouseSpider(scrapy.Spider):
             return
 
         title = job.get("title", "Unknown")
+        if not title_matches(title):
+            logger.debug("Greenhouse %s: skipping non-matching title: %s", org, title)
+            return
         location = job.get("location", {}).get("name", "")
         jd_html = job.get("content", "")
         url = job.get("absolute_url", response.url)
