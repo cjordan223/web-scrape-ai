@@ -1,5 +1,6 @@
 """Tests for config loader."""
 
+import os
 from pathlib import Path
 from job_scraper.config import load_config, ScraperConfig
 
@@ -28,3 +29,14 @@ def test_hard_filters_loaded():
 def test_searxng_optional():
     cfg = load_config()
     assert cfg.searxng is not None
+
+
+def test_dotenv_loads_env_file(tmp_path, monkeypatch):
+    """settings.py should load .env via python-dotenv."""
+    env_file = tmp_path / ".env"
+    env_file.write_text("TEST_DOTENV_VAR=hello_from_dotenv\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("TEST_DOTENV_VAR", raising=False)
+    from dotenv import load_dotenv
+    load_dotenv(dotenv_path=env_file)
+    assert os.environ.get("TEST_DOTENV_VAR") == "hello_from_dotenv"

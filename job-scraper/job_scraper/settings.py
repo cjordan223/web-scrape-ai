@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 """Scrapy settings for job_scraper."""
 
 BOT_NAME = "job_scraper"
