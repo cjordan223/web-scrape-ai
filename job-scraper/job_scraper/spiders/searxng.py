@@ -27,6 +27,9 @@ class SearXNGSpider(scrapy.Spider):
         return spider
 
     def start_requests(self):
+        # Alternate time_range: even hours = "day" (fresh), odd = "week" (broader)
+        hour = datetime.now().hour
+        time_range = "day" if hour % 2 == 0 else "week"
         for query in self._queries:
             q_parts = []
             if query.board_site:
@@ -34,7 +37,7 @@ class SearXNGSpider(scrapy.Spider):
             q_parts.append(f'"{query.title_phrase}"')
             if query.suffix:
                 q_parts.append(query.suffix)
-            params = urlencode({"q": " ".join(q_parts), "format": "json"})
+            params = urlencode({"q": " ".join(q_parts), "format": "json", "time_range": time_range})
             yield scrapy.Request(url=f"{self._searxng_url}?{params}", callback=self.parse_results, meta={"query_phrase": query.title_phrase}, dont_filter=True, errback=self.errback_searxng)
 
     def parse_results(self, response):
@@ -64,6 +67,7 @@ class SearXNGSpider(scrapy.Spider):
         elif "greenhouse.io" in host: board = "greenhouse"
         elif "lever.co" in host: board = "lever"
         elif "usajobs.gov" in host: board = "usajobs"
+        elif "linkedin.com" in host: board = "linkedin"
         yield JobItem(url=response.url, title=response.meta["item_title"], company=company, board=board, snippet=response.meta["item_snippet"], query=response.meta["item_query"], jd_html=response.text, source=self.name, created_at=datetime.now(timezone.utc).isoformat())
 
     def errback_searxng(self, failure):
