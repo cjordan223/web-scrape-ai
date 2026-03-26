@@ -31,6 +31,26 @@ def test_searxng_optional():
     assert cfg.searxng is not None
 
 
+def test_title_keywords_loaded():
+    cfg = load_config()
+    assert len(cfg.hard_filters.title_keywords) > 0
+    assert "security" in cfg.hard_filters.title_keywords
+
+
+def test_remoteok_config_loaded():
+    cfg = load_config()
+    assert cfg.remoteok is not None
+    assert cfg.remoteok.enabled is True
+    assert len(cfg.remoteok.tag_filter) > 0
+
+
+def test_hn_hiring_config_loaded():
+    cfg = load_config()
+    assert cfg.hn_hiring is not None
+    assert cfg.hn_hiring.enabled is True
+    assert cfg.hn_hiring.max_comments > 0
+
+
 def test_dotenv_loads_env_file(tmp_path, monkeypatch):
     """settings.py should load .env via python-dotenv."""
     env_file = tmp_path / ".env"

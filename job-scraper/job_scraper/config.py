@@ -54,7 +54,18 @@ class HardFilterConfig(BaseModel):
         "clearance", "ts/sci", "ts-sci", "polygraph", "top secret",
         "secret clearance",
     ])
+    title_keywords: list[str] = Field(default_factory=list)
     min_salary_k: int = 70
+
+
+class RemoteOKConfig(BaseModel):
+    enabled: bool = True
+    tag_filter: list[str] = Field(default_factory=list)
+
+
+class HNHiringConfig(BaseModel):
+    enabled: bool = True
+    max_comments: int = 500
 
 
 class SearXNGQuery(BaseModel):
@@ -67,6 +78,8 @@ class ScraperConfig(BaseModel):
     boards: list[BoardTarget] = Field(default_factory=list)
     searxng: SearXNGConfig = Field(default_factory=SearXNGConfig)
     usajobs: USAJobsConfig = Field(default_factory=USAJobsConfig)
+    remoteok: RemoteOKConfig = Field(default_factory=RemoteOKConfig)
+    hn_hiring: HNHiringConfig = Field(default_factory=HNHiringConfig)
     hard_filters: HardFilterConfig = Field(default_factory=HardFilterConfig)
     queries: list[SearXNGQuery] = Field(default_factory=list)
     seen_ttl_days: int = 14
@@ -115,7 +128,7 @@ class WatcherConfig(BaseModel):
 
 
 class LLMReviewConfig(BaseModel):
-    """Stub — kept for backward compat with old llm_reviewer.py."""
+    """Legacy placeholder for deprecated llm_review config blocks."""
     pass
 
 
@@ -175,7 +188,20 @@ def load_config(path: str | Path | None = None) -> ScraperConfig:
         domain_blocklist=filter_raw.get("url_domain_blocklist", HardFilterConfig().domain_blocklist),
         title_blocklist=filter_raw.get("seniority_exclude", HardFilterConfig().title_blocklist),
         content_blocklist=filter_raw.get("content_blocklist", HardFilterConfig().content_blocklist),
+        title_keywords=filter_raw.get("title_keywords", []),
         min_salary_k=filter_raw.get("min_salary_k", 70),
+    )
+
+    remoteok_raw = raw.get("remoteok", {})
+    remoteok = RemoteOKConfig(
+        enabled=remoteok_raw.get("enabled", True),
+        tag_filter=remoteok_raw.get("tag_filter", []),
+    )
+
+    hn_hiring_raw = raw.get("hn_hiring", {})
+    hn_hiring = HNHiringConfig(
+        enabled=hn_hiring_raw.get("enabled", True),
+        max_comments=hn_hiring_raw.get("max_comments", 500),
     )
 
     pipeline_order = raw.get("pipeline_order", [
@@ -186,6 +212,8 @@ def load_config(path: str | Path | None = None) -> ScraperConfig:
         boards=boards,
         searxng=searxng,
         usajobs=usajobs,
+        remoteok=remoteok,
+        hn_hiring=hn_hiring,
         hard_filters=hard_filters,
         queries=queries,
         seen_ttl_days=filter_raw.get("seen_ttl_days", 14),

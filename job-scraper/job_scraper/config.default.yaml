@@ -516,3 +516,19 @@ queries:
   board_site: ''
   board: unknown
   suffix: remote
+remoteok:
+  enabled: true
+  tag_filter:
+    - security
+    - devops
+    - cloud
+    - infrastructure
+    - sre
+    - platform
+    - backend
+    - engineer
+    - ai
+    - ml
+hn_hiring:
+  enabled: true
+  max_comments: 500
