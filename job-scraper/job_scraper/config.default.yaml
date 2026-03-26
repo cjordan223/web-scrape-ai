@@ -516,6 +516,36 @@ queries:
   board_site: ''
   board: unknown
   suffix: remote
+- title_phrase: security engineer
+  board_site: linkedin.com/jobs/view
+  suffix: remote
+- title_phrase: platform engineer
+  board_site: linkedin.com/jobs/view
+  suffix: remote
+- title_phrase: cloud engineer
+  board_site: linkedin.com/jobs/view
+  suffix: remote
+- title_phrase: devsecops
+  board_site: linkedin.com/jobs/view
+  suffix: remote
+- title_phrase: detection engineer
+  board_site: linkedin.com/jobs/view
+  suffix: remote
+- title_phrase: infrastructure engineer
+  board_site: linkedin.com/jobs/view
+  suffix: remote
+- title_phrase: application security
+  board_site: linkedin.com/jobs/view
+  suffix: remote
+- title_phrase: AI engineer
+  board_site: linkedin.com/jobs/view
+  suffix: remote
+- title_phrase: site reliability engineer
+  board_site: linkedin.com/jobs/view
+  suffix: remote
+- title_phrase: devops engineer
+  board_site: linkedin.com/jobs/view
+  suffix: remote
 remoteok:
   enabled: true
   tag_filter:

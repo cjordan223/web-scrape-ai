@@ -51,6 +51,12 @@ def test_hn_hiring_config_loaded():
     assert cfg.hn_hiring.max_comments > 0
 
 
+def test_linkedin_queries_present():
+    cfg = load_config()
+    linkedin_queries = [q for q in cfg.queries if "linkedin.com" in q.board_site]
+    assert len(linkedin_queries) >= 10
+
+
 def test_dotenv_loads_env_file(tmp_path, monkeypatch):
     """settings.py should load .env via python-dotenv."""
     env_file = tmp_path / ".env"
