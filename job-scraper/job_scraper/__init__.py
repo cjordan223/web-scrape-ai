@@ -31,6 +31,7 @@ def scrape_all(*, verbose: bool = False, spiders: list[str] | None = None) -> di
     from .spiders.aggregator import AggregatorSpider
     from .spiders.generic import GenericSpider
     from .spiders.remoteok import RemoteOKSpider
+    from .spiders.hn_hiring import HNHiringSpider
 
     ALL_SPIDERS = {
         "ashby": AshbySpider,
@@ -41,6 +42,7 @@ def scrape_all(*, verbose: bool = False, spiders: list[str] | None = None) -> di
         "aggregator": AggregatorSpider,
         "generic": GenericSpider,
         "remoteok": RemoteOKSpider,
+        "hn_hiring": HNHiringSpider,
     }
 
     run_id = uuid.uuid4().hex[:12]
