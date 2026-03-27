@@ -120,8 +120,18 @@ export const api = {
         return data;
     },
 
-    getTailoringReady: async (limit?: number) => {
-        const { data } = await apiClient.get('/tailoring/ready', { params: { limit } });
+    getTailoringReady: async (limit?: number, params?: Record<string, any>) => {
+        const { data } = await apiClient.get('/tailoring/ready', { params: { limit, ...(params || {}) } });
+        return data;
+    },
+
+    setTailoringReadyBucket: async (jobIds: number[], bucket: 'backlog' | 'next' | 'later') => {
+        const { data } = await apiClient.post('/tailoring/ready/bucket', { job_ids: jobIds, bucket });
+        return data;
+    },
+
+    queueTailoringBucket: async (bucket: 'next' | 'later', payload?: { limit?: number; skip_analysis?: boolean }) => {
+        const { data } = await apiClient.post('/tailoring/ready/queue-bucket', { bucket, ...(payload || {}) });
         return data;
     },
 
@@ -157,6 +167,11 @@ export const api = {
 
     deletePackage: async (slug: string) => {
         const { data } = await apiClient.delete(`/packages/${slug}`);
+        return data;
+    },
+
+    rejectPackage: async (slug: string) => {
+        const { data } = await apiClient.post(`/packages/${slug}/reject`);
         return data;
     },
 
@@ -240,8 +255,13 @@ export const api = {
         return data;
     },
 
-    getQAPending: async (limit?: number) => {
-        const { data } = await apiClient.get('/tailoring/qa', { params: { limit } });
+    getQAPending: async (limit?: number, params?: Record<string, any>) => {
+        const { data } = await apiClient.get('/tailoring/qa', { params: { limit, ...(params || {}) } });
+        return data;
+    },
+
+    getLeads: async (limit?: number, params?: Record<string, any>) => {
+        const { data } = await apiClient.get('/leads', { params: { limit, ...(params || {}) } });
         return data;
     },
 
