@@ -23,6 +23,12 @@ def _ready_job_for_tailoring(job_id: int) -> tuple[dict | None, JSONResponse | N
             },
             409,
         )
+    jd = (job.get("jd_text") or job.get("approved_jd_text") or job.get("snippet") or "").strip()
+    if len(jd) < 10:
+        return None, JSONResponse(
+            {"ok": False, "error": f"Job {job_id} has no JD text — cannot tailor without a job description"},
+            422,
+        )
     return {
         "id": int(job["id"]),
         "title": job.get("title"),
@@ -87,30 +93,62 @@ def tailoring_runner_stop(payload: dict | None = Body(None)):
 
 
 def tailoring_ready_jobs(
-    limit: int = Query(200, ge=1, le=500),
+    limit: int = Query(200, ge=1, le=2000),
     max_age_hours: int | None = Query(None, ge=1, le=24 * 30),
+    board: str | None = Query(None),
+    source: str | None = Query(None),
+    search: str | None = Query(None),
+    bucket: str | None = Query(None),
 ):
     _sync_app_state()
-    items = _recent_jobs(limit=limit, max_age_hours=max_age_hours)
+    normalized_bucket = None
+    if bucket:
+        raw_bucket = bucket.strip().lower()
+        normalized_bucket = None if raw_bucket == "all" else _normalize_ready_bucket(raw_bucket)
+    items = _recent_jobs(
+        limit=limit,
+        max_age_hours=max_age_hours,
+        board=board,
+        source=source,
+        search=search,
+        bucket=bucket,
+    )
     conn = get_db()
     try:
-        clauses = [
-            "decision = 'qa_approved'",
-            "NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)",
-        ]
-        params: list = []
-        if max_age_hours is not None:
-            clauses.append("julianday(created_at) >= julianday('now', ?)")
-            params.append(f"-{int(max_age_hours)} hours")
+        clauses, params, _available = _ready_job_query_parts(
+            conn,
+            max_age_hours=max_age_hours,
+            board=board,
+            source=source,
+            search=search,
+        )
+        if normalized_bucket == _DEFAULT_READY_BUCKET:
+            clauses.append("NOT EXISTS (SELECT 1 FROM tailoring_ready_bucket_state b WHERE b.job_id = results.id)")
+        elif normalized_bucket in _READY_BUCKET_VALUES and normalized_bucket != _DEFAULT_READY_BUCKET:
+            clauses.append("EXISTS (SELECT 1 FROM tailoring_ready_bucket_state b WHERE b.job_id = results.id AND b.bucket = ?)")
+            params.append(normalized_bucket)
         where = "WHERE " + " AND ".join(clauses)
         total = conn.execute(f"SELECT COUNT(*) FROM results {where}", tuple(params)).fetchone()[0]
+        count_rows = conn.execute(
+            f"""
+            SELECT COALESCE(b.bucket, '{_DEFAULT_READY_BUCKET}') AS bucket, COUNT(*) AS count
+            FROM results
+            LEFT JOIN tailoring_ready_bucket_state b ON b.job_id = results.id
+            {where}
+            GROUP BY COALESCE(b.bucket, '{_DEFAULT_READY_BUCKET}')
+            """,
+            tuple(params),
+        ).fetchall()
+        bucket_counts = {bucket_name: 0 for bucket_name in _READY_BUCKET_VALUES}
+        for row in count_rows:
+            bucket_counts[_normalize_ready_bucket(row["bucket"])] = int(row["count"])
     finally:
         conn.close()
-    return {"items": items, "count": len(items), "total": total}
+    return {"items": items, "count": len(items), "total": total, "bucket_counts": bucket_counts}
 
 
 def tailoring_recent_jobs(
-    limit: int = Query(200, ge=1, le=500),
+    limit: int = Query(200, ge=1, le=2000),
     max_age_hours: int | None = Query(None, ge=1, le=24 * 30),
 ):
     _sync_app_state()
@@ -295,6 +333,8 @@ def tailoring_queue_add(payload: dict = Body(...)):
         queue_items.append({"job": job, "skip_analysis": bool(item.get("skip_analysis", False))})
 
     added, duplicates = _enqueue_tailoring_queue_items(queue_items)
+    if added:
+        _set_ready_bucket_for_job_ids([int(item["job_id"]) for item in added], _DEFAULT_READY_BUCKET)
     if added and _app._TAILORING_RUNNER.get("proc") is None:
         _app._process_tailoring_queue()
 
@@ -303,6 +343,77 @@ def tailoring_queue_add(payload: dict = Body(...)):
         "queued": len(added),
         "duplicates": duplicates,
         "items": added,
+        "runner": _tailoring_runner_snapshot(),
+    }
+
+
+def tailoring_ready_bucket_update(payload: dict = Body(...)):
+    _sync_app_state()
+    job_ids = payload.get("job_ids", [])
+    bucket = _normalize_ready_bucket(payload.get("bucket"))
+    if not isinstance(job_ids, list) or not job_ids:
+        return JSONResponse({"ok": False, "error": "job_ids must be a non-empty array"}, 400)
+
+    valid_job_ids: list[int] = []
+    for raw_job_id in job_ids:
+        if not isinstance(raw_job_id, int):
+            return JSONResponse({"ok": False, "error": f"Invalid job_id: {raw_job_id}"}, 400)
+        job = _get_job_context(raw_job_id)
+        if not job or not _job_is_qa_ready(job.get("decision")):
+            return JSONResponse(
+                {"ok": False, "error": f"Job {raw_job_id} is not ready for tailoring"},
+                409,
+            )
+        valid_job_ids.append(raw_job_id)
+
+    updated = _set_ready_bucket_for_job_ids(valid_job_ids, bucket)
+    return {"ok": True, "updated": updated, "bucket": bucket, "job_ids": valid_job_ids}
+
+
+def tailoring_queue_bucket(payload: dict = Body(...)):
+    _sync_app_state()
+    bucket = _normalize_ready_bucket(payload.get("bucket"))
+    if bucket == _DEFAULT_READY_BUCKET:
+        return JSONResponse({"ok": False, "error": "bucket must be one of: next, later"}, 400)
+    limit = payload.get("limit", 200)
+    try:
+        limit = max(1, min(int(limit), 2000))
+    except (TypeError, ValueError):
+        return JSONResponse({"ok": False, "error": "limit must be an integer"}, 400)
+    skip_analysis = bool(payload.get("skip_analysis", False))
+
+    ready_items = _recent_jobs(limit=limit, bucket=bucket)
+    queue_items = []
+    for item in ready_items:
+        queue_state = ((item.get("queue_item") or {}).get("status") or "").strip().lower()
+        if queue_state in {"queued", "running"}:
+            continue
+        queue_items.append(
+            {
+                "job": {
+                    "id": int(item["id"]),
+                    "title": item.get("title"),
+                    "created_at": item.get("created_at"),
+                    "url": item.get("url"),
+                },
+                "skip_analysis": skip_analysis,
+            }
+        )
+
+    if not queue_items:
+        return {"ok": True, "queued": 0, "duplicates": [], "items": [], "bucket": bucket, "runner": _tailoring_runner_snapshot()}
+
+    added, duplicates = _enqueue_tailoring_queue_items(queue_items)
+    if added:
+        _set_ready_bucket_for_job_ids([int(item["job_id"]) for item in added], _DEFAULT_READY_BUCKET)
+    if added and _app._TAILORING_RUNNER.get("proc") is None:
+        _app._process_tailoring_queue()
+    return {
+        "ok": True,
+        "queued": len(added),
+        "duplicates": duplicates,
+        "items": added,
+        "bucket": bucket,
         "runner": _tailoring_runner_snapshot(),
     }
 
@@ -511,12 +622,12 @@ def package_delete(slug: str):
         import shutil
         shutil.rmtree(d)
 
-    # Roll back the job decision to qa_approved so it can be re-tailored
+    # Roll back the job status to qa_approved so it can be re-tailored
     if job_id:
-        conn = get_db()
+        conn = get_db_write()
         try:
             conn.execute(
-                "UPDATE results SET decision = 'qa_approved' WHERE id = ?",
+                "UPDATE jobs SET status = 'qa_approved' WHERE id = ?",
                 (job_id,),
             )
             conn.commit()
@@ -524,6 +635,39 @@ def package_delete(slug: str):
             conn.close()
 
     return {"ok": True, "slug": slug}
+
+
+def package_reject(slug: str):
+    """Delete a tailoring package and reject the job so it never resurfaces."""
+    _sync_app_state()
+    d = _safe_tailoring_slug(slug)
+    job_id = None
+
+    if d is not None:
+        summary = _tailoring_summary(d)
+        job_id = (summary.get("meta") or {}).get("job_id")
+        import shutil
+        shutil.rmtree(d)
+
+    if job_id:
+        conn = get_db_write()
+        try:
+            from services.audit import log_state_change
+            row = conn.execute("SELECT status, url FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            if row:
+                old = row["status"]
+                conn.execute(
+                    "UPDATE jobs SET status = 'qa_rejected' WHERE id = ?",
+                    (job_id,),
+                )
+                log_state_change(conn, job_id=job_id, job_url=row["url"],
+                                 old_state=old, new_state="qa_rejected",
+                                 action="package_reject")
+            conn.commit()
+        finally:
+            conn.close()
+
+    return {"ok": True, "slug": slug, "job_id": job_id}
 
 
 def _package_regen_env() -> dict[str, str]:
@@ -1291,7 +1435,7 @@ _JD_HEADING_MARKERS = [
 
 def _ensure_results_approved_jd_column(conn: sqlite3.Connection) -> None:
     if not _app._results_has_column(conn, "approved_jd_text"):
-        conn.execute("ALTER TABLE jobs ADD COLUMN approved_jd_text TEXT")
+        conn.execute("ALTER TABLE results ADD COLUMN approved_jd_text TEXT")
 
 
 def _strip_llm_fences(raw: str) -> str:
@@ -1464,22 +1608,137 @@ def _polish_job_description(
         return heuristic_summary, heuristic_text, False
 
 
-def tailoring_qa_list(limit: int = Query(200, ge=1, le=500)):
+def tailoring_qa_list(
+    limit: int = Query(200, ge=1, le=2000),
+    board: str | None = Query(None),
+    source: str | None = Query(None),
+    search: str | None = Query(None),
+):
     _sync_app_state()
+    board = board if isinstance(board, str) else None
+    source = source if isinstance(source, str) else None
+    search = search if isinstance(search, str) else None
     conn = get_db()
     try:
-        total = conn.execute(
-            "SELECT COUNT(*) FROM results WHERE decision = 'qa_pending' "
-            "AND NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)"
-        ).fetchone()[0]
+        available = {
+            "company": _results_has_column(conn, "company"),
+            "source": _results_has_column(conn, "source"),
+            "location": _results_has_column(conn, "location"),
+            "salary_k": _results_has_column(conn, "salary_k"),
+        }
+        clauses = [
+            "decision = 'qa_pending'",
+            "NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)",
+        ]
+        params: list[object] = []
+        if board:
+            clauses.append("LOWER(COALESCE(board, '')) = ?")
+            params.append(board.strip().lower())
+        if source and available["source"]:
+            normalized_source = source.strip().lower()
+            if normalized_source == "manual_ingest":
+                clauses.append("LOWER(COALESCE(source, '')) IN ('manual', 'manual_ingest', 'manual-ingest')")
+            elif normalized_source == "mobile_ingest":
+                clauses.append("LOWER(COALESCE(source, '')) IN ('mobile', 'mobile_ingest', 'mobile-ingest')")
+            elif normalized_source == "scrape":
+                clauses.append("(TRIM(COALESCE(source, '')) = '' OR LOWER(COALESCE(source, '')) NOT IN ('manual', 'manual_ingest', 'manual-ingest', 'mobile', 'mobile_ingest', 'mobile-ingest'))")
+            else:
+                clauses.append("LOWER(COALESCE(source, '')) = ?")
+                params.append(normalized_source)
+        if search:
+            query = f"%{search.strip()}%"
+            search_fields = [
+                "COALESCE(title, '')",
+                "COALESCE(snippet, '')",
+                "COALESCE(url, '')",
+                "COALESCE(board, '')",
+                "COALESCE(seniority, '')",
+            ]
+            if available["company"]:
+                search_fields.append("COALESCE(company, '')")
+            if available["location"]:
+                search_fields.append("COALESCE(location, '')")
+            clauses.append("(" + " OR ".join(f"{field} LIKE ?" for field in search_fields) + ")")
+            params.extend([query] * len(search_fields))
+        where = "WHERE " + " AND ".join(clauses)
+        total = conn.execute(f"SELECT COUNT(*) FROM results {where}", tuple(params)).fetchone()[0]
+        select_cols = [
+            "id",
+            "title",
+            "url",
+            "snippet",
+            "board",
+            "seniority",
+            "created_at",
+            "company" if available["company"] else "NULL AS company",
+            "source" if available["source"] else "NULL AS source",
+            "location" if available["location"] else "NULL AS location",
+            "salary_k" if available["salary_k"] else "NULL AS salary_k",
+        ]
+        query_params = [*params, max(1, min(int(limit), 2000))]
         rows = conn.execute(
-            "SELECT id, title, url, snippet, board, seniority, created_at "
-            "FROM results WHERE decision = 'qa_pending' "
-            "AND NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id) "
+            f"SELECT {', '.join(select_cols)} "
+            f"FROM results {where} "
             "ORDER BY id DESC LIMIT ?",
-            (limit,),
+            tuple(query_params),
         ).fetchall()
         items = [dict(r) for r in rows]
+        return {"items": items, "count": len(items), "total": total}
+    finally:
+        conn.close()
+
+
+def leads_list(
+    limit: int = Query(200, ge=1, le=2000),
+    search: str | None = Query(None),
+):
+    _sync_app_state()
+    search = search if isinstance(search, str) else None
+    conn = get_db()
+    try:
+        available = {
+            "company": _results_has_column(conn, "company"),
+            "location": _results_has_column(conn, "location"),
+        }
+        clauses = ["decision = 'lead'"]
+        params: list[object] = []
+        if search:
+            q = f"%{search.strip()}%"
+            search_fields = [
+                "COALESCE(title, '')",
+                "COALESCE(url, '')",
+            ]
+            if available["company"]:
+                search_fields.append("COALESCE(company, '')")
+            if available["location"]:
+                search_fields.append("COALESCE(location, '')")
+            clauses.append("(" + " OR ".join(f"{field} LIKE ?" for field in search_fields) + ")")
+            params.extend([q] * len(search_fields))
+        where = "WHERE " + " AND ".join(clauses)
+        total = conn.execute(f"SELECT COUNT(*) FROM results {where}", tuple(params)).fetchone()[0]
+        select_cols = [
+            "id",
+            "title",
+            "url",
+            "board",
+            "created_at",
+            "jd_text",
+            "company" if available["company"] else "NULL AS company",
+            "location" if available["location"] else "NULL AS location",
+        ]
+        query_params = [*params, max(1, min(int(limit), 2000))]
+        rows = conn.execute(
+            f"SELECT {', '.join(select_cols)} "
+            f"FROM results {where} "
+            "ORDER BY id DESC LIMIT ?",
+            tuple(query_params),
+        ).fetchall()
+        items = []
+        for r in rows:
+            d = dict(r)
+            jd = d.pop("jd_text", None) or ""
+            d["snippet"] = jd[:300].strip()
+            items.append(d)
         return {"items": items, "count": len(items), "total": total}
     finally:
         conn.close()
@@ -1520,6 +1779,9 @@ def tailoring_qa_approve(payload: dict = Body(...)):
                 continue
 
             source_text = row["jd_text"] or row["snippet"] or ""
+            if len(source_text.strip()) < 50:
+                results.append({"job_id": jid, "skipped": True, "reason": "No JD text (too short to tailor)"})
+                continue
             req_summary, approved_jd_text, polished_with_llm = _polish_job_description(
                 source_text,
                 row["title"],
@@ -1566,8 +1828,11 @@ def tailoring_qa_reject(payload: dict = Body(...)):
         for jid in job_ids:
             row = conn.execute("SELECT decision, url FROM results WHERE id=?", (jid,)).fetchone()
             old_decision = _normalize_decision(row["decision"]) if row else None
-            if not _job_is_qa_pending(old_decision):
+            if old_decision not in ("qa_pending", "qa_approved"):
                 continue
+            _cancel_tailoring_queue_items(job_ids=[int(jid)], statuses=("queued",), reason="Job rejected.")
+            _stop_active_tailoring_job([int(jid)], "Job rejected.")
+            _set_ready_bucket_for_job_ids_in_conn(conn, [int(jid)], _DEFAULT_READY_BUCKET)
             conn.execute("UPDATE jobs SET status='qa_rejected' WHERE id=?", (jid,))
             if row:
                 log_state_change(conn, job_id=jid, job_url=row["url"],
@@ -1582,25 +1847,30 @@ def tailoring_qa_reject(payload: dict = Body(...)):
 _QA_LLM_REVIEW_SYSTEM = (
     "You are a job-candidate fit reviewer. Given the candidate's profile and a job description, "
     "evaluate whether this is a strong enough match to warrant tailoring application materials.\n\n"
+    "CRITICAL CONTEXT — read the candidate profile carefully. This candidate is a FULL-STACK "
+    "software engineer with deep security expertise, NOT a security-only specialist. They have:\n"
+    "- A CS degree in software engineering and professional web development experience\n"
+    "- Daily, production-grade use of AI coding tools (Claude Code, Cursor, Copilot, Codex, Gemini CLI, etc.)\n"
+    "- Extensive React, TypeScript, JavaScript, Python, and Java experience across personal and professional projects\n"
+    "- Deep integration experience (SAML, REST APIs, multi-system dashboards, data connectors)\n"
+    "- A flagship project (Coraline) built on React + Python + AWS + Postgres\n"
+    "Security is a strength, not a boundary. Full-stack, backend, frontend, integration, platform, "
+    "AI-native, and DevOps roles are ALL within scope.\n\n"
     "Evaluation criteria:\n"
     "- Requirement coverage: do candidate skills map to core JD requirements?\n"
     "- Experience relevance: does baseline evidence support the role?\n"
     "- Seniority alignment: mid-to-senior IC roles are ideal (not staff/principal/management)\n"
-    "- Domain fit: security/cloud/devops/platform engineering — not pure frontend, data science, etc.\n"
+    "- Domain fit: software engineering, full-stack, backend, frontend, security, cloud, devops, "
+    "platform, AI/ML, integration, data engineering — reject ONLY if the role is entirely outside "
+    "software engineering (e.g., pure sales, marketing, hardware, mechanical engineering)\n"
     "- Red flags: onsite-only disguised as remote, clearance required, etc.\n\n"
     "Return ONLY valid JSON:\n"
     '{ "pass": true/false, "reason": "1-2 sentences", "confidence": 0.0-1.0, '
     '"top_matches": ["skill1", "skill2"], "gaps": ["gap1"] }'
 )
 
-# Cache for profile context (loaded once)
-_profile_context_cache: str | None = None
-
 def _load_profile_context() -> str:
-    global _profile_context_cache
-    if _profile_context_cache is not None:
-        return _profile_context_cache
-
+    """Load profile context fresh from disk each time (files are small, no cache needed)."""
     parts = []
     soul_path = TAILORING_ROOT / "soul.md"
     if soul_path.exists():
@@ -1624,8 +1894,7 @@ def _load_profile_context() -> str:
         except Exception:
             pass
 
-    _profile_context_cache = "\n\n".join(parts)
-    return _profile_context_cache
+    return "\n\n".join(parts)
 
 
 def _http_error_details(exc: Exception) -> str:
@@ -2064,6 +2333,7 @@ def tailoring_qa_reset_approved():
         if job_ids:
             _cancel_tailoring_queue_items(job_ids=job_ids, statuses=("queued",), reason="Returned to QA.")
             _stop_active_tailoring_job(job_ids, "Job returned to QA.")
+            _set_ready_bucket_for_job_ids_in_conn(conn, job_ids, _DEFAULT_READY_BUCKET)
         conn.execute("UPDATE jobs SET status='qa_pending' WHERE status='qa_approved'")
         for row in rows:
             log_state_change(conn, job_id=row["id"], job_url=row["url"],
@@ -2091,6 +2361,7 @@ def tailoring_qa_undo_approve(payload: dict = Body(...)):
         from services.audit import log_state_change
         _cancel_tailoring_queue_items(job_ids=[int(jid) for jid in job_ids], statuses=("queued",), reason="Returned to QA.")
         _stop_active_tailoring_job([int(jid) for jid in job_ids], "Job returned to QA.")
+        _set_ready_bucket_for_job_ids_in_conn(conn, [int(jid) for jid in job_ids], _DEFAULT_READY_BUCKET)
         reverted = 0
         for jid in job_ids:
             row = conn.execute(
@@ -2151,6 +2422,7 @@ def tailoring_qa_rollback(payload: dict = Body(...)):
         from services.audit import log_state_change
         _cancel_tailoring_queue_items(job_ids=[int(jid) for jid in job_ids], statuses=("queued",), reason="Returned to QA.")
         _stop_active_tailoring_job([int(jid) for jid in job_ids], "Job returned to QA.")
+        _set_ready_bucket_for_job_ids_in_conn(conn, [int(jid) for jid in job_ids], _DEFAULT_READY_BUCKET)
         rolled_back = 0
         for jid in job_ids:
             row = conn.execute(
@@ -2171,6 +2443,7 @@ def tailoring_qa_rollback(payload: dict = Body(...)):
         return {"ok": True, "rolled_back": rolled_back}
     finally:
         conn.close()
+
 
 
 def state_log(job_id: int | None = Query(None), limit: int = Query(50, ge=1, le=500)):
