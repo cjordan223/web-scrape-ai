@@ -32,6 +32,9 @@ class SQLitePipeline:
     def process_item(self, item, spider):
         job = dict(item)
         job["run_id"] = self._run_id
+        # Route HN Hiring jobs to 'lead' status (skip QA — thin JD content)
+        if job.get("source") == "hn_hiring" and job.get("status") != "rejected":
+            job["status"] = "lead"
         try:
             self._db.insert_job(job)
             if job.get("status") == "rejected":
