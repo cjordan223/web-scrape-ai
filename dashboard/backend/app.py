@@ -340,8 +340,9 @@ app = FastAPI(title="Job Scraper Dashboard")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # Recover MLX server state if one is already running on the default port.
-from services.mlx_manager import recover_on_startup
-recover_on_startup()
+if os.environ.get("JOBFORGE_MANAGE_MLX", "").strip() in ("1", "true", "yes"):
+    from services.mlx_manager import recover_on_startup
+    recover_on_startup()
 
 
 # ---------------------------------------------------------------------------

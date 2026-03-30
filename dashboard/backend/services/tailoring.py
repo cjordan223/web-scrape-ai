@@ -2880,6 +2880,11 @@ def llm_test_provider(payload: dict = Body(...)):
 # ---------------------------------------------------------------------------
 
 
+def _mlx_management_enabled() -> bool:
+    """Check if MLX lifecycle management is enabled (opt-in)."""
+    return os.environ.get("JOBFORGE_MANAGE_MLX", "").strip() in ("1", "true", "yes")
+
+
 def mlx_status():
     """Return MLX server status."""
     from services.mlx_manager import status
@@ -2887,7 +2892,12 @@ def mlx_status():
 
 
 def mlx_start(payload: dict = Body(...)):
-    """Start MLX server with a model. Restarts if already running."""
+    """Start MLX server with a model. Requires JOBFORGE_MANAGE_MLX=1."""
+    if not _mlx_management_enabled():
+        return JSONResponse(
+            {"ok": False, "error": "MLX lifecycle management is disabled. Set JOBFORGE_MANAGE_MLX=1 to enable."},
+            403,
+        )
     from services.mlx_manager import start
     model = payload.get("model")
     if not model:
@@ -2897,7 +2907,12 @@ def mlx_start(payload: dict = Body(...)):
 
 
 def mlx_stop():
-    """Stop the running MLX server."""
+    """Stop the running MLX server. Requires JOBFORGE_MANAGE_MLX=1."""
+    if not _mlx_management_enabled():
+        return JSONResponse(
+            {"ok": False, "error": "MLX lifecycle management is disabled. Set JOBFORGE_MANAGE_MLX=1 to enable."},
+            403,
+        )
     from services.mlx_manager import stop
     return stop()
 
@@ -2909,7 +2924,12 @@ def mlx_models():
 
 
 def mlx_pull(payload: dict = Body(...)):
-    """Start downloading a model from HuggingFace."""
+    """Start downloading a model from HuggingFace. Requires JOBFORGE_MANAGE_MLX=1."""
+    if not _mlx_management_enabled():
+        return JSONResponse(
+            {"ok": False, "error": "MLX lifecycle management is disabled. Set JOBFORGE_MANAGE_MLX=1 to enable."},
+            403,
+        )
     from services.mlx_manager import pull
     model_id = payload.get("model_id")
     if not model_id:
