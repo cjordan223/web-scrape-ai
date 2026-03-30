@@ -38,6 +38,11 @@ npm run dev
 # Frontend production build
 cd dashboard/web
 npm run build
+
+# Tests
+source venv/bin/activate
+python -m pytest dashboard/backend/tests/test_tailoring_api.py
+PYTHONPATH=tailoring python -m pytest tailoring/tests/test_ollama_tracing.py
 ```
 
 ## Dashboard Notes
@@ -46,18 +51,22 @@ npm run build
 - Frontend: `dashboard/web/`
 - Production UI route base: `http://localhost:8899`
 
-Hierarchical routes:
+Desktop routes (two domains — Pipeline and Ops):
 
-- `/home/overview`
-- `/scraping/intake/jobs`
-- `/scraping/intake/rejected`
-- `/scraping/runs`
-- `/scraping/quality/dedup`
-- `/scraping/quality/schedules`
-- `/tailoring/runs`
-- `/tailoring/outputs/packages`
-- `/ops/data/explorer`
-- `/ops/diagnostics/sql`
+- `/pipeline/editor` — pipeline editor (default landing page)
+- `/pipeline/ingest` — manual job ingest
+- `/pipeline/qa` — QA triage (approve/reject/LLM-review)
+- `/pipeline/leads` — HN Hiring leads browser
+- `/pipeline/ready` — ready jobs with queue controls
+- `/pipeline/packages` — tailoring output packages
+- `/pipeline/applied` — applied applications tracker
+
+- `/ops/inventory` — job inventory
+- `/ops/rejected/scraper` — scraper rejections
+- `/ops/rejected/qa` — QA rejections
+- `/ops/traces` — tailoring LLM trace inspector
+- `/ops/llm` — LLM provider management (keys, models)
+- `/ops/admin` — admin operations + DB explorer
 
 Mobile routes (auto-redirect on `width < 768`), tab bar order: Ingest, QA, Jobs, Docs:
 
@@ -70,45 +79,55 @@ Mobile routes (auto-redirect on `width < 768`), tab bar order: Ingest, QA, Jobs,
 
 - DB explorer filtering is server-side and column-aware (`/api/db/table/{name}`).
 - SQL query endpoint (`/api/db/query`) is SELECT-only.
-- Admin ops page (`/ops/diagnostics/sql`) fires destructive actions directly — no feature flag, no confirmation phrase.
+- Admin ops page (`/ops/admin`) fires destructive actions directly — no feature flag, no confirmation phrase.
+- Production DB: `jobs` table is the source of truth; `results` is a VIEW (`SELECT *, status AS decision FROM jobs`).
+- LLM provider registry in `providers.py`: ollama, mlx, gemini, groq, mistral, openrouter, together, custom. Legacy `"lmstudio"`/`"openai"` auto-migrate to `"ollama"` on load.
+- Applied applications snapshot artifacts into `applied_snapshots` table — survives package deletion.
+- LLM model selection is explicit — JobForge never auto-picks the first model from a shared endpoint. Tailoring will fail with a clear error if no model is configured.
 
 ### API endpoints by domain
 
 **Scraping** (`routers/scraping.py`):
 - `GET /api/overview`
-- `GET /api/jobs`, `GET /api/jobs/{id}`
-- `GET /api/rejected`, `GET /api/rejected/stats`, `POST /api/rejected/{id}/approve`
+- `GET /api/jobs`, `GET /api/jobs/{job_id}`
+- `GET /api/rejected`, `GET /api/rejected/stats`, `GET /api/rejected/{rejected_id}`, `POST /api/rejected/{rejected_id}/approve`
 - `GET /api/runs`, `GET /api/runs/active`, `GET /api/runs/{run_id}`, `GET /api/runs/{run_id}/logs`
 - `POST /api/runs/{run_id}/terminate`
 - `GET /api/dedup/stats`, `GET /api/growth`, `GET /api/filters/stats`
-- `POST /api/scrape/run`, `GET /api/scrape/runner/status`
+- `POST /api/scrape/run`, `GET /api/scrape/runner/status`, `GET /api/scrape/sources`
 
 **Tailoring** (`routers/tailoring.py`):
-- `GET /api/tailoring/runner/status` — includes `queue` field (list of pending jobs)
-- `GET /api/tailoring/jobs/recent`, `GET /api/tailoring/jobs/{job_id}`
+- `GET /api/tailoring/runner/status`, `POST /api/tailoring/runner/stop`
+- `GET /api/tailoring/ready`, `POST /api/tailoring/ready/bucket`, `POST /api/tailoring/ready/queue-bucket`
+- `GET /api/tailoring/rejected`
+- `GET /api/tailoring/jobs/recent`, `GET /api/tailoring/jobs/{job_id}`, `GET /api/tailoring/jobs/{job_id}/briefing`
 - `POST /api/tailoring/run`, `POST /api/tailoring/run-latest`
-- `POST /api/tailoring/queue` — enqueue jobs `{ jobs: [{job_id, skip_analysis?}...] }`; auto-starts first if idle
-- `GET /api/tailoring/queue` — current queue contents
-- `DELETE /api/tailoring/queue` — clear all queued jobs
-- `DELETE /api/tailoring/queue/{index}` — remove one queued job by index
-- `GET /api/tailoring/runs`, `GET /api/tailoring/runs/{slug}`, `GET /api/tailoring/runs/{slug}/trace`
-- `GET /api/tailoring/runs/{slug}/artifact/{name}`
-- `GET /api/packages`, `GET /api/packages/{slug}`
+- `POST /api/tailoring/queue`, `GET /api/tailoring/queue`, `DELETE /api/tailoring/queue`, `DELETE /api/tailoring/queue/{index}`
+- `GET /api/tailoring/runs`, `GET /api/tailoring/runs/{slug}`, `GET /api/tailoring/runs/{slug}/trace`, `GET /api/tailoring/runs/{slug}/artifact/{name}`
+- `GET /api/packages`, `GET /api/packages/{slug}`, `DELETE /api/packages/{slug}`
+- `POST /api/packages/{slug}/reject`, `POST /api/packages/{slug}/apply`
+- `POST /api/packages/{slug}/regenerate/cover`
 - `POST /api/packages/{slug}/latex/{doc_type}`, `POST /api/packages/{slug}/compile/{doc_type}`
 - `GET /api/packages/{slug}/diff-preview/{doc_type}`
-- `GET /api/llm/status`, `GET /api/llm/models`
-- `POST /api/llm/models/load`, `POST /api/llm/models/unload`
-- `POST /api/tailoring/ingest/fetch-url` — fetch JD text from URL (domain-specific extractors)
-- `POST /api/tailoring/ingest/parse` — LLM-extract structured fields from JD text (used by both URL and raw-text ingest flows)
-- `POST /api/tailoring/ingest/commit` — insert manual job into DB
-- `POST /api/tailoring/ingest/scan-mobile` — OCR screenshots in `tailoring/mobile-jd/` via macOS Vision, insert into DB
+- `POST /api/packages/{slug}/chat`, `GET /api/packages/{slug}/chat`, `DELETE /api/packages/{slug}/chat`
+- `GET /api/applied`, `GET /api/applied/{application_id}`, `POST /api/applied/{application_id}/tracking`, `GET /api/applied/{application_id}/artifact/{name}`
+- `GET /api/llm/status`, `GET /api/llm/models`, `POST /api/llm/models/load`, `POST /api/llm/models/unload`
+- `GET /api/llm/providers`, `POST /api/llm/providers/key`, `POST /api/llm/providers/activate`, `POST /api/llm/providers/test`
+- `POST /api/tailoring/ingest/fetch-url`, `POST /api/tailoring/ingest/parse`, `POST /api/tailoring/ingest/commit`, `POST /api/tailoring/ingest/scan-mobile`
+- `GET /api/tailoring/qa`, `POST /api/tailoring/qa/approve`, `POST /api/tailoring/qa/reject`, `POST /api/tailoring/qa/permanently-reject`
+- `GET /api/tailoring/qa/llm-review`, `POST /api/tailoring/qa/llm-review`, `DELETE /api/tailoring/qa/llm-review`
+- `POST /api/tailoring/qa/reset-approved`, `POST /api/tailoring/qa/undo-approve`, `POST /api/tailoring/qa/undo-reject`, `POST /api/tailoring/qa/rollback`
+- `GET /api/leads`, `GET /api/state-log`
 
 **Ops** (`routers/ops.py`):
 - `GET /api/db/schema`, `GET /api/db/tables`, `GET /api/db/table/{name}`, `GET /api/db/query`, `GET /api/db/size`
 - `GET /api/db/admin/status`, `POST /api/db/admin/action` (legacy, requires `DASHBOARD_ENABLE_DB_ADMIN=1`)
 - `GET /api/ops/status`, `POST /api/ops/action` (current unified ops — no flag required)
-- `GET /api/schedules`, `GET /api/schedules/{label}/log`
 - `GET /api/runtime-controls`, `POST /api/runtime-controls`
+- `POST /api/tailoring/archive`, `GET /api/tailoring/archives`, `GET /api/tailoring/archives/{archive_id}`
+- `GET /api/ops/pipeline/packages`, `GET /api/ops/pipeline/trace/{archive_id}/{slug}`
+- `GET /api/scraper/config`, `POST /api/scraper/config`
+- `GET /api/scraper/pipeline/stats`
 
 ## Scraper Package Layout (high-level)
 
@@ -127,8 +146,11 @@ Mobile routes (auto-redirect on `width < 768`), tab bar order: Ingest, QA, Jobs,
 - `tailor/validator.py` — hard gates
 - `tailor/compiler.py` — pdflatex wrapper
 - `tailor/tracing.py` — per-call trace logging
-- `tailor/ollama.py` — LLM client; auto-discovers loaded model from `/v1/models` (override via `TAILOR_LMSTUDIO_MODEL`)
+- `tailor/ollama.py` — LLM client with file-lock mutex; requires explicit model via `TAILOR_LLM_MODEL` (no auto-discovery)
+- `tailor/grounding.py` — structured grounding contract for tailoring
+- `tailor/persona.py` — persona memory hierarchy (load, score, inject per stage)
 - `tailor/selector.py` — interactive job selection for CLI
+- `tailor/config.py` — paths, model config, constants
 
 ## Environment
 
@@ -136,4 +158,5 @@ Mobile routes (auto-redirect on `width < 768`), tab bar order: Ingest, QA, Jobs,
 - Ports:
   - SearXNG `8888`
   - Dashboard `8899`
-  - LLM endpoint `1234`
+  - LLM endpoint `11434` (Ollama)
+- `JOBFORGE_MANAGE_MLX=1` — opt-in to MLX server lifecycle management (start/stop/pull) from the dashboard. Without this, MLX endpoints are read-only.
