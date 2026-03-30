@@ -222,9 +222,7 @@ export default function LlmProvidersView() {
   const ollamaOnline = ollamaStatus?.state === 'online';
   const activeModelLabel = activeProvider === 'mlx'
     ? (mlxStatus.model || 'none')
-    : activeProvider === 'ollama'
-      ? (ollamaSelectedModel !== 'default' ? ollamaSelectedModel : ollamaModels[0]?.id || 'none')
-      : '';
+    : ollamaSelectedModel || 'not configured';
 
   return (
     <div className="view-container" style={{ padding: '1.5rem', maxWidth: 900 }}>
@@ -305,13 +303,20 @@ export default function LlmProvidersView() {
                     onChange={e => handleOllamaModelSelect(e.target.value)}
                     style={selectStyle}
                   >
-                    {ollamaModels.length === 0 && <option value="">No models available</option>}
+                    <option value="">Select a model...</option>
                     {ollamaModels.map(m => (
                       <option key={m.id} value={m.id}>{m.id}</option>
                     ))}
                   </select>
                 )}
               </div>
+
+              {/* MLX management disabled hint */}
+              {isMlx && !mlxSwitching && !mlxStatus.running && testResults[p.id]?.error?.includes('lifecycle management is disabled') && (
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.75rem', fontStyle: 'italic' }}>
+                  MLX management disabled. Set JOBFORGE_MANAGE_MLX=1 to enable start/stop/pull.
+                </div>
+              )}
 
               {/* MLX pull model */}
               {isMlx && (
