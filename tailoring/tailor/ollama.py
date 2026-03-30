@@ -36,7 +36,7 @@ def _ollama_lock():
                 fd.close()
                 raise TimeoutError(
                     f"Could not acquire LLM lock after {cfg.LOCK_TIMEOUT}s — "
-                    "is the scraper's LLM review running?"
+                    "another tailoring or package-chat LLM task may still be running."
                 )
             time.sleep(2)
     try:
@@ -48,26 +48,37 @@ def _ollama_lock():
 
 _MODEL_CACHE = None
 
+
+def _auth_headers() -> dict[str, str]:
+    """Build auth headers from config. Empty dict when no key is set."""
+    if cfg.LLM_API_KEY:
+        return {"Authorization": f"Bearer {cfg.LLM_API_KEY}"}
+    return {}
+
+
+def _use_file_lock() -> bool:
+    """Only use file lock for local providers (single GPU)."""
+    return cfg.LLM_PROVIDER in ("ollama", "mlx", "")
+
+
 def get_loaded_model() -> str:
-    """Resolve model: explicit override, else first model from /v1/models."""
+    """Resolve model: explicit override required. Raises if unset.
+
+    Will NOT auto-pick from /v1/models — on a shared inference endpoint,
+    the first model could be an embedding model or belong to another app.
+    """
     global _MODEL_CACHE
     if _MODEL_CACHE:
         return _MODEL_CACHE
-    if cfg.OLLAMA_MODEL and cfg.OLLAMA_MODEL != "default":
-        _MODEL_CACHE = cfg.OLLAMA_MODEL
-        return _MODEL_CACHE
-    try:
-        resp = requests.get(cfg.OLLAMA_MODELS_URL, timeout=10)
-        resp.raise_for_status()
-        models = resp.json().get("data", [])
-        if not models:
-            return cfg.OLLAMA_MODEL
-        # Pick first available model from the server when no explicit override is set.
-        _MODEL_CACHE = models[0]["id"]
-        return _MODEL_CACHE
-    except Exception as e:
-        logger.warning(f"Could not fetch models from {cfg.OLLAMA_MODELS_URL}: {e}")
-        return cfg.OLLAMA_MODEL
+    model = cfg.OLLAMA_MODEL
+    if not model or model == "default":
+        raise RuntimeError(
+            "No model configured for tailoring. "
+            "Set TAILOR_LLM_MODEL env var or select a model in the dashboard "
+            "(Settings > LLM Providers)."
+        )
+    _MODEL_CACHE = model
+    return _MODEL_CACHE
 
 
 def chat(
@@ -83,10 +94,6 @@ def chat(
     """Send a chat completion to the LLM with lock protection. Returns raw content string."""
     model_id = model or get_loaded_model()
     effective_user_prompt = user_prompt
-    # Qwen reasoning-capable models often emit long chain-of-thought unless disabled.
-    # Use /no_think control token so structured outputs remain parseable.
-    if "qwen" in model_id.lower() and "/no_think" not in effective_user_prompt:
-        effective_user_prompt = f"{effective_user_prompt}\n\n/no_think"
     call_id = str(uuid.uuid4())
     started_monotonic = time.monotonic()
     started_at = utc_now_iso()
@@ -107,43 +114,81 @@ def chat(
             }
         )
 
-    with _ollama_lock():
+    lock = _ollama_lock() if _use_file_lock() else contextmanager(lambda: (yield))()
+    with lock:
         logger.info("LLM call starting (model=%s, max_tokens=%d)", model_id, max_tokens)
+        endpoint = cfg.OLLAMA_URL  # default; overridden below for Ollama native
         try:
-            payload: dict[str, Any] = {
-                "model": model_id,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": effective_user_prompt},
-                ],
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-            }
-            if json_mode:
-                # LM Studio/OpenAI-compatible structured output mode.
-                payload["response_format"] = {
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "generic_object",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": True,
-                        },
+            is_ollama = cfg.LLM_PROVIDER in ("ollama", "")
+            hdrs = _auth_headers()
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": effective_user_prompt},
+            ]
+
+            if is_ollama:
+                # Use Ollama native /api/chat — the OpenAI-compat endpoint
+                # silently drops thinking model content (Qwen 3 returns empty).
+                base = cfg.OLLAMA_URL.split("/v1/")[0].rstrip("/")
+                endpoint = f"{base}/api/chat"
+                # Qwen 3 thinking models generate chain-of-thought even with
+                # think=false (it just leaks into content instead of a separate
+                # field). The thinking consumes num_predict budget, so we
+                # multiply by 4x to leave room for the actual response.
+                # strip_think_tags() removes the thinking text after.
+                thinking_headroom = max_tokens * 4
+                payload: dict[str, Any] = {
+                    "model": model_id,
+                    "messages": messages,
+                    "stream": False,
+                    "think": False,
+                    "options": {
+                        "temperature": temperature,
+                        "num_predict": thinking_headroom,
                     },
                 }
-            resp = requests.post(cfg.OLLAMA_URL, json=payload, timeout=cfg.OLLAMA_TIMEOUT)
-            if json_mode and resp.status_code == 400:
-                # Some OpenAI-compatible servers/models reject response_format.
-                # Retry once without it so model experiments remain portable.
-                payload.pop("response_format", None)
-                resp = requests.post(cfg.OLLAMA_URL, json=payload, timeout=cfg.OLLAMA_TIMEOUT)
+                if json_mode:
+                    payload["format"] = "json"
+                resp = requests.post(endpoint, json=payload, headers=hdrs, timeout=cfg.OLLAMA_TIMEOUT)
+            else:
+                # OpenAI-compatible endpoint for cloud providers
+                endpoint = cfg.OLLAMA_URL
+                payload = {
+                    "model": model_id,
+                    "messages": messages,
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
+                }
+                if json_mode:
+                    payload["response_format"] = {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "generic_object",
+                            "schema": {
+                                "type": "object",
+                                "additionalProperties": True,
+                            },
+                        },
+                    }
+                resp = requests.post(endpoint, json=payload, headers=hdrs, timeout=cfg.OLLAMA_TIMEOUT)
+                if json_mode and resp.status_code == 400:
+                    payload.pop("response_format", None)
+                    resp = requests.post(endpoint, json=payload, headers=hdrs, timeout=cfg.OLLAMA_TIMEOUT)
+
             if resp.status_code >= 400:
                 body = resp.text[:600].replace("\n", " ")
                 raise HTTPError(
-                    f"{resp.status_code} {resp.reason} from {cfg.OLLAMA_URL}; body={body}",
+                    f"{resp.status_code} {resp.reason} from {endpoint}; body={body}",
                     response=resp,
                 )
-            content = resp.json()["choices"][0]["message"]["content"]
+
+            if is_ollama:
+                content = resp.json()["message"].get("content") or ""
+                # Strip <think>...</think> blocks that leak into content
+                # when think=false on Qwen 3 thinking models.
+                content = strip_think_tags(content)
+            else:
+                content = resp.json()["choices"][0]["message"].get("content") or ""
             logger.info("LLM call complete (%d chars returned)", len(content))
 
             if trace_recorder is not None:
@@ -156,11 +201,11 @@ def chat(
                         "ended_at": ended_at,
                         "duration_ms": int((time.monotonic() - started_monotonic) * 1000),
                         "model": model_id,
-                        "endpoint": cfg.OLLAMA_URL,
+                        "endpoint": endpoint,
                         "max_tokens": max_tokens,
                         "temperature": temperature,
                         "system_prompt": system_prompt,
-                "user_prompt": user_prompt,
+                        "user_prompt": user_prompt,
                         "raw_response": content,
                         "response_chars": len(content),
                         "response_parse_kind": (trace or {}).get("response_parse_kind", "raw"),
@@ -180,7 +225,7 @@ def chat(
                         "ended_at": ended_at,
                         "duration_ms": int((time.monotonic() - started_monotonic) * 1000),
                         "model": model_id,
-                        "endpoint": cfg.OLLAMA_URL,
+                        "endpoint": endpoint,
                         "max_tokens": max_tokens,
                         "temperature": temperature,
                         "system_prompt": system_prompt,
@@ -196,8 +241,22 @@ def chat(
 
 
 def strip_think_tags(text: str) -> str:
-    """Remove Qwen3 <think>...</think> reasoning blocks."""
-    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+    """Remove Qwen3 <think>...</think> reasoning blocks.
+
+    Handles three cases:
+    - Paired tags: <think>...</think>
+    - Orphan closing tag (Ollama think=false): everything before </think>
+    - Orphan opening tag: <think> to end of text
+    """
+    # Paired tags first
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    # Orphan </think> — strip everything up to and including it
+    if "</think>" in text:
+        text = text.split("</think>", 1)[1]
+    # Orphan <think> — strip from tag to end
+    if "<think>" in text:
+        text = text.split("<think>", 1)[0]
+    return text.strip()
 
 
 def _sanitize_json_text(text: str) -> str:
