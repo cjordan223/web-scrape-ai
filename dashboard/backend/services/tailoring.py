@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import io
+import zipfile
+
+from fastapi.responses import StreamingResponse
+
 # Reuse shared backend state/helpers from app module.
 import app as _app
 globals().update({k: v for k, v in _app.__dict__.items() if not k.startswith("__")})
@@ -97,6 +102,8 @@ def tailoring_ready_jobs(
     max_age_hours: int | None = Query(None, ge=1, le=24 * 30),
     board: str | None = Query(None),
     source: str | None = Query(None),
+    seniority: str | None = Query(None),
+    location: str | None = Query(None),
     search: str | None = Query(None),
     bucket: str | None = Query(None),
 ):
@@ -110,6 +117,8 @@ def tailoring_ready_jobs(
         max_age_hours=max_age_hours,
         board=board,
         source=source,
+        seniority=seniority,
+        location=location,
         search=search,
         bucket=bucket,
     )
@@ -120,6 +129,8 @@ def tailoring_ready_jobs(
             max_age_hours=max_age_hours,
             board=board,
             source=source,
+            seniority=seniority,
+            location=location,
             search=search,
         )
         if normalized_bucket == _DEFAULT_READY_BUCKET:
@@ -610,6 +621,33 @@ def package_detail(slug: str):
     return _package_detail_payload(d)
 
 
+def package_download_zip(slug: str):
+    _sync_app_state()
+    d = _safe_tailoring_slug(slug)
+    if d is None:
+        return JSONResponse({"error": "Package not found"}, 404)
+
+    pdf_names = [
+        "Conner_Jordan_Resume.pdf",
+        "Conner_Jordan_Cover_Letter.pdf",
+    ]
+    available = [name for name in pdf_names if (d / name).exists()]
+    if not available:
+        return JSONResponse({"error": "No package PDFs found"}, 404)
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for name in available:
+            zf.write(d / name, arcname=name)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{slug}.zip"'},
+    )
+
+
 def package_delete(slug: str):
     """Delete a tailoring package directory. Rolls back the job to qa_approved."""
     _sync_app_state()
@@ -670,15 +708,68 @@ def package_reject(slug: str):
     return {"ok": True, "slug": slug, "job_id": job_id}
 
 
+def package_permanently_reject(slug: str):
+    """Delete a tailoring package and permanently reject the job so it never resurfaces."""
+    _sync_app_state()
+    d = _safe_tailoring_slug(slug)
+    job_id = None
+
+    if d is not None:
+        summary = _tailoring_summary(d)
+        job_id = (summary.get("meta") or {}).get("job_id")
+        import shutil
+        shutil.rmtree(d)
+
+    if job_id:
+        conn = get_db_write()
+        try:
+            from datetime import datetime, timezone
+            from services.audit import log_state_change
+
+            row = conn.execute("SELECT status, url FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            if row:
+                old = row["status"]
+                if _normalize_decision(old) != "permanently_rejected":
+                    _cancel_tailoring_queue_items(job_ids=[int(job_id)], statuses=("queued",), reason="Job permanently rejected from package view.")
+                    _stop_active_tailoring_job([int(job_id)], "Job permanently rejected from package view.")
+                    _set_ready_bucket_for_job_ids_in_conn(conn, [int(job_id)], _DEFAULT_READY_BUCKET)
+                    conn.execute(
+                        "UPDATE jobs SET status = 'permanently_rejected' WHERE id = ?",
+                        (job_id,),
+                    )
+                    now = datetime.now(timezone.utc).isoformat()
+                    conn.execute(
+                        "INSERT INTO seen_urls (url, first_seen, last_seen, permanently_rejected) "
+                        "VALUES (?, ?, ?, 1) "
+                        "ON CONFLICT(url) DO UPDATE SET permanently_rejected = 1, last_seen = ?",
+                        (row["url"], now, now, now),
+                    )
+                    log_state_change(
+                        conn,
+                        job_id=job_id,
+                        job_url=row["url"],
+                        old_state=old,
+                        new_state="permanently_rejected",
+                        action="package_permanently_reject",
+                    )
+            conn.commit()
+        finally:
+            conn.close()
+
+    return {"ok": True, "slug": slug, "job_id": job_id}
+
+
 def _package_regen_env() -> dict[str, str]:
     llm_runtime = _resolve_llm_runtime()
     env = os.environ.copy()
-    env["TAILOR_LMSTUDIO_URL"] = llm_runtime["chat_url"]
-    env["TAILOR_LMSTUDIO_MODELS_URL"] = llm_runtime["models_url"]
-    env["TAILOR_LMSTUDIO_MODEL"] = llm_runtime["selected_model"]
+    env["TAILOR_LLM_URL"] = llm_runtime["chat_url"]
+    env["TAILOR_LLM_MODELS_URL"] = llm_runtime["models_url"]
+    env["TAILOR_LLM_MODEL"] = llm_runtime["selected_model"]
     env["TAILOR_OLLAMA_URL"] = llm_runtime["chat_url"]
     env["TAILOR_OLLAMA_MODELS_URL"] = llm_runtime["models_url"]
     env["TAILOR_OLLAMA_MODEL"] = llm_runtime["selected_model"]
+    env["TAILOR_LLM_API_KEY"] = llm_runtime.get("api_key", "")
+    env["TAILOR_LLM_PROVIDER"] = llm_runtime["provider"]
     return env
 
 
@@ -1049,15 +1140,18 @@ def package_apply(slug: str, payload: dict | None = Body(None)):
         conn.execute(
             """
             INSERT INTO applied_snapshots (
-                application_id, meta, job_context, analysis, resume_strategy, cover_strategy,
+                application_id, meta, job_context, analysis, grounding, grounding_audit,
+                resume_strategy, cover_strategy,
                 resume_tex, cover_tex, resume_pdf, cover_pdf, llm_trace, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 application_id,
                 json.dumps(meta),
                 json.dumps(job_context),
                 _read_optional_text(d / "analysis.json"),
+                _read_optional_text(d / "grounding.json"),
+                _read_optional_text(d / "grounding_audit.json"),
                 _read_optional_text(d / "resume_strategy.json"),
                 _read_optional_text(d / "cover_strategy.json"),
                 _read_optional_text(d / "Conner_Jordan_Resume.tex"),
@@ -1279,7 +1373,7 @@ def tailoring_ingest_parse(payload: dict = Body(...)):
         )
         with urllib.request.urlopen(req, timeout=60) as resp:
             cdata = json.loads(resp.read())
-        raw = _strip_llm_fences(cdata["choices"][0]["message"]["content"])
+        raw = _strip_llm_fences(_extract_llm_content(cdata))
         fields = json.loads(raw)
         return {"ok": True, "fields": fields}
     except json.JSONDecodeError:
@@ -1447,6 +1541,18 @@ def _strip_llm_fences(raw: str) -> str:
     return raw.strip()
 
 
+def _extract_llm_content(cdata: dict) -> str:
+    """Extract content from either OpenAI or Ollama-native response shape."""
+    # Ollama native /api/chat: {"message": {"content": "..."}}
+    if "message" in cdata and isinstance(cdata["message"], dict):
+        return cdata["message"].get("content") or ""
+    # OpenAI-compatible: {"choices": [{"message": {"content": "..."}}]}
+    choices = cdata.get("choices")
+    if choices and isinstance(choices, list):
+        return choices[0].get("message", {}).get("content") or ""
+    return ""
+
+
 def _normalize_jd_text(text: str) -> str:
     text = (text or "").replace("\r\n", "\n").replace("\r", "\n")
     for marker in _JD_HEADING_MARKERS:
@@ -1599,7 +1705,7 @@ def _polish_job_description(
         )
         with urllib.request.urlopen(req, timeout=90) as resp:
             cdata = json.loads(resp.read())
-        raw = _strip_llm_fences(cdata["choices"][0]["message"]["content"])
+        raw = _strip_llm_fences(_extract_llm_content(cdata))
         fields = json.loads(raw)
         summary = (fields.get("requirements_summary") or "").strip() or heuristic_summary
         approved_jd_text = (fields.get("approved_jd_text") or "").strip() or heuristic_text
@@ -1844,6 +1950,47 @@ def tailoring_qa_reject(payload: dict = Body(...)):
         conn.close()
 
 
+def tailoring_qa_permanently_reject(payload: dict = Body(...)):
+    _sync_app_state()
+    job_ids = payload.get("job_ids") or []
+    if payload.get("job_id"):
+        job_ids = [payload["job_id"]]
+    if not job_ids:
+        return JSONResponse({"ok": False, "error": "job_id or job_ids required"}, 400)
+
+    conn = get_db_write()
+    try:
+        from services.audit import log_state_change
+        from datetime import datetime, timezone
+        updated = 0
+        for jid in job_ids:
+            row = conn.execute("SELECT decision, url FROM results WHERE id=?", (jid,)).fetchone()
+            if not row:
+                continue
+            old_decision = _normalize_decision(row["decision"])
+            if old_decision == "permanently_rejected":
+                continue
+            _cancel_tailoring_queue_items(job_ids=[int(jid)], statuses=("queued",), reason="Job permanently rejected.")
+            _stop_active_tailoring_job([int(jid)], "Job permanently rejected.")
+            _set_ready_bucket_for_job_ids_in_conn(conn, [int(jid)], _DEFAULT_READY_BUCKET)
+            conn.execute("UPDATE jobs SET status='permanently_rejected' WHERE id=?", (jid,))
+            now = datetime.now(timezone.utc).isoformat()
+            conn.execute(
+                "INSERT INTO seen_urls (url, first_seen, last_seen, permanently_rejected) "
+                "VALUES (?, ?, ?, 1) "
+                "ON CONFLICT(url) DO UPDATE SET permanently_rejected = 1, last_seen = ?",
+                (row["url"], now, now, now),
+            )
+            log_state_change(conn, job_id=jid, job_url=row["url"],
+                             old_state=old_decision, new_state="permanently_rejected",
+                             action="permanently_reject")
+            updated += 1
+        conn.commit()
+        return {"ok": True, "updated": updated, "skipped": len(job_ids) - updated}
+    finally:
+        conn.close()
+
+
 _QA_LLM_REVIEW_SYSTEM = (
     "You are a job-candidate fit reviewer. Given the candidate's profile and a job description, "
     "evaluate whether this is a strong enough match to warrant tailoring application materials.\n\n"
@@ -1911,16 +2058,28 @@ def _http_error_details(exc: Exception) -> str:
 
 
 def _fetch_llm_catalog(llm_runtime: dict, *, timeout: int = 5) -> tuple[list[dict], list[dict]]:
-    with urllib.request.urlopen(llm_runtime["models_url"], timeout=timeout) as resp:
+    api_key = llm_runtime.get("api_key", "")
+    with _llm_urlopen(llm_runtime["models_url"], api_key, timeout=timeout) as resp:
         data = json.loads(resp.read())
     v1_models = data.get("data", []) or []
 
     manage_models: list[dict] = []
     if llm_runtime.get("manage_models"):
         try:
-            with urllib.request.urlopen(f"{llm_runtime['base_url']}/api/v0/models", timeout=timeout) as resp:
+            # Ollama: /api/tags lists all pulled models (all are available on-demand).
+            with _llm_urlopen(f"{llm_runtime['base_url']}/api/tags", api_key, timeout=timeout) as resp:
                 manage_data = json.loads(resp.read())
-            manage_models = manage_data.get("data", []) or []
+            # Normalize to the shape _resolve_llm_model_id expects.
+            for m in manage_data.get("models", []):
+                name = m.get("name", m.get("model", "unknown"))
+                # Detect embedding models by name convention.
+                is_embed = "embed" in name.lower()
+                manage_models.append({
+                    "id": name,
+                    "state": "loaded",  # Ollama loads on-demand; treat all as available
+                    "type": "embeddings" if is_embed else "llm",
+                    "size": m.get("size", 0),
+                })
         except Exception:
             manage_models = []
     return v1_models, manage_models
@@ -2107,7 +2266,7 @@ def _run_single_qa_llm_review(
         with urllib.request.urlopen(req, timeout=90) as resp:
             cdata = json.loads(resp.read())
 
-        raw = _strip_llm_fences(cdata["choices"][0]["message"]["content"])
+        raw = _strip_llm_fences(_extract_llm_content(cdata))
         verdict = json.loads(raw)
 
         passed = bool(verdict.get("pass", False))
@@ -2477,7 +2636,10 @@ def package_chat_send(slug: str, payload: dict = Body(...)):
     if not message:
         return JSONResponse({"ok": False, "error": "message is required"}, 400)
     doc_focus = payload.get("doc_focus") or None
-    return send_chat(slug, message, doc_focus)
+    # Resolve current LLM runtime so package chat uses the active provider,
+    # URL, and model — not whatever env vars were set at import time.
+    llm_runtime, model_id = _resolve_active_llm_runtime()
+    return send_chat(slug, message, doc_focus, model=model_id, llm_runtime=llm_runtime)
 
 
 def package_chat_history(slug: str):
@@ -2494,6 +2656,16 @@ def package_chat_clear(slug: str):
 # ---------------------------------------------------------------------------
 # Routes — API: Runtime controls
 # ---------------------------------------------------------------------------
+
+def _llm_urlopen(url: str, api_key: str = "", timeout: int = 5, data: bytes | None = None, method: str | None = None):
+    """Open a URL with optional Bearer auth."""
+    req = urllib.request.Request(url, data=data, method=method)
+    if api_key:
+        req.add_header("Authorization", f"Bearer {api_key}")
+    if data:
+        req.add_header("Content-Type", "application/json")
+    return urllib.request.urlopen(req, timeout=timeout)
+
 
 def llm_status():
     _sync_app_state()
@@ -2512,7 +2684,7 @@ def llm_status():
             "state": "disabled",
         }
     try:
-        with urllib.request.urlopen(llm_runtime["models_url"], timeout=2) as resp:
+        with _llm_urlopen(llm_runtime["models_url"], llm_runtime.get("api_key", ""), timeout=2) as resp:
             data = json.loads(resp.read())
         models = [m["id"] for m in data.get("data", [])]
         return {
@@ -2543,23 +2715,30 @@ def llm_models():
     """Return models from the configured provider."""
     controls = _load_runtime_controls()
     llm_runtime = _resolve_llm_runtime(controls)
+    api_key = llm_runtime.get("api_key", "")
     try:
         models: list[dict] = []
         if llm_runtime["manage_models"]:
-            with urllib.request.urlopen(f"{llm_runtime['base_url']}/api/v0/models", timeout=5) as resp:
+            # Ollama: /api/tags returns all pulled models.
+            with _llm_urlopen(f"{llm_runtime['base_url']}/api/tags", api_key, timeout=5) as resp:
                 data = json.loads(resp.read())
-            models = [
-                {"id": m["id"], "state": m.get("state", "not-loaded")}
-                for m in data.get("data", [])
-            ]
+            selected = llm_runtime["selected_model"]
+            for idx, m in enumerate(data.get("models", [])):
+                model_name = m.get("name", m.get("model", "unknown"))
+                is_selected = model_name == selected
+                models.append({
+                    "id": model_name,
+                    "state": "loaded" if is_selected else "available",
+                    "size": m.get("size", 0),
+                })
         else:
-            with urllib.request.urlopen(llm_runtime["models_url"], timeout=5) as resp:
+            with _llm_urlopen(llm_runtime["models_url"], api_key, timeout=5) as resp:
                 data = json.loads(resp.read())
             selected = llm_runtime["selected_model"]
             raw_models = data.get("data", [])
             for idx, item in enumerate(raw_models):
                 model_id = item["id"]
-                is_selected = model_id == selected or (selected == "default" and idx == 0)
+                is_selected = model_id == selected
                 models.append({"id": model_id, "state": "loaded" if is_selected else "available"})
         return {
             "provider": llm_runtime["provider"],
@@ -2573,52 +2752,175 @@ def llm_models():
 
 def llm_load_model(payload: dict = Body(...)):
     _sync_app_state()
-    """Select a model, optionally loading it when the provider supports that."""
+    """Select a model. Ollama loads on-demand — just persist the selection."""
     identifier = payload.get("identifier")
     if not identifier:
         return JSONResponse({"ok": False, "error": "identifier required"}, 400)
-    controls = _load_runtime_controls()
-    llm_runtime = _resolve_llm_runtime(controls)
-    try:
-        if llm_runtime["manage_models"]:
-            req = urllib.request.Request(
-                f"{llm_runtime['base_url']}/api/v0/models/load",
-                data=json.dumps({"identifier": identifier}).encode(),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                resp.read()
-        _save_runtime_controls({"llm_model": identifier})
-        return {"ok": True, "model": identifier}
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)}, 500)
+    _save_runtime_controls({"llm_model": identifier})
+    return {"ok": True, "model": identifier}
 
 
 def llm_unload_model(payload: dict = Body(...)):
     _sync_app_state()
-    """Clear or unload a selected model."""
+    """Clear model selection. Ollama auto-unloads after idle timeout."""
     identifier = payload.get("identifier")
     if not identifier:
         return JSONResponse({"ok": False, "error": "identifier required"}, 400)
     controls = _load_runtime_controls()
     llm_runtime = _resolve_llm_runtime(controls)
+    current_model = llm_runtime["selected_model"]
+    if current_model == identifier:
+        _save_runtime_controls({"llm_model": ""})
+    return {"ok": True, "model": identifier}
+
+
+# ---------------------------------------------------------------------------
+# Routes — API: LLM Providers
+# ---------------------------------------------------------------------------
+
+def llm_providers():
+    """List all supported providers with key status and active indicator."""
+    from providers import PROVIDERS
+    from services.llm_keys import get_masked_key
+
+    controls = _load_runtime_controls()
+    active_provider = str(controls.get("llm_provider") or "ollama").strip().lower()
+    # Normalize legacy value.
+    if active_provider not in PROVIDERS:
+        active_provider = "ollama"
+
+    result = []
+    for pid, pdef in PROVIDERS.items():
+        masked = get_masked_key(pid)
+        result.append({
+            "id": pid,
+            "label": pdef["label"],
+            "base_url": pdef["base_url"],
+            "auth": pdef["auth"],
+            "notes": pdef["notes"],
+            "has_key": masked is not None,
+            "masked_key": masked,
+            "active": pid == active_provider,
+        })
+    return {"providers": result, "active_provider": active_provider}
+
+
+def llm_set_provider_key(payload: dict = Body(...)):
+    """Save or clear an API key for a provider."""
+    from providers import PROVIDERS
+    from services.llm_keys import save_key, get_masked_key
+
+    provider = str(payload.get("provider", "")).strip().lower()
+    key = str(payload.get("key", "")).strip()
+    if provider not in PROVIDERS:
+        return JSONResponse({"ok": False, "error": f"Unknown provider: {provider}"}, 400)
+    save_key(provider, key)
+    return {"ok": True, "has_key": bool(key), "masked_key": get_masked_key(provider)}
+
+
+def llm_activate_provider(payload: dict = Body(...)):
+    """Set the active LLM provider (persists to runtime_controls.json)."""
+    from providers import PROVIDERS
+
+    provider = str(payload.get("provider", "")).strip().lower()
+    if provider not in PROVIDERS:
+        return JSONResponse({"ok": False, "error": f"Unknown provider: {provider}"}, 400)
+
+    updates = {"llm_provider": provider}
+    # Set the base URL from registry for all known providers.
+    if provider == "ollama":
+        updates["llm_base_url"] = PROVIDERS["ollama"]["base_url"]
+    elif provider == "mlx":
+        updates["llm_base_url"] = PROVIDERS["mlx"]["base_url"]
+    elif provider == "custom":
+        base_url = str(payload.get("base_url", "")).strip()
+        if base_url:
+            updates["llm_base_url"] = base_url
+    # Preserve model selection — user can change it separately.
+    # Only clear if explicitly requested via payload.
+    if "model" in payload:
+        updates["llm_model"] = str(payload["model"]).strip() or ""
+
+    _save_runtime_controls(updates)
+    return {"ok": True, "provider": provider}
+
+
+def llm_test_provider(payload: dict = Body(...)):
+    """Test connection to a provider by hitting its /v1/models (or equivalent)."""
+    from providers import PROVIDERS
+    from services.llm_keys import get_key
+
+    provider = str(payload.get("provider", "")).strip().lower()
+    if provider not in PROVIDERS:
+        return JSONResponse({"ok": False, "error": f"Unknown provider: {provider}"}, 400)
+
+    pdef = PROVIDERS[provider]
+    base_url = pdef["base_url"]
+    if provider in ("ollama", "mlx", "custom"):
+        controls = _load_runtime_controls()
+        base_url = str(controls.get("llm_base_url") or base_url or "http://localhost:11434").rstrip("/")
+
+    if provider == "gemini":
+        models_url = f"{base_url}/models"
+    else:
+        models_url = f"{base_url}/v1/models"
+
+    api_key = get_key(provider) or ""
     try:
-        if llm_runtime["manage_models"]:
-            req = urllib.request.Request(
-                f"{llm_runtime['base_url']}/api/v0/models/unload",
-                data=json.dumps({"identifier": identifier}).encode(),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                resp.read()
-        current_model = llm_runtime["selected_model"]
-        if current_model == identifier:
-            _save_runtime_controls({"llm_model": "default"})
-        return {"ok": True, "model": identifier}
+        with _llm_urlopen(models_url, api_key, timeout=10) as resp:
+            data = json.loads(resp.read())
+        models = [m.get("id", "unknown") for m in data.get("data", [])]
+        return {"ok": True, "models": models[:20], "total": len(models)}
     except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)}, 500)
+        return JSONResponse({"ok": False, "error": str(e)}, 502)
+
+
+# ---------------------------------------------------------------------------
+# Routes — API: MLX Server Management
+# ---------------------------------------------------------------------------
+
+
+def mlx_status():
+    """Return MLX server status."""
+    from services.mlx_manager import status
+    return status()
+
+
+def mlx_start(payload: dict = Body(...)):
+    """Start MLX server with a model. Restarts if already running."""
+    from services.mlx_manager import start
+    model = payload.get("model")
+    if not model:
+        return JSONResponse({"ok": False, "error": "model required"}, 400)
+    port = int(payload.get("port", 8080))
+    return start(model, port)
+
+
+def mlx_stop():
+    """Stop the running MLX server."""
+    from services.mlx_manager import stop
+    return stop()
+
+
+def mlx_models():
+    """List cached MLX models available to serve."""
+    from services.mlx_manager import cached_models
+    return {"models": cached_models()}
+
+
+def mlx_pull(payload: dict = Body(...)):
+    """Start downloading a model from HuggingFace."""
+    from services.mlx_manager import pull
+    model_id = payload.get("model_id")
+    if not model_id:
+        return JSONResponse({"ok": False, "error": "model_id required"}, 400)
+    return pull(model_id)
+
+
+def mlx_pull_status():
+    """Return current model download progress."""
+    from services.mlx_manager import pull_status
+    return pull_status()
 
 
 # ---------------------------------------------------------------------------

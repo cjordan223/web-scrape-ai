@@ -132,6 +132,8 @@ CREATE TABLE IF NOT EXISTS applied_snapshots (
     meta TEXT,
     job_context TEXT,
     analysis TEXT,
+    grounding TEXT,
+    grounding_audit TEXT,
     resume_strategy TEXT,
     cover_strategy TEXT,
     resume_tex TEXT,
@@ -143,7 +145,7 @@ CREATE TABLE IF NOT EXISTS applied_snapshots (
 );
 """
 
-_APPLIED_PROTECTION_SCHEMA = """\
+_APPLIED_RESULTS_PROTECTION_SCHEMA = """\
 CREATE TRIGGER IF NOT EXISTS protect_applied_results_before_update
 BEFORE UPDATE ON results
 FOR EACH ROW
@@ -167,7 +169,10 @@ WHEN EXISTS (
 BEGIN
     SELECT RAISE(ABORT, 'Applied job rows are protected from inventory writes');
 END;
+"""
 
+_APPLIED_QUEUE_PROTECTION_SCHEMA = """\
+DROP TRIGGER IF EXISTS protect_applied_queue_before_insert;
 CREATE TRIGGER IF NOT EXISTS protect_applied_queue_before_insert
 BEFORE INSERT ON tailoring_queue_items
 FOR EACH ROW
@@ -180,6 +185,7 @@ BEGIN
     SELECT RAISE(ABORT, 'Applied jobs cannot be re-queued');
 END;
 
+DROP TRIGGER IF EXISTS protect_applied_queue_before_update;
 CREATE TRIGGER IF NOT EXISTS protect_applied_queue_before_update
 BEFORE UPDATE ON tailoring_queue_items
 FOR EACH ROW
@@ -188,12 +194,20 @@ WHEN EXISTS (
     FROM applied_applications aa
     WHERE aa.job_id = COALESCE(NEW.job_id, OLD.job_id)
 )
+AND COALESCE(NEW.status, OLD.status) IN ('queued', 'running')
 BEGIN
     SELECT RAISE(ABORT, 'Applied jobs cannot be re-queued');
 END;
 """
 
 _WORKFLOW_DB_SCHEMA = """\
+CREATE TABLE IF NOT EXISTS seen_urls (
+    url TEXT PRIMARY KEY,
+    first_seen TEXT NOT NULL,
+    last_seen TEXT NOT NULL,
+    permanently_rejected INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_seen_urls_first_seen ON seen_urls(first_seen);
 CREATE TABLE IF NOT EXISTS job_state_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     job_id INTEGER,
@@ -224,6 +238,38 @@ CREATE INDEX IF NOT EXISTS idx_tailoring_queue_items_job_id ON tailoring_queue_i
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tailoring_queue_items_open_job
 ON tailoring_queue_items(job_id)
 WHERE status IN ('queued', 'running');
+CREATE TABLE IF NOT EXISTS tailoring_ready_bucket_state (
+    job_id INTEGER PRIMARY KEY,
+    bucket TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tailoring_ready_bucket_state_bucket
+ON tailoring_ready_bucket_state(bucket, updated_at);
+CREATE TABLE IF NOT EXISTS tailoring_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_slug TEXT NOT NULL UNIQUE,
+    job_id INTEGER NOT NULL,
+    model TEXT,
+    timestamp TEXT NOT NULL,
+    total_wall_time_s REAL,
+    queue_wait_s REAL,
+    analysis_time_s REAL,
+    analysis_llm_time_s REAL,
+    analysis_llm_calls INTEGER,
+    resume_time_s REAL,
+    resume_llm_time_s REAL,
+    resume_llm_calls INTEGER,
+    resume_attempts INTEGER,
+    cover_time_s REAL,
+    cover_llm_time_s REAL,
+    cover_llm_calls INTEGER,
+    cover_attempts INTEGER,
+    compile_resume_s REAL,
+    compile_cover_s REAL,
+    total_llm_calls INTEGER,
+    total_llm_time_s REAL
+);
+CREATE INDEX IF NOT EXISTS idx_tailoring_metrics_job_id ON tailoring_metrics(job_id);
 """
 _LEGACY_DECISION_MAP = {
     "accept": "qa_pending",
@@ -231,6 +277,8 @@ _LEGACY_DECISION_MAP = {
     "manual_approved": "qa_approved",
 }
 _QUEUE_OPEN_STATUSES = ("queued", "running")
+_READY_BUCKET_VALUES = ("backlog", "next", "later")
+_DEFAULT_READY_BUCKET = "backlog"
 _WORKFLOW_DB_INIT_CACHE: set[str] = set()
 
 _TAILORING_RUNNER: dict = {
@@ -277,11 +325,11 @@ RUNTIME_CONTROLS_PATH = Path(
 _DEFAULT_RUNTIME_CONTROLS = {
     "scrape_enabled": True,
     "llm_enabled": True,
-    "llm_provider": os.environ.get("LLM_PROVIDER", "lmstudio"),
-    "llm_base_url": os.environ.get("LLM_URL", "http://localhost:1234"),
+    "llm_provider": os.environ.get("LLM_PROVIDER", "ollama"),
+    "llm_base_url": os.environ.get("LLM_URL", "http://localhost:11434"),
     "llm_model": os.environ.get(
-        "TAILOR_LMSTUDIO_MODEL",
-        os.environ.get("TAILOR_OLLAMA_MODEL", "default"),
+        "TAILOR_LLM_MODEL",
+        os.environ.get("TAILOR_OLLAMA_MODEL", ""),
     ),
     "schedule_interval_minutes": None,
     "schedule_started_at": None,
@@ -290,6 +338,10 @@ _DEFAULT_RUNTIME_CONTROLS = {
 
 app = FastAPI(title="Job Scraper Dashboard")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# Recover MLX server state if one is already running on the default port.
+from services.mlx_manager import recover_on_startup
+recover_on_startup()
 
 
 # ---------------------------------------------------------------------------
@@ -314,11 +366,23 @@ def _ensure_applied_tables() -> None:
     db_file.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     try:
+        conn.executescript(_WORKFLOW_DB_SCHEMA)
         conn.executescript(_APPLIED_DB_SCHEMA)
-        conn.executescript(_APPLIED_PROTECTION_SCHEMA)
+        _ensure_applied_protection(conn)
         conn.commit()
     finally:
         conn.close()
+
+
+def _ensure_applied_protection(conn: sqlite3.Connection) -> None:
+    existing_tables = {
+        row["name"] if isinstance(row, sqlite3.Row) else row[0]
+        for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    }
+    if "results" in existing_tables:
+        conn.executescript(_APPLIED_RESULTS_PROTECTION_SCHEMA)
+    if "tailoring_queue_items" in existing_tables:
+        conn.executescript(_APPLIED_QUEUE_PROTECTION_SCHEMA)
 
 
 def _normalize_decision(decision: str | None) -> str | None:
@@ -345,11 +409,11 @@ def _ensure_workflow_schema(force: bool = False) -> None:
     try:
         conn.executescript(_WORKFLOW_DB_SCHEMA)
         conn.executescript(_APPLIED_DB_SCHEMA)
-        conn.executescript(_APPLIED_PROTECTION_SCHEMA)
         existing_tables = {
             row["name"] if isinstance(row, sqlite3.Row) else row[0]
             for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
+        _ensure_applied_protection(conn)
         if "jobs" in existing_tables:
             cols = {
                 row["name"] if isinstance(row, sqlite3.Row) else row[1]
@@ -357,6 +421,25 @@ def _ensure_workflow_schema(force: bool = False) -> None:
             }
             if "approved_jd_text" not in cols:
                 conn.execute("ALTER TABLE jobs ADD COLUMN approved_jd_text TEXT")
+        if "seen_urls" in existing_tables:
+            seen_cols = {
+                row["name"] if isinstance(row, sqlite3.Row) else row[1]
+                for row in conn.execute("PRAGMA table_info(seen_urls)")
+            }
+            if "permanently_rejected" not in seen_cols:
+                conn.execute(
+                    "ALTER TABLE seen_urls ADD COLUMN permanently_rejected INTEGER NOT NULL DEFAULT 0"
+                )
+        if "applied_snapshots" in existing_tables:
+            snap_cols = {
+                row["name"] if isinstance(row, sqlite3.Row) else row[1]
+                for row in conn.execute("PRAGMA table_info(applied_snapshots)")
+            }
+            if "grounding" not in snap_cols:
+                conn.execute("ALTER TABLE applied_snapshots ADD COLUMN grounding TEXT")
+            if "grounding_audit" not in snap_cols:
+                conn.execute("ALTER TABLE applied_snapshots ADD COLUMN grounding_audit TEXT")
+        if "jobs" in existing_tables:
             conn.execute(
                 """
                 UPDATE jobs
@@ -391,6 +474,16 @@ def _load_runtime_controls() -> dict:
         controls["schedule_started_at"] = raw.get("schedule_started_at")
         controls["schedule_stop_at"] = raw.get("schedule_stop_at")
         controls["updated_at"] = raw.get("updated_at")
+        # Auto-migrate legacy lmstudio → ollama.
+        if controls["llm_provider"] in ("lmstudio", "openai"):
+            controls["llm_provider"] = "ollama"
+            controls["llm_base_url"] = "http://localhost:11434"
+            raw["llm_provider"] = "ollama"
+            raw["llm_base_url"] = "http://localhost:11434"
+            try:
+                RUNTIME_CONTROLS_PATH.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+            except Exception:
+                pass
     except FileNotFoundError:
         controls["updated_at"] = None
     except Exception:
@@ -409,7 +502,7 @@ def _save_runtime_controls(updates: dict) -> dict:
     if "llm_base_url" in updates:
         controls["llm_base_url"] = str(updates["llm_base_url"] or "").strip() or controls["llm_base_url"]
     if "llm_model" in updates:
-        controls["llm_model"] = str(updates["llm_model"] or "default").strip() or "default"
+        controls["llm_model"] = str(updates["llm_model"] or "").strip()
     if "schedule_interval_minutes" in updates:
         interval = updates["schedule_interval_minutes"]
         if interval is None:
@@ -447,7 +540,7 @@ def _normalize_llm_base_url(url: str | None) -> str:
     value = (url or "").strip()
     if not value:
         return _DEFAULT_RUNTIME_CONTROLS["llm_base_url"]
-    for suffix in ("/v1/chat/completions", "/v1/models", "/api/v0/models/load", "/api/v0/models/unload", "/api/v0/models"):
+    for suffix in ("/v1/chat/completions", "/v1/models", "/api/tags", "/api/pull", "/api/show"):
         if value.endswith(suffix):
             value = value[: -len(suffix)]
             break
@@ -455,19 +548,47 @@ def _normalize_llm_base_url(url: str | None) -> str:
 
 
 def _resolve_llm_runtime(controls: dict | None = None) -> dict:
+    from providers import PROVIDERS
+    from services.llm_keys import get_key
+
     controls = controls or _load_runtime_controls()
-    provider = str(controls.get("llm_provider") or "openai").strip().lower()
-    if provider not in {"lmstudio", "openai"}:
-        provider = "openai"
-    base_url = _normalize_llm_base_url(str(controls.get("llm_base_url") or _DEFAULT_RUNTIME_CONTROLS["llm_base_url"]))
-    selected_model = str(controls.get("llm_model") or "default").strip() or "default"
+    provider = str(controls.get("llm_provider") or "ollama").strip().lower()
+
+    # Look up provider in registry; map legacy values.
+    provider_def = PROVIDERS.get(provider)
+    if provider_def is None:
+        # Legacy "lmstudio"/"openai" → ollama.
+        provider = "ollama"
+        provider_def = PROVIDERS["ollama"]
+
+    # Base URL: use controls override for local/custom providers, else registry default.
+    if provider in ("ollama", "mlx", "custom"):
+        base_url = _normalize_llm_base_url(
+            str(controls.get("llm_base_url") or provider_def["base_url"] or _DEFAULT_RUNTIME_CONTROLS["llm_base_url"])
+        )
+    else:
+        base_url = provider_def["base_url"].rstrip("/")
+
+    selected_model = str(controls.get("llm_model") or "").strip()
+
+    # Gemini's OpenAI-compat base already includes /openai — don't double-add /v1.
+    if provider == "gemini":
+        chat_url = f"{base_url}/chat/completions"
+        models_url = f"{base_url}/models"
+    else:
+        chat_url = f"{base_url}/v1/chat/completions"
+        models_url = f"{base_url}/v1/models"
+
+    api_key = get_key(provider) or ""
+
     return {
         "provider": provider,
         "base_url": base_url,
-        "chat_url": f"{base_url}/v1/chat/completions",
-        "models_url": f"{base_url}/v1/models",
-        "manage_models": provider == "lmstudio",
+        "chat_url": chat_url,
+        "models_url": models_url,
+        "manage_models": provider == "ollama",
         "selected_model": selected_model,
+        "api_key": api_key,
     }
 
 
@@ -698,7 +819,8 @@ def _get_applied_snapshot_detail(application_id: int) -> dict | None:
             SELECT aa.id, aa.package_slug, aa.job_id, aa.job_title, aa.company_name, aa.job_url,
                    aa.application_url, aa.applied_at, aa.status, aa.follow_up_at, aa.notes,
                    aa.created_at, aa.updated_at, aa.status_updated_at,
-                   s.meta, s.job_context, s.analysis, s.resume_strategy, s.cover_strategy,
+                   s.meta, s.job_context, s.analysis, s.grounding, s.grounding_audit,
+                   s.resume_strategy, s.cover_strategy,
                    s.resume_tex, s.cover_tex, s.resume_pdf, s.cover_pdf, s.llm_trace
             FROM applied_applications aa
             JOIN applied_snapshots s ON s.application_id = aa.id
@@ -778,6 +900,84 @@ def _queue_row_to_payload(row: sqlite3.Row | dict) -> dict:
             "url": record.get("url"),
         },
     }
+
+
+def _normalize_ready_bucket(bucket: str | None) -> str:
+    value = (bucket or "").strip().lower()
+    return value if value in _READY_BUCKET_VALUES else _DEFAULT_READY_BUCKET
+
+
+def _fetch_ready_bucket_rows(
+    conn: sqlite3.Connection,
+    *,
+    job_ids: list[int] | None = None,
+) -> list[sqlite3.Row]:
+    params: list[object] = []
+    where = ""
+    if job_ids:
+        placeholders = ",".join("?" for _ in job_ids)
+        where = f"WHERE job_id IN ({placeholders})"
+        params.extend(int(job_id) for job_id in job_ids)
+    return conn.execute(
+        f"""
+        SELECT job_id, bucket, updated_at
+        FROM tailoring_ready_bucket_state
+        {where}
+        """,
+        tuple(params),
+    ).fetchall()
+
+
+def _fetch_ready_bucket_map(
+    conn: sqlite3.Connection,
+    *,
+    job_ids: list[int] | None = None,
+) -> dict[int, dict]:
+    bucket_map: dict[int, dict] = {}
+    for row in _fetch_ready_bucket_rows(conn, job_ids=job_ids):
+        record = dict(row)
+        job_id = int(record["job_id"])
+        bucket_map[job_id] = {
+            "bucket": _normalize_ready_bucket(record.get("bucket")),
+            "updated_at": record.get("updated_at"),
+        }
+    return bucket_map
+
+
+def _set_ready_bucket_for_job_ids_in_conn(conn: sqlite3.Connection, job_ids: list[int], bucket: str) -> int:
+    normalized = _normalize_ready_bucket(bucket)
+    unique_job_ids = sorted({int(job_id) for job_id in job_ids if job_id is not None})
+    if not unique_job_ids:
+        return 0
+    now = datetime.now(timezone.utc).isoformat()
+    if normalized == _DEFAULT_READY_BUCKET:
+        placeholders = ",".join("?" for _ in unique_job_ids)
+        cur = conn.execute(
+            f"DELETE FROM tailoring_ready_bucket_state WHERE job_id IN ({placeholders})",
+            tuple(unique_job_ids),
+        )
+    else:
+        cur = conn.executemany(
+            """
+            INSERT INTO tailoring_ready_bucket_state (job_id, bucket, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(job_id) DO UPDATE SET
+                bucket = excluded.bucket,
+                updated_at = excluded.updated_at
+            """,
+            [(job_id, normalized, now) for job_id in unique_job_ids],
+        )
+    return max(int(cur.rowcount or 0), 0)
+
+
+def _set_ready_bucket_for_job_ids(job_ids: list[int], bucket: str) -> int:
+    conn = get_db_write()
+    try:
+        updated = _set_ready_bucket_for_job_ids_in_conn(conn, job_ids, bucket)
+        conn.commit()
+        return updated
+    finally:
+        conn.close()
 
 
 def _fetch_tailoring_queue_rows(
@@ -1003,8 +1203,25 @@ def _get_job_context(job_id: int) -> dict | None:
         jd_expr = "jd_text"
         if _results_has_column(conn, "approved_jd_text"):
             jd_expr = "COALESCE(approved_jd_text, jd_text)"
+        select_cols = [
+            "id",
+            "url",
+            "title",
+            "snippet",
+            f"{jd_expr} AS jd_text",
+            "query",
+            "run_id",
+            "created_at",
+            "decision",
+            "board",
+            "seniority",
+            "company" if _results_has_column(conn, "company") else "NULL AS company",
+            "source" if _results_has_column(conn, "source") else "NULL AS source",
+            "location" if _results_has_column(conn, "location") else "NULL AS location",
+            "salary_k" if _results_has_column(conn, "salary_k") else "NULL AS salary_k",
+        ]
         row = conn.execute(
-            f"SELECT id, url, title, snippet, {jd_expr} AS jd_text, query, run_id, created_at, decision "
+            f"SELECT {', '.join(select_cols)} "
             "FROM results WHERE id = ?",
             (job_id,),
         ).fetchone()
@@ -1041,7 +1258,82 @@ def _latest_job(max_age_hours: int | None = None) -> dict | None:
         conn.close()
 
 
-def _recent_jobs(limit: int = 25, max_age_hours: int | None = None) -> list[dict]:
+def _ready_job_query_parts(
+    conn: sqlite3.Connection,
+    *,
+    max_age_hours: int | None = None,
+    board: str | None = None,
+    source: str | None = None,
+    seniority: str | None = None,
+    location: str | None = None,
+    search: str | None = None,
+) -> tuple[list[str], list[object], dict[str, bool]]:
+    available = {
+        "company": _results_has_column(conn, "company"),
+        "source": _results_has_column(conn, "source"),
+        "location": _results_has_column(conn, "location"),
+        "salary_k": _results_has_column(conn, "salary_k"),
+    }
+    clauses = [
+        "decision = 'qa_approved'",
+        "NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)",
+    ]
+    params: list[object] = []
+    if max_age_hours is not None:
+        clauses.append("julianday(created_at) >= julianday('now', ?)")
+        params.append(f"-{int(max_age_hours)} hours")
+    if board:
+        board_values = [value.strip().lower() for value in board.split(",") if value.strip()]
+        if board_values:
+            placeholders = ",".join("?" for _ in board_values)
+            clauses.append(f"LOWER(COALESCE(board, '')) IN ({placeholders})")
+            params.extend(board_values)
+    if source and available["source"]:
+        normalized_source = source.strip().lower()
+        if normalized_source == "manual_ingest":
+            clauses.append("LOWER(COALESCE(source, '')) IN ('manual', 'manual_ingest', 'manual-ingest')")
+        elif normalized_source == "mobile_ingest":
+            clauses.append("LOWER(COALESCE(source, '')) IN ('mobile', 'mobile_ingest', 'mobile-ingest')")
+        elif normalized_source == "scrape":
+            clauses.append("(TRIM(COALESCE(source, '')) = '' OR LOWER(COALESCE(source, '')) NOT IN ('manual', 'manual_ingest', 'manual-ingest', 'mobile', 'mobile_ingest', 'mobile-ingest'))")
+        else:
+            clauses.append("LOWER(COALESCE(source, '')) = ?")
+            params.append(normalized_source)
+    if seniority:
+        clauses.append("LOWER(COALESCE(seniority, '')) = ?")
+        params.append(seniority.strip().lower())
+    if location and available["location"]:
+        clauses.append("LOWER(COALESCE(location, '')) LIKE ?")
+        params.append(f"%{location.strip().lower()}%")
+    if search:
+        query = f"%{search.strip()}%"
+        search_fields = [
+            "COALESCE(title, '')",
+            "COALESCE(snippet, '')",
+            "COALESCE(url, '')",
+            "COALESCE(board, '')",
+            "COALESCE(seniority, '')",
+        ]
+        if available["company"]:
+            search_fields.append("COALESCE(company, '')")
+        if available["location"]:
+            search_fields.append("COALESCE(location, '')")
+        clauses.append("(" + " OR ".join(f"{field} LIKE ?" for field in search_fields) + ")")
+        params.extend([query] * len(search_fields))
+    return clauses, params, available
+
+
+def _recent_jobs(
+    limit: int = 25,
+    max_age_hours: int | None = None,
+    *,
+    board: str | None = None,
+    source: str | None = None,
+    seniority: str | None = None,
+    location: str | None = None,
+    search: str | None = None,
+    bucket: str | None = None,
+) -> list[dict]:
     run_counts_by_job: dict[int, int] = {}
     latest_status_by_job: dict[int, dict] = {}
     if TAILORING_OUTPUT_DIR.exists():
@@ -1066,21 +1358,44 @@ def _recent_jobs(limit: int = 25, max_age_hours: int | None = None) -> list[dict
 
     conn = get_db()
     try:
-        clauses = [
-            "decision = 'qa_approved'",
-            "NOT EXISTS (SELECT 1 FROM applied_applications aa WHERE aa.job_id = results.id)",
-        ]
-        params: list = []
-        if max_age_hours is not None:
-            clauses.append("julianday(created_at) >= julianday('now', ?)")
-            params.append(f"-{int(max_age_hours)} hours")
+        clauses, params, available = _ready_job_query_parts(
+            conn,
+            max_age_hours=max_age_hours,
+            board=board,
+            source=source,
+            seniority=seniority,
+            location=location,
+            search=search,
+        )
+        bucket_value = None
+        if bucket and bucket.strip().lower() != "all":
+            bucket_value = _normalize_ready_bucket(bucket)
+            if bucket_value == _DEFAULT_READY_BUCKET:
+                clauses.append("NOT EXISTS (SELECT 1 FROM tailoring_ready_bucket_state b WHERE b.job_id = results.id)")
+            else:
+                clauses.append("EXISTS (SELECT 1 FROM tailoring_ready_bucket_state b WHERE b.job_id = results.id AND b.bucket = ?)")
+                params.append(bucket_value)
         where = "WHERE " + " AND ".join(clauses)
-        params.append(max(1, min(int(limit), 100)))
+        params.append(max(1, min(int(limit), 2000)))
+        select_cols = [
+            "id",
+            "title",
+            "created_at",
+            "url",
+            "snippet",
+            "board",
+            "seniority",
+            "company" if available["company"] else "NULL AS company",
+            "source" if available["source"] else "NULL AS source",
+            "location" if available["location"] else "NULL AS location",
+            "salary_k" if available["salary_k"] else "NULL AS salary_k",
+        ]
         rows = conn.execute(
-            f"SELECT id, title, created_at, url FROM results {where} ORDER BY id DESC LIMIT ?",
+            f"SELECT {', '.join(select_cols)} FROM results {where} ORDER BY id DESC LIMIT ?",
             tuple(params),
         ).fetchall()
         items = [dict(r) for r in rows]
+        bucket_by_job_id = _fetch_ready_bucket_map(conn, job_ids=[int(item["id"]) for item in items if item.get("id") is not None])
         applied_by_job_id = _fetch_applied_by_job_ids([int(item["id"]) for item in items if item.get("id") is not None])
         open_queue_by_job_id = {}
         if items:
@@ -1104,6 +1419,9 @@ def _recent_jobs(limit: int = 25, max_age_hours: int | None = None) -> list[dict
             item["tailoring_latest_status"] = (latest_status_by_job.get(int(item["id"])) or {}).get("status")
             item["applied"] = applied_by_job_id.get(int(item["id"]))
             item["queue_item"] = open_queue_by_job_id.get(int(item["id"]))
+            bucket_meta = bucket_by_job_id.get(int(item["id"])) or {}
+            item["ready_bucket"] = bucket_meta.get("bucket", _DEFAULT_READY_BUCKET)
+            item["ready_bucket_updated_at"] = bucket_meta.get("updated_at")
         return items
     finally:
         conn.close()
@@ -1188,6 +1506,68 @@ def _process_tailoring_queue() -> None:
         return
 
 
+def _ingest_tailoring_metrics(conn: sqlite3.Connection, run_slug: str, queue_item_id: int | None) -> None:
+    """Read metrics.json from a completed run and insert into tailoring_metrics table."""
+    try:
+        # Find the output dir for this run_slug
+        candidates = sorted(TAILORING_OUTPUT_DIR.glob(f"*{run_slug}*"), key=lambda p: p.stat().st_mtime, reverse=True)
+        if not candidates:
+            # Try exact match
+            candidate = TAILORING_OUTPUT_DIR / run_slug
+            if candidate.exists():
+                candidates = [candidate]
+        if not candidates:
+            return
+        metrics_path = candidates[0] / "metrics.json"
+        if not metrics_path.exists():
+            return
+        metrics = json.loads(metrics_path.read_text())
+
+        # Compute queue_wait_s from queue item timestamps
+        queue_wait = None
+        if queue_item_id is not None:
+            row = conn.execute(
+                "SELECT created_at, started_at FROM tailoring_queue_items WHERE id = ?",
+                (int(queue_item_id),),
+            ).fetchone()
+            if row and row["created_at"] and row["started_at"]:
+                try:
+                    created = datetime.fromisoformat(row["created_at"])
+                    started = datetime.fromisoformat(row["started_at"])
+                    queue_wait = (started - created).total_seconds()
+                except (ValueError, TypeError):
+                    pass
+
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO tailoring_metrics (
+                run_slug, job_id, model, timestamp,
+                total_wall_time_s, queue_wait_s,
+                analysis_time_s, analysis_llm_time_s, analysis_llm_calls,
+                resume_time_s, resume_llm_time_s, resume_llm_calls, resume_attempts,
+                cover_time_s, cover_llm_time_s, cover_llm_calls, cover_attempts,
+                compile_resume_s, compile_cover_s,
+                total_llm_calls, total_llm_time_s
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                metrics.get("run_slug"), metrics.get("job_id"), metrics.get("model"),
+                metrics.get("timestamp"),
+                metrics.get("total_wall_time_s"), queue_wait,
+                metrics.get("analysis_time_s"), metrics.get("analysis_llm_time_s"),
+                metrics.get("analysis_llm_calls"),
+                metrics.get("resume_time_s"), metrics.get("resume_llm_time_s"),
+                metrics.get("resume_llm_calls"), metrics.get("resume_attempts"),
+                metrics.get("cover_time_s"), metrics.get("cover_llm_time_s"),
+                metrics.get("cover_llm_calls"), metrics.get("cover_attempts"),
+                metrics.get("compile_resume_s"), metrics.get("compile_cover_s"),
+                metrics.get("total_llm_calls"), metrics.get("total_llm_time_s"),
+            ),
+        )
+    except Exception as e:
+        logging.getLogger(__name__).warning("Failed to ingest tailoring metrics: %s", e)
+
+
 def _tailoring_runner_snapshot(log_lines: int = 80) -> dict:
     proc = _TAILORING_RUNNER.get("proc")
     if proc is not None:
@@ -1222,6 +1602,9 @@ def _tailoring_runner_snapshot(log_lines: int = 80) -> dict:
                         """,
                         (status, run_slug, error, now, now, int(queue_item_id)),
                     )
+                    # Ingest metrics if run succeeded
+                    if status == "succeeded" and run_slug:
+                        _ingest_tailoring_metrics(conn, run_slug, queue_item_id)
                     conn.commit()
                 finally:
                     conn.close()
@@ -1297,12 +1680,14 @@ def _start_tailoring_run(job: dict, skip_analysis: bool = False, queue_item_id: 
         log_handle = log_path.open("w", encoding="utf-8")
         llm_runtime = _resolve_llm_runtime()
         env = os.environ.copy()
-        env["TAILOR_LMSTUDIO_URL"] = llm_runtime["chat_url"]
-        env["TAILOR_LMSTUDIO_MODELS_URL"] = llm_runtime["models_url"]
-        env["TAILOR_LMSTUDIO_MODEL"] = llm_runtime["selected_model"]
+        env["TAILOR_LLM_URL"] = llm_runtime["chat_url"]
+        env["TAILOR_LLM_MODELS_URL"] = llm_runtime["models_url"]
+        env["TAILOR_LLM_MODEL"] = llm_runtime["selected_model"]
         env["TAILOR_OLLAMA_URL"] = llm_runtime["chat_url"]
         env["TAILOR_OLLAMA_MODELS_URL"] = llm_runtime["models_url"]
         env["TAILOR_OLLAMA_MODEL"] = llm_runtime["selected_model"]
+        env["TAILOR_LLM_API_KEY"] = llm_runtime.get("api_key", "")
+        env["TAILOR_LLM_PROVIDER"] = llm_runtime["provider"]
         proc = subprocess.Popen(
             cmd,
             cwd=str(TAILORING_ROOT),
@@ -1363,11 +1748,9 @@ def _db_has_active_scrape() -> bool:
 
 def _scrape_schedule_status() -> dict:
     """Check if the in-process scrape schedule is active."""
-    from services.ops import _SCRAPE_SCHEDULER_TIMER
     controls = _load_runtime_controls()
     interval = controls.get("schedule_interval_minutes")
-    has_timer = _SCRAPE_SCHEDULER_TIMER is not None and _SCRAPE_SCHEDULER_TIMER.is_alive()
-    return {"loaded": has_timer, "interval_minutes": interval}
+    return {"loaded": False, "interval_minutes": interval}
 
 
 def _mark_scrape_run_inactive(run_id: str, *, status: str = "failed", error: str | None = None) -> bool:
