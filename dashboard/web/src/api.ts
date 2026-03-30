@@ -175,6 +175,11 @@ export const api = {
         return data;
     },
 
+    permanentlyRejectPackage: async (slug: string) => {
+        const { data } = await apiClient.post(`/packages/${slug}/dead`);
+        return data;
+    },
+
     applyPackage: async (slug: string, payload: Record<string, any>) => {
         const { data } = await apiClient.post(`/packages/${slug}/apply`, payload);
         return data;
@@ -230,13 +235,59 @@ export const api = {
         return data;
     },
 
-    loadLlmModel: async (identifier: string) => {
-        const { data } = await apiClient.post('/llm/models/load', { identifier });
+    selectLlmModel: async (identifier: string) => {
+        const { data } = await apiClient.post('/llm/models/select', { identifier });
         return data;
     },
 
-    unloadLlmModel: async (identifier: string) => {
-        const { data } = await apiClient.post('/llm/models/unload', { identifier });
+    deselectLlmModel: async (identifier: string) => {
+        const { data } = await apiClient.post('/llm/models/deselect', { identifier });
+        return data;
+    },
+
+    getLlmProviders: async () => {
+        const { data } = await apiClient.get('/llm/providers');
+        return data;
+    },
+
+    setLlmProviderKey: async (provider: string, key: string) => {
+        const { data } = await apiClient.post('/llm/providers/key', { provider, key });
+        return data;
+    },
+
+    activateLlmProvider: async (provider: string, base_url?: string) => {
+        const { data } = await apiClient.post('/llm/providers/activate', { provider, base_url });
+        return data;
+    },
+
+    testLlmProvider: async (provider: string) => {
+        const { data } = await apiClient.post('/llm/providers/test', { provider });
+        return data;
+    },
+
+    // MLX management
+    getMlxStatus: async () => {
+        const { data } = await apiClient.get('/llm/mlx/status');
+        return data;
+    },
+    startMlx: async (model: string, port = 8080) => {
+        const { data } = await apiClient.post('/llm/mlx/start', { model, port });
+        return data;
+    },
+    stopMlx: async () => {
+        const { data } = await apiClient.post('/llm/mlx/stop');
+        return data;
+    },
+    getMlxModels: async () => {
+        const { data } = await apiClient.get('/llm/mlx/models');
+        return data;
+    },
+    pullMlxModel: async (model_id: string) => {
+        const { data } = await apiClient.post('/llm/mlx/pull', { model_id });
+        return data;
+    },
+    getMlxPullStatus: async () => {
+        const { data } = await apiClient.get('/llm/mlx/pull/status');
         return data;
     },
 
@@ -300,6 +351,11 @@ export const api = {
         return data;
     },
 
+    permanentlyRejectQA: async (jobIds: number[]) => {
+        const { data } = await apiClient.post('/tailoring/qa/permanently-reject', { job_ids: jobIds });
+        return data;
+    },
+
     resetApprovedQA: async () => {
         const { data } = await apiClient.post('/tailoring/qa/reset-approved');
         return data;
@@ -352,6 +408,11 @@ export const api = {
 
     opsAction: async (action: string) => {
         const { data } = await apiClient.post('/ops/action', { action });
+        return data;
+    },
+
+    getTailoringMetrics: async () => {
+        const { data } = await apiClient.get('/ops/tailoring/metrics');
         return data;
     },
 };

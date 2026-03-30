@@ -2750,9 +2750,9 @@ def llm_models():
         return JSONResponse({"error": f"LLM unreachable: {e}"}, 503)
 
 
-def llm_load_model(payload: dict = Body(...)):
+def llm_select_model(payload: dict = Body(...)):
     _sync_app_state()
-    """Select a model. Ollama loads on-demand — just persist the selection."""
+    """Select a model for this app. Ollama loads on-demand — just persist the selection."""
     identifier = payload.get("identifier")
     if not identifier:
         return JSONResponse({"ok": False, "error": "identifier required"}, 400)
@@ -2760,9 +2760,9 @@ def llm_load_model(payload: dict = Body(...)):
     return {"ok": True, "model": identifier}
 
 
-def llm_unload_model(payload: dict = Body(...)):
+def llm_deselect_model(payload: dict = Body(...)):
     _sync_app_state()
-    """Clear model selection. Ollama auto-unloads after idle timeout."""
+    """Clear model selection for this app. Does NOT unload from the server."""
     identifier = payload.get("identifier")
     if not identifier:
         return JSONResponse({"ok": False, "error": "identifier required"}, 400)
