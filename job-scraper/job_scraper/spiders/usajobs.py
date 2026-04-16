@@ -24,7 +24,7 @@ class USAJobsSpider(scrapy.Spider):
         for keyword in cfg.usajobs.keywords:
             url = f"{_BASE_URL}?Keyword={keyword}&ResultsPerPage=100"
             if cfg.usajobs.remote:
-                url += "&RemoteIndicator=true"
+                url += "&TeleworkEligible=true"
             yield scrapy.Request(url=url, callback=self.parse_api, meta={"keyword": keyword}, headers={"Authorization-Key": self._api_key, "User-Agent": self._email, "Host": "data.usajobs.gov"}, dont_filter=True)
 
     def parse_api(self, response):

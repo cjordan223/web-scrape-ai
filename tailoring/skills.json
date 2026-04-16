@@ -16,6 +16,11 @@
     "candidate_profile": {
         "name": "Conner Jordan",
         "target_roles": [
+            "Software Engineer",
+            "Full-Stack Engineer",
+            "Senior Software Engineer",
+            "Backend Engineer",
+            "Frontend Engineer",
             "Security Engineer",
             "DevSecOps Engineer",
             "Security Automation Engineer",
@@ -23,15 +28,49 @@
             "Platform Engineer",
             "Site Reliability Engineer",
             "Infrastructure Engineer",
-            "Software Engineer",
             "AI Security Engineer",
             "MLOps Engineer",
-            "ML Infrastructure Engineer"
+            "ML Infrastructure Engineer",
+            "Integration Engineer",
+            "Lead Engineer"
         ],
-        "positioning_summary": "Security-first engineer with broad infrastructure and DevOps depth. Manages Linux and macOS systems, cloud and hybrid environments, containerized services, and production reliability alongside core security work. Strong automation and scripting across the stack."
+        "positioning_summary": "Full-stack software engineer with deep security expertise. Builds production web applications (React, TypeScript, Python, Java), ships AI-native tooling daily, and integrates complex multi-system architectures. Equally comfortable leading frontend development, backend services, security automation, or cloud infrastructure."
     },
     "skills_inventory": {
         "core_skills": [
+            {
+                "name": "Full-Stack Development",
+                "skills": [
+                    "React.js",
+                    "TypeScript",
+                    "JavaScript",
+                    "Python backend development",
+                    "Java application development",
+                    "Node.js",
+                    "REST API design and implementation",
+                    "SQL database design",
+                    "Frontend architecture",
+                    "Responsive web design",
+                    "SPA development",
+                    "Full-stack application delivery"
+                ]
+            },
+            {
+                "name": "AI-Native Development",
+                "skills": [
+                    "Claude Code",
+                    "Cursor",
+                    "GitHub Copilot",
+                    "Codex",
+                    "Gemini CLI",
+                    "AI-assisted software development",
+                    "LLM-integrated application design",
+                    "RAG pipelines",
+                    "LangChain",
+                    "Vector databases",
+                    "AI governance and auditability"
+                ]
+            },
             {
                 "name": "Infrastructure and Reliability",
                 "skills": [
@@ -48,6 +87,7 @@
                 "name": "Security Engineering",
                 "skills": [
                     "Vulnerability remediation automation",
+                    "Zero-day response engineering",
                     "Endpoint hardening workflows",
                     "Patch orchestration",
                     "Deployable security controls",
@@ -61,9 +101,24 @@
                     "Python automation",
                     "PowerShell automation",
                     "Remediation scripting",
+                    "Custom threat hunting scripts",
+                    "Rapid-response security scripting",
+                    "Safe enterprise script deployment",
+                    "Iterative detection tuning",
                     "API-driven security workflows",
                     "Administrative tooling",
                     "Runbook-driven automation"
+                ]
+            },
+            {
+                "name": "Threat Hunting and Incident Response",
+                "skills": [
+                    "Zero-day threat hunting",
+                    "Indicator and artifact discovery",
+                    "Custom detection logic development",
+                    "Enterprise-wide hunt coordination",
+                    "High-confidence validation before broad deployment",
+                    "Fast iteration under incident pressure"
                 ]
             },
             {
@@ -235,6 +290,7 @@
             "Zeek", "Grafana", "Prometheus",
             "SIEM", "EDR", "XDR", "SOAR",
             "Vulnerability management", "Endpoint management",
+            "Threat hunting", "Detection engineering",
             "Checkmarx SAST", "Burp Suite", "OWASP ZAP",
             "Nmap", "John the Ripper", "Metasploit", "Tails OS"
         ],

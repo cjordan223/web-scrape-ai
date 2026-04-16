@@ -1,6 +1,7 @@
 """Job Scraper Dashboard — FastAPI backend."""
 
 import json
+import logging
 import os
 import plistlib
 import re
@@ -238,6 +239,35 @@ CREATE INDEX IF NOT EXISTS idx_tailoring_queue_items_job_id ON tailoring_queue_i
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tailoring_queue_items_open_job
 ON tailoring_queue_items(job_id)
 WHERE status IN ('queued', 'running');
+CREATE TABLE IF NOT EXISTS qa_llm_review_batches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at TEXT,
+    ended_at TEXT,
+    resolved_model TEXT
+);
+CREATE TABLE IF NOT EXISTS qa_llm_review_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    batch_id INTEGER NOT NULL,
+    job_id INTEGER NOT NULL,
+    title TEXT,
+    status TEXT NOT NULL DEFAULT 'queued',
+    queued_at TEXT NOT NULL,
+    started_at TEXT,
+    completed_at TEXT,
+    reason TEXT,
+    confidence REAL,
+    top_matches TEXT,
+    gaps TEXT,
+    polished INTEGER NOT NULL DEFAULT 0,
+    polished_with_llm INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_qa_llm_review_items_batch_id
+ON qa_llm_review_items(batch_id, id);
+CREATE INDEX IF NOT EXISTS idx_qa_llm_review_items_status
+ON qa_llm_review_items(status, id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_qa_llm_review_items_open_job
+ON qa_llm_review_items(job_id)
+WHERE status IN ('queued', 'reviewing');
 CREATE TABLE IF NOT EXISTS tailoring_ready_bucket_state (
     job_id INTEGER PRIMARY KEY,
     bucket TEXT NOT NULL,
@@ -340,9 +370,10 @@ app = FastAPI(title="Job Scraper Dashboard")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # Recover MLX server state if one is already running on the default port.
-if os.environ.get("JOBFORGE_MANAGE_MLX", "").strip() in ("1", "true", "yes"):
-    from services.mlx_manager import recover_on_startup
-    recover_on_startup()
+from services.mlx_manager import recover_on_startup
+recover_on_startup()
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -593,6 +624,115 @@ def _resolve_llm_runtime(controls: dict | None = None) -> dict:
     }
 
 
+def _fetch_runtime_models(runtime: dict, *, timeout: int = 3) -> tuple[list[dict], list[dict]]:
+    api_key = runtime.get("api_key", "")
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    req = urllib.request.Request(runtime["models_url"], headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    v1_models = data.get("data", []) or []
+
+    manage_models: list[dict] = []
+    if runtime.get("manage_models"):
+        req = urllib.request.Request(f"{runtime['base_url']}/api/tags", headers=headers)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            manage_data = json.loads(resp.read().decode("utf-8"))
+        for item in manage_data.get("models", []) or []:
+            model_name = str(item.get("name") or item.get("model") or "").strip()
+            if not model_name:
+                continue
+            manage_models.append(
+                {
+                    "id": model_name,
+                    "state": "loaded",
+                    "type": "embeddings" if "embed" in model_name.lower() else "llm",
+                    "size": item.get("size", 0),
+                }
+            )
+    return v1_models, manage_models
+
+
+def _resolve_runtime_model_id(
+    runtime: dict,
+    *,
+    v1_models: list[dict] | None = None,
+    manage_models: list[dict] | None = None,
+) -> str | None:
+    model_id = str(runtime.get("selected_model") or "default").strip() or "default"
+    manage_models = manage_models or []
+
+    if runtime.get("manage_models"):
+        loaded = [
+            str(item.get("id") or "").strip()
+            for item in manage_models
+            if str(item.get("state") or "").strip() == "loaded"
+            and str(item.get("type") or "llm").strip().lower() != "embeddings"
+        ]
+        loaded = [item for item in loaded if item]
+        if model_id != "default":
+            if model_id in loaded:
+                return model_id
+            raise RuntimeError(f"Selected model '{model_id}' is not loaded.")
+        return loaded[0] if loaded else None
+
+    if model_id != "default":
+        return model_id
+    for item in v1_models or []:
+        candidate = str(item.get("id") or "").strip()
+        if candidate:
+            return candidate
+    return None
+
+
+def _resolve_tailoring_subprocess_runtime() -> dict:
+    """Resolve a reachable LLM runtime for background tailoring runs.
+
+    Prefer the active runtime-controls selection. If that provider is unreachable
+    and it is not already Ollama, fall back to local Ollama when it has a usable
+    non-embedding model. This keeps dashboard-triggered runs working when MLX is
+    selected but offline.
+    """
+    from providers import PROVIDERS
+
+    controls = _load_runtime_controls()
+    active_provider = str(controls.get("llm_provider") or "ollama").strip().lower()
+    candidate_controls = [dict(controls)]
+    if active_provider != "ollama":
+        fallback_controls = dict(controls)
+        fallback_controls["llm_provider"] = "ollama"
+        fallback_controls["llm_base_url"] = PROVIDERS["ollama"]["base_url"]
+        # An MLX/custom-selected model often doesn't exist in Ollama. Let the
+        # fallback auto-pick the first usable local model instead.
+        fallback_controls["llm_model"] = "default"
+        candidate_controls.append(fallback_controls)
+
+    errors: list[str] = []
+    for candidate in candidate_controls:
+        runtime = _resolve_llm_runtime(candidate)
+        try:
+            v1_models, manage_models = _fetch_runtime_models(runtime, timeout=3)
+            model_id = _resolve_runtime_model_id(runtime, v1_models=v1_models, manage_models=manage_models)
+            if not model_id:
+                raise RuntimeError("No LLM model available")
+            runtime = dict(runtime)
+            runtime["selected_model"] = model_id
+            if runtime["provider"] != active_provider:
+                logger.warning(
+                    "Active LLM provider '%s' unavailable for tailoring run; falling back to '%s' with model '%s'",
+                    active_provider,
+                    runtime["provider"],
+                    model_id,
+                )
+            return runtime
+        except Exception as exc:
+            errors.append(f"{runtime['provider']}: {exc}")
+
+    raise RuntimeError("No reachable LLM runtime for tailoring run (" + "; ".join(errors) + ")")
+
+
 def _safe_tailoring_slug(slug: str) -> Path | None:
     if "/" in slug or "\\" in slug or ".." in slug:
         return None
@@ -739,8 +879,10 @@ def _fetch_applied_by_package_slugs(package_slugs: list[str]) -> dict[str, dict]
     slugs = [slug for slug in package_slugs if slug]
     if not slugs:
         return {}
-    _ensure_applied_tables()
-    conn = get_db_write()
+    try:
+        conn = get_db()
+    except sqlite3.Error:
+        return {}
     try:
         placeholders = ",".join("?" for _ in slugs)
         rows = conn.execute(
@@ -766,8 +908,10 @@ def _fetch_applied_by_job_ids(job_ids: list[int]) -> dict[int, dict]:
     ids = [int(job_id) for job_id in job_ids]
     if not ids:
         return {}
-    _ensure_applied_tables()
-    conn = get_db_write()
+    try:
+        conn = get_db()
+    except sqlite3.Error:
+        return {}
     try:
         placeholders = ",".join("?" for _ in ids)
         rows = conn.execute(
@@ -793,8 +937,10 @@ def _fetch_applied_by_job_ids(job_ids: list[int]) -> dict[int, dict]:
 
 
 def _get_applied_application(application_id: int) -> dict | None:
-    _ensure_applied_tables()
-    conn = get_db_write()
+    try:
+        conn = get_db()
+    except sqlite3.Error:
+        return None
     try:
         row = conn.execute(
             """
@@ -812,8 +958,10 @@ def _get_applied_application(application_id: int) -> dict | None:
 
 
 def _get_applied_snapshot_detail(application_id: int) -> dict | None:
-    _ensure_applied_tables()
-    conn = get_db_write()
+    try:
+        conn = get_db()
+    except sqlite3.Error:
+        return None
     try:
         row = conn.execute(
             """
@@ -1103,15 +1251,19 @@ def _enqueue_tailoring_queue_items(items: list[dict]) -> tuple[list[dict], list[
 
 def _cancel_tailoring_queue_items(
     *,
+    conn: sqlite3.Connection | None = None,
     statuses: tuple[str, ...] = ("queued",),
     job_ids: list[int] | None = None,
     item_ids: list[int] | None = None,
     reason: str | None = None,
 ) -> int:
-    conn = get_db_write()
+    owns_conn = conn is None
+    if conn is None:
+        conn = get_db_write()
     try:
         if _reconcile_stale_tailoring_queue(conn):
-            conn.commit()
+            if owns_conn:
+                conn.commit()
         clauses: list[str] = []
         params: list[object] = []
         if statuses:
@@ -1148,10 +1300,12 @@ def _cancel_tailoring_queue_items(
             """,
             tuple(update_params + params),
         )
-        conn.commit()
+        if owns_conn:
+            conn.commit()
         return max(int(cur.rowcount or 0), 0)
     finally:
-        conn.close()
+        if owns_conn:
+            conn.close()
 
 
 def _stop_active_tailoring_job(job_ids: list[int], reason: str) -> bool:
@@ -1569,9 +1723,25 @@ def _ingest_tailoring_metrics(conn: sqlite3.Connection, run_slug: str, queue_ite
         logging.getLogger(__name__).warning("Failed to ingest tailoring metrics: %s", e)
 
 
+TAILORING_MAX_WALL_TIME_S = 2700  # 45 minutes — kill job if exceeded
+
+
 def _tailoring_runner_snapshot(log_lines: int = 80) -> dict:
     proc = _TAILORING_RUNNER.get("proc")
     if proc is not None:
+        # Watchdog: kill jobs that exceed max wall time
+        started_at = _TAILORING_RUNNER.get("started_at")
+        if started_at and proc.poll() is None:
+            try:
+                elapsed = (datetime.now(timezone.utc) - datetime.fromisoformat(started_at)).total_seconds()
+                if elapsed > TAILORING_MAX_WALL_TIME_S:
+                    logger.warning("Tailoring job exceeded %ds wall time (%.0fs elapsed), killing PID %d",
+                                   TAILORING_MAX_WALL_TIME_S, elapsed, proc.pid)
+                    proc.kill()
+                    proc.wait(timeout=5)
+                    _TAILORING_RUNNER["stop_reason"] = f"Killed: exceeded {TAILORING_MAX_WALL_TIME_S}s wall time"
+            except Exception:
+                pass
         rc = proc.poll()
         if rc is not None:
             now = datetime.now(timezone.utc).isoformat()
@@ -1645,6 +1815,36 @@ def _tailoring_runner_snapshot(log_lines: int = 80) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Background queue poller — reaps finished tailoring processes and advances
+# the queue even when no one is hitting the status API.
+# ---------------------------------------------------------------------------
+def _tailoring_queue_poller():
+    """Poll every 15s to reap finished runners, advance queue, and auto-recover MLX."""
+    while True:
+        time.sleep(15)
+        try:
+            _tailoring_runner_snapshot(log_lines=0)
+        except Exception:
+            pass
+        # Auto-recover MLX server if provider is mlx and server is down
+        try:
+            controls = _load_runtime_controls()
+            if controls.get("llm_provider") == "mlx":
+                from services.mlx_manager import status as mlx_st, start as mlx_start
+                st = mlx_st()
+                if not st.get("running"):
+                    model = controls.get("llm_model")
+                    if model:
+                        logger.warning("MLX server down — auto-restarting with model %s", model)
+                        mlx_start(model)
+        except Exception:
+            pass
+
+_poller_thread = threading.Thread(target=_tailoring_queue_poller, daemon=True)
+_poller_thread.start()
+
+
 def _start_tailoring_run(job: dict, skip_analysis: bool = False, queue_item_id: int | None = None) -> tuple[bool, dict]:
     if _TAILORING_RUNNER.get("proc") is not None and _TAILORING_RUNNER["proc"].poll() is None:
         return False, {"ok": False, "error": "A tailoring run is already in progress", "runner": _tailoring_runner_snapshot()}
@@ -1679,7 +1879,7 @@ def _start_tailoring_run(job: dict, skip_analysis: bool = False, queue_item_id: 
 
     try:
         log_handle = log_path.open("w", encoding="utf-8")
-        llm_runtime = _resolve_llm_runtime()
+        llm_runtime = _resolve_tailoring_subprocess_runtime()
         env = os.environ.copy()
         env["TAILOR_LLM_URL"] = llm_runtime["chat_url"]
         env["TAILOR_LLM_MODELS_URL"] = llm_runtime["models_url"]

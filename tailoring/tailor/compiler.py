@@ -28,17 +28,23 @@ def _resolve_pdflatex() -> str | None:
     )
 
 
-def compile_tex(tex_path: Path) -> Path | None:
+_PDFLATEX_CACHE: str | None = None
+
+
+def compile_tex(tex_path: Path, *, passes: int = 1) -> Path | None:
     """Compile a .tex file to PDF. Returns PDF path on success, None on failure.
 
-    Runs pdflatex twice (for references) in a temp directory, then copies
-    the PDF back next to the .tex file.
+    Runs pdflatex in a temp directory, then copies the PDF back next to the
+    .tex file. Use passes=2 only for documents with cross-references/ToC.
     """
+    global _PDFLATEX_CACHE
     if not tex_path.exists():
         logger.error("TeX file not found: %s", tex_path)
         return None
 
-    pdflatex = _resolve_pdflatex()
+    if _PDFLATEX_CACHE is None:
+        _PDFLATEX_CACHE = _resolve_pdflatex() or ""
+    pdflatex = _PDFLATEX_CACHE
     if not pdflatex:
         logger.error("pdflatex not found; set PDFLATEX_BIN or install TeX")
         return None
@@ -49,8 +55,7 @@ def compile_tex(tex_path: Path) -> Path | None:
         tmp_tex = tmp / tex_path.name
         shutil.copy2(tex_path, tmp_tex)
 
-        # Run pdflatex twice
-        for pass_num in (1, 2):
+        for pass_num in range(1, passes + 1):
             result = subprocess.run(
                 [pdflatex, "-interaction=nonstopmode", "-halt-on-error", tmp_tex.name],
                 cwd=tmpdir,

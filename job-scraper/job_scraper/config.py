@@ -55,7 +55,8 @@ class HardFilterConfig(BaseModel):
         "secret clearance",
     ])
     title_keywords: list[str] = Field(default_factory=list)
-    min_salary_k: int = 70
+    min_salary_k: int = 100
+    target_salary_k: int = 150
 
 
 class RemoteOKConfig(BaseModel):
@@ -189,7 +190,8 @@ def load_config(path: str | Path | None = None) -> ScraperConfig:
         title_blocklist=filter_raw.get("seniority_exclude", HardFilterConfig().title_blocklist),
         content_blocklist=filter_raw.get("content_blocklist", HardFilterConfig().content_blocklist),
         title_keywords=filter_raw.get("title_keywords", []),
-        min_salary_k=filter_raw.get("min_salary_k", 70),
+        min_salary_k=filter_raw.get("min_salary_k", 100),
+        target_salary_k=filter_raw.get("target_salary_k", 150),
     )
 
     remoteok_raw = raw.get("remoteok", {})

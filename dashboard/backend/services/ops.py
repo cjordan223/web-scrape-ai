@@ -350,8 +350,14 @@ def ops_action(payload: dict = Body(default={})):
         if clear_runs and "runs" in existing:
             conn.execute("DELETE FROM runs")
             cleared_tables.append("runs")
+        removed_seen_urls = 0
+        preserved_seen_urls = 0
         if clear_seen_urls and "seen_urls" in existing:
-            conn.execute("DELETE FROM seen_urls")
+            preserved_seen_urls = int(
+                conn.execute("SELECT COUNT(*) FROM seen_urls WHERE permanently_rejected = 1").fetchone()[0]
+            )
+            cur = conn.execute("DELETE FROM seen_urls WHERE permanently_rejected = 0")
+            removed_seen_urls = max(int(cur.rowcount or 0), 0)
             cleared_tables.append("seen_urls")
 
         return {
@@ -359,6 +365,8 @@ def ops_action(payload: dict = Body(default={})):
             "removed_results": removed_results,
             "removed_queue_items": removed_queue_items,
             "removed_state_logs": removed_state_logs,
+            "removed_seen_urls": removed_seen_urls,
+            "preserved_seen_urls": preserved_seen_urls,
             "affected_tables": cleared_tables,
         }
 
@@ -413,11 +421,11 @@ def ops_action(payload: dict = Body(default={})):
             conn = get_db_write()
             try:
                 existing = set(_db_user_tables(conn))
-                if "results" not in existing:
+                if "jobs" not in existing:
                     return 0
                 rows = conn.execute(
                     """
-                    SELECT id FROM results
+                    SELECT id FROM jobs
                     WHERE COALESCE(query, '') IN ('manual-ingest', 'mobile-ingest')
                        OR COALESCE(run_id, '') IN ('manual-ingest', 'mobile-ingest')
                        OR url LIKE 'manual://ingest/%'
@@ -656,9 +664,10 @@ def update_runtime_controls(payload: dict = Body(default={})):
     if "llm_enabled" in payload:
         updates["llm_enabled"] = bool(payload["llm_enabled"])
     if "llm_provider" in payload:
+        from providers import PROVIDERS
         provider = str(payload["llm_provider"] or "").strip().lower()
-        if provider not in {"lmstudio", "openai"}:
-            return JSONResponse({"error": "llm_provider must be 'lmstudio' or 'openai'"}, 400)
+        if provider not in PROVIDERS:
+            return JSONResponse({"error": f"Unknown llm_provider: {provider}"}, 400)
         updates["llm_provider"] = provider
     if "llm_base_url" in payload:
         base_url = str(payload["llm_base_url"] or "").strip()
@@ -707,7 +716,7 @@ def update_runtime_controls(payload: dict = Body(default={})):
 # ---------------------------------------------------------------------------
 # Routes — API: LLM status
 # ---------------------------------------------------------------------------
-LLM_URL = os.environ.get("LLM_URL", "http://localhost:1234")
+LLM_URL = os.environ.get("LLM_URL", "http://localhost:11434")
 
 
 
@@ -739,6 +748,46 @@ def catch_all(full_path: str):
     content = (DIST_DIR / "index.html").read_bytes()
     return Response(content=content, media_type="text/html",
                     headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+
+def tailoring_metrics_get():
+    """Return all tailoring metrics rows with computed baselines."""
+    _sync_app_state()
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            """
+            SELECT m.*, j.title as job_title, j.company as job_company
+            FROM tailoring_metrics m
+            LEFT JOIN jobs j ON m.job_id = j.id
+            ORDER BY m.timestamp DESC
+            """
+        ).fetchall()
+        metrics = [dict(r) for r in rows]
+
+        # Compute baselines (averages)
+        baselines = {}
+        numeric_fields = [
+            "total_wall_time_s", "queue_wait_s",
+            "analysis_time_s", "analysis_llm_time_s",
+            "resume_time_s", "resume_llm_time_s",
+            "cover_time_s", "cover_llm_time_s",
+            "total_llm_time_s",
+        ]
+        int_fields = [
+            "analysis_llm_calls", "resume_llm_calls", "resume_attempts",
+            "cover_llm_calls", "cover_attempts", "total_llm_calls",
+        ]
+        for field in numeric_fields + int_fields:
+            values = [r[field] for r in metrics if r.get(field) is not None]
+            if values:
+                avg = sum(values) / len(values)
+                baselines[field] = round(avg, 2) if field in numeric_fields else round(avg, 1)
+        baselines["run_count"] = len(metrics)
+
+        return {"metrics": metrics, "baselines": baselines}
+    finally:
+        conn.close()
 
 
 from routers import ops as ops_routes

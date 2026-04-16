@@ -102,7 +102,7 @@ Load with `launchctl load ...`.
 |---|---:|---|
 | SearXNG | 8888 | Docker |
 | Dashboard | 8899 | FastAPI serving React build |
-| LLM server | 1234 | Needed for tailoring + scraper LLM review |
+| LLM server | 11434 | Ollama — needed for tailoring and package-chat workflows |
 
 ## Optional Environment Variables
 

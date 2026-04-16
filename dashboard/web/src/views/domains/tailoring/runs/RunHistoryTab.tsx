@@ -7,9 +7,10 @@ import { groupTraceEvents, StageRow, SectionLabel, ArtifactViewer, TraceInspecto
 interface Props {
     runs: any[];
     loading: boolean;
+    onRunStarted?: () => void;
 }
 
-export default function RunHistoryTab({ runs, loading }: Props) {
+export default function RunHistoryTab({ runs, loading, onRunStarted }: Props) {
     const navigate = useNavigate();
 
     const [activeSlug, setActiveSlug] = useState<string | null>(null);
@@ -18,6 +19,8 @@ export default function RunHistoryTab({ runs, loading }: Props) {
     const [traceTab, setTraceTab] = useState<'overview' | 'system' | 'user' | 'response' | 'raw'>('overview');
     const [artifactView, setArtifactView] = useState<{ name: string; content: string; isPdf: boolean } | null>(null);
     const [artifactLoading, setArtifactLoading] = useState(false);
+    const [rerunBusySlug, setRerunBusySlug] = useState<string | null>(null);
+    const [rerunMessage, setRerunMessage] = useState<string | null>(null);
 
     useEffect(() => {
         if (!activeSlug) return;
@@ -54,6 +57,25 @@ export default function RunHistoryTab({ runs, loading }: Props) {
         finally { setArtifactLoading(false); }
     };
 
+    const canRerun = (run: any) => ['failed', 'partial'].includes((run?.status || '').toLowerCase()) && Number.isInteger(run?.meta?.job_id);
+
+    const handleRerun = async (run: any) => {
+        const jobId = Number(run?.meta?.job_id);
+        if (!Number.isInteger(jobId)) return;
+        setRerunBusySlug(run.slug);
+        setRerunMessage(null);
+        try {
+            const res = await api.queueTailoring([{ job_id: jobId }]);
+            if (!res?.ok) throw new Error(res?.error || 'Failed to queue re-run');
+            setRerunMessage(`Queued re-run for job #${jobId}.`);
+            onRunStarted?.();
+        } catch (e: any) {
+            setRerunMessage(e?.response?.data?.error || e?.message || 'Failed to queue re-run');
+        } finally {
+            setRerunBusySlug(null);
+        }
+    };
+
     const statusPill = (status: string) => {
         if (status === 'complete') return 'pill pill-success';
         if (status === 'failed') return 'pill pill-fail';
@@ -85,6 +107,17 @@ export default function RunHistoryTab({ runs, loading }: Props) {
                         All Runs ({runs.length})
                     </span>
                 </div>
+                {rerunMessage && (
+                    <div style={{
+                        padding: '8px 14px',
+                        borderBottom: '1px solid var(--border)',
+                        fontSize: '.72rem',
+                        color: rerunMessage.toLowerCase().includes('queued') ? 'var(--green)' : 'var(--red)',
+                        background: 'rgba(255,255,255,0.02)',
+                    }}>
+                        {rerunMessage}
+                    </div>
+                )}
                 <div style={{ flex: 1, overflowY: 'auto' }}>
                     {loading ? (
                         <div className="loading"><div className="spinner" /></div>
@@ -112,6 +145,20 @@ export default function RunHistoryTab({ runs, loading }: Props) {
                                     <span style={{ fontWeight: 600, fontSize: '.82rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {run.meta?.title || run.slug}
                                     </span>
+                                    {canRerun(run) && (
+                                        <button
+                                            className="btn btn-ghost btn-sm"
+                                            style={{ fontSize: '.64rem', padding: '3px 8px' }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                void handleRerun(run);
+                                            }}
+                                            disabled={rerunBusySlug === run.slug}
+                                            title={`Queue a new tailoring run for job #${run.meta?.job_id}`}
+                                        >
+                                            {rerunBusySlug === run.slug ? 'Queueing...' : 'Re-run'}
+                                        </button>
+                                    )}
                                     <span className={statusPill(run.status)} style={{ flexShrink: 0 }}>{run.status}</span>
                                 </div>
                                 <div style={{ display: 'flex', gap: '10px', fontFamily: 'var(--font-mono)', fontSize: '.68rem', color: 'var(--text-secondary)', alignItems: 'center' }}>
@@ -149,6 +196,15 @@ export default function RunHistoryTab({ runs, loading }: Props) {
                                     <span>{traces.length} events</span>
                                 </div>
                             </div>
+                            {canRerun(activeRun) && (
+                                <button
+                                    className="btn btn-ghost btn-sm"
+                                    onClick={() => void handleRerun(activeRun)}
+                                    disabled={rerunBusySlug === activeRun?.slug}
+                                >
+                                    {rerunBusySlug === activeRun?.slug ? 'Queueing...' : 'Re-run'}
+                                </button>
+                            )}
                             <button className="btn btn-success btn-sm" onClick={() => navigate('/pipeline/packages')}>
                                 Package Review
                             </button>

@@ -47,7 +47,7 @@ class TestAnalysisNormalization(unittest.TestCase):
             "company_context": {"company_type": "platform_devops"},
             "requirements": [
                 {
-                    "matched_skills": "Docker, Kubernetes, ArgoCD",
+                    "matched_skills": "Docker, Flask, FastAPI",
                     "priority": "medium",
                 }
             ],
@@ -59,7 +59,7 @@ class TestAnalysisNormalization(unittest.TestCase):
             analysis = load_cached_analysis(job, out)
 
         self.assertIsNotNone(analysis)
-        self.assertEqual(analysis["requirements"][0]["matched_skills"], ["Docker", "Kubernetes", "ArgoCD"])
+        self.assertEqual(analysis["requirements"][0]["matched_skills"], ["Docker", "Flask", "FastAPI"])
 
 
 if __name__ == "__main__":

@@ -127,7 +127,7 @@ Mobile routes (auto-redirect on `width < 768`), tab bar order: Ingest, QA, Jobs,
 - `tailor/validator.py` — hard gates
 - `tailor/compiler.py` — pdflatex wrapper
 - `tailor/tracing.py` — per-call trace logging
-- `tailor/ollama.py` — LLM client; auto-discovers loaded model from `/v1/models` (override via `TAILOR_LMSTUDIO_MODEL`)
+- `tailor/ollama.py` — LLM client; auto-discovers loaded model from `/v1/models` (override via `TAILOR_LLM_MODEL`)
 - `tailor/selector.py` — interactive job selection for CLI
 
 ## Environment
@@ -136,4 +136,4 @@ Mobile routes (auto-redirect on `width < 768`), tab bar order: Ingest, QA, Jobs,
 - Ports:
   - SearXNG `8888`
   - Dashboard `8899`
-  - LLM endpoint `1234`
+  - LLM endpoint `11434` (Ollama)

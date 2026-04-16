@@ -312,11 +312,14 @@ def _add_failure(
     message: str,
     *,
     snippet: str | None = None,
+    matched_text: str | None = None,
 ) -> None:
     failures.append(message)
     detail: dict[str, Any] = {"category": category, "message": message}
     if snippet:
         detail["snippet"] = snippet
+    if matched_text:
+        detail["matched_text"] = matched_text
     failure_details.append(detail)
 
 
@@ -329,12 +332,81 @@ def _first_match_snippet(text: str, pattern: str) -> str | None:
     return re.sub(r"\s+", " ", text[start:end]).strip()
 
 
+def _snippet_around(text: str, start: int, end: int, radius: int = 80) -> str:
+    s = max(0, start - radius)
+    e = min(len(text), end + radius)
+    return re.sub(r"\s+", " ", text[s:e]).strip()
+
+
+def _match_is_target_reference(
+    text: str, start: int, end: int, exempt_literals: list[str]
+) -> bool:
+    """Return True if this match is only a reference to the target company/role.
+
+    A match is considered a target reference when every exempt literal that
+    appears inside the window around the match is close enough to the match
+    span that the claim is really about the target (e.g. "your ServiceNow
+    instance") rather than a claim about prior employer work.
+    """
+    if not exempt_literals:
+        return False
+    window = text[max(0, start - 40) : min(len(text), end + 40)].lower()
+    return any(lit in window for lit in exempt_literals if lit)
+
+
+def _extract_exempt_literals(analysis: dict[str, Any] | None) -> list[str]:
+    """Collect normalized literals from the job target that should never
+    themselves count as a hallucinated claim.
+
+    We keep the full company name and role title as literals, and extract
+    individual tokens only when they look like product/brand names —
+    CamelCase (ServiceNow, CrowdStrike, JAMF) or all-caps acronyms (SCCM,
+    JAMF, AWS). Plain English words like "business", "systems", or
+    "administrator" are intentionally excluded so they cannot suppress
+    legitimate claim matches elsewhere in the text.
+    """
+    if not analysis:
+        return []
+    literals: list[str] = []
+
+    def _looks_like_brand(token: str) -> bool:
+        if len(token) < 3:
+            return False
+        if token.isupper():
+            return True
+        # CamelCase: starts with uppercase, contains at least one lowercase
+        # AND at least one more uppercase after the first character.
+        if (
+            token[0].isupper()
+            and any(c.islower() for c in token[1:])
+            and any(c.isupper() for c in token[1:])
+        ):
+            return True
+        return False
+
+    for key in ("company_name", "role_title"):
+        value = analysis.get(key)
+        if isinstance(value, str) and value.strip():
+            literals.append(value.strip().lower())
+            for token in re.findall(r"[A-Za-z][A-Za-z0-9]+", value):
+                if _looks_like_brand(token):
+                    literals.append(token.lower())
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for lit in literals:
+        if lit and lit not in seen:
+            seen.add(lit)
+            deduped.append(lit)
+    return deduped
+
+
 def _validate_grounding_claims(
     *,
     text: str,
     failures: list[str],
     failure_details: list[dict[str, Any]],
     grounding: dict[str, Any],
+    exempt_literals: list[str] | None = None,
 ) -> None:
     patterns = grounding.get("high_risk_patterns", {})
     category_map = {
@@ -345,19 +417,29 @@ def _validate_grounding_claims(
         "unsupported_operational_mechanic_claim": "unsupported_operational_mechanic_claim",
         "unsupported_scale_claim": "unsupported_operational_mechanic_claim",
     }
+    exempt_literals = exempt_literals or []
     for rule_name, patterns_for_rule in patterns.items():
         if rule_name == "role_title_renamed":
             continue
         for pattern in patterns_for_rule:
-            snippet = _first_match_snippet(text, pattern)
-            if snippet:
+            genuine_snippet: str | None = None
+            matched_text: str | None = None
+            for match in re.finditer(pattern, text, re.IGNORECASE | re.DOTALL):
+                if _match_is_target_reference(text, match.start(), match.end(), exempt_literals):
+                    continue
+                genuine_snippet = _snippet_around(text, match.start(), match.end())
+                matched_text = re.sub(r"\s+", " ", match.group(0)).strip()
+                break
+            if genuine_snippet:
                 category = category_map.get(rule_name, rule_name)
+                quoted = f'"{matched_text}"' if matched_text else "unsupported claim pattern detected"
                 _add_failure(
                     failures,
                     failure_details,
                     category,
-                    f"{category}: unsupported claim pattern detected",
-                    snippet=snippet,
+                    f"{category}: remove phrase {quoted}",
+                    snippet=genuine_snippet,
+                    matched_text=matched_text,
                 )
                 break
 
@@ -396,17 +478,24 @@ def _validate_cover_company_rendering(
         )
 
 
-def validate_resume(tex_path: Path) -> ValidationResult:
-    """Run all hard gates on a tailored resume."""
+def validate_resume(tex_path: Path, *, pdf_path: Path | None = None) -> ValidationResult:
+    """Run all hard gates on a tailored resume.
+
+    If pdf_path is provided and exists, skip recompilation (reuse the PDF
+    already produced by the fit-to-page loop).
+    """
     failures = []
     failure_details: list[dict[str, Any]] = []
     metrics: dict[str, Any] = {}
     tex = tex_path.read_text()
-    baseline_tex = cfg.RESUME_TEX.read_text()
+    baseline_tex = cfg.read_cached(cfg.RESUME_TEX)
     grounding = build_grounding_context(baseline_tex=baseline_tex)
 
     # Gate 1: Compilation
-    pdf = compile_tex(tex_path)
+    if pdf_path is not None and pdf_path.exists():
+        pdf = pdf_path
+    else:
+        pdf = compile_tex(tex_path)
     if pdf is None:
         _add_failure(failures, failure_details, "compilation_failed", "compilation failed")
     else:
@@ -548,11 +637,20 @@ def validate_resume(tex_path: Path) -> ValidationResult:
             _extract_section(tex, "EDUCATION"),
         ]
     )
+    analysis_path = tex_path.parent / "analysis.json"
+    exempt_literals: list[str] = []
+    if analysis_path.exists():
+        try:
+            analysis_data = json.loads(analysis_path.read_text(encoding="utf-8"))
+            exempt_literals = _extract_exempt_literals(analysis_data)
+        except Exception:
+            exempt_literals = []
     _validate_grounding_claims(
         text=resume_narrative,
         failures=failures,
         failure_details=failure_details,
         grounding=grounding,
+        exempt_literals=exempt_literals,
     )
     metrics["failure_details"] = failure_details
     return ValidationResult(
@@ -563,32 +661,46 @@ def validate_resume(tex_path: Path) -> ValidationResult:
     )
 
 
-def validate_cover_letter(tex_path: Path) -> ValidationResult:
-    """Run hard gates on a tailored cover letter."""
+def validate_cover_letter(tex_path: Path, *, pdf_path: Path | None = None) -> ValidationResult:
+    """Run hard gates on a tailored cover letter.
+
+    If pdf_path is provided and exists, skip recompilation.
+    """
     failures = []
     failure_details: list[dict[str, Any]] = []
     metrics: dict[str, Any] = {}
     tex = tex_path.read_text()
-    baseline_tex = cfg.COVER_TEX.read_text()
+    baseline_tex = cfg.read_cached(cfg.COVER_TEX)
     grounding = build_grounding_context()
 
     # Gate 1: Compilation
-    pdf = compile_tex(tex_path)
+    if pdf_path is not None and pdf_path.exists():
+        pdf = pdf_path
+    else:
+        pdf = compile_tex(tex_path)
     if pdf is None:
         _add_failure(failures, failure_details, "compilation_failed", "compilation failed")
 
     # Gate 2: Character count (see COVER_CHAR_TOLERANCE in config.py)
     body = _extract_body_text(tex)
     baseline_body = _extract_body_text(baseline_tex)
+    metrics["body_chars"] = len(body)
+    metrics["baseline_body_chars"] = len(baseline_body)
     if baseline_body:
         ratio = len(body) / len(baseline_body)
         metrics["char_ratio"] = round(ratio, 4)
         if abs(ratio - 1.0) > cfg.COVER_CHAR_TOLERANCE:
+            target_lo = int(len(baseline_body) * (1 - cfg.COVER_CHAR_TOLERANCE))
+            target_hi = int(len(baseline_body) * (1 + cfg.COVER_CHAR_TOLERANCE))
+            overshoot = len(body) - target_hi if ratio > 1.0 else target_lo - len(body)
+            direction = "TRIM" if ratio > 1.0 else "EXPAND"
             _add_failure(
                 failures,
                 failure_details,
                 "char_ratio_out_of_bounds",
-                f"char count ratio {ratio:.2f} (±{cfg.COVER_CHAR_TOLERANCE} allowed)",
+                f"char count ratio {ratio:.2f} (±{cfg.COVER_CHAR_TOLERANCE} allowed); "
+                f"draft has {len(body)} chars, baseline has {len(baseline_body)} chars, "
+                f"need {target_lo}-{target_hi}; {direction} ~{overshoot} chars",
             )
 
     # Gate 3: No Python list literals
@@ -599,11 +711,20 @@ def validate_cover_letter(tex_path: Path) -> ValidationResult:
     if re.search(r"(?<!\\newcommand)(?<!\\noindent)(?<!\\newpage)\\n(?![a-zA-Z])", tex):
         _add_failure(failures, failure_details, "literal_newline_token", "literal \\n token found in .tex")
 
+    analysis_path = tex_path.parent / "analysis.json"
+    exempt_literals: list[str] = []
+    if analysis_path.exists():
+        try:
+            analysis_data = json.loads(analysis_path.read_text(encoding="utf-8"))
+            exempt_literals = _extract_exempt_literals(analysis_data)
+        except Exception:
+            exempt_literals = []
     _validate_grounding_claims(
         text=tex,
         failures=failures,
         failure_details=failure_details,
         grounding=grounding,
+        exempt_literals=exempt_literals,
     )
     _validate_cover_company_rendering(tex_path, tex, failures, failure_details)
     metrics["failure_details"] = failure_details

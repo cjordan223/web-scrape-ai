@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -18,6 +19,7 @@ from .grounding import (
 from .ollama import chat_expect_json
 from .persona import get_store as get_persona
 from .selector import SelectedJob
+from .semantic_validator import validate_analysis_semantics
 
 logger = logging.getLogger(__name__)
 
@@ -131,8 +133,17 @@ def normalize_analysis(analysis: dict) -> dict:
     return normalized
 
 
+def _compute_input_hash(job: SelectedJob) -> str:
+    """SHA-256 hash of the LLM prompt inputs for cache validation."""
+    jd_text = job.jd_text or job.snippet or ""
+    skills_text = cfg.SKILLS_JSON.read_text() if cfg.SKILLS_JSON.exists() else ""
+    baseline_text = cfg.RESUME_TEX.read_text() if cfg.RESUME_TEX.exists() else ""
+    combined = f"{jd_text}\n---\n{skills_text}\n---\n{baseline_text}"
+    return hashlib.sha256(combined.encode()).hexdigest()
+
+
 def load_cached_analysis(job: SelectedJob, output_dir: Path) -> dict | None:
-    """Return cached analysis only if it matches the selected job."""
+    """Return cached analysis only if it matches the selected job and inputs haven't changed."""
     cache_path = output_dir / "analysis.json"
     if not cache_path.exists():
         return None
@@ -157,10 +168,45 @@ def load_cached_analysis(job: SelectedJob, output_dir: Path) -> dict | None:
         )
         return None
 
+    # Invalidate if inputs (JD, skills, baseline) have changed since the analysis was cached.
+    cached_hash = analysis.get("_input_hash")
+    if cached_hash and cached_hash != _compute_input_hash(job):
+        logger.info("Invalidating analysis cache at %s (input hash mismatch — JD, skills, or baseline changed)", cache_path)
+        return None
+
     grounding = build_grounding_context()
     analysis = enrich_analysis_with_grounding(normalize_analysis(analysis), grounding)
+    analysis, _ = validate_analysis_semantics(analysis)
     logger.info("Using cached analysis from %s", cache_path)
     return analysis
+
+
+def _find_prior_analysis(job: SelectedJob, output_dir: Path) -> dict | None:
+    """Search prior run directories for a valid cached analysis for this job.
+
+    Output dirs follow the pattern: output/<slug>/ or output/<slug>-<timestamp>/.
+    We check the current dir first, then scan siblings in reverse chronological order.
+    """
+    cached = load_cached_analysis(job, output_dir)
+    if cached is not None:
+        return cached
+
+    # Search sibling directories that share this job's slug prefix
+    parent = output_dir.parent
+    if not parent.is_dir():
+        return None
+    slug = job.slug
+    candidates = sorted(
+        (d for d in parent.iterdir() if d.is_dir() and d != output_dir and d.name.startswith(slug)),
+        key=lambda d: d.stat().st_mtime,
+        reverse=True,
+    )
+    for prior_dir in candidates[:5]:  # check at most 5 recent runs
+        cached = load_cached_analysis(job, prior_dir)
+        if cached is not None:
+            logger.info("Reusing analysis from prior run: %s", prior_dir.name)
+            return cached
+    return None
 
 
 def analyze_job(
@@ -170,16 +216,21 @@ def analyze_job(
 ) -> dict:
     """Analyze a JD against skills inventory. Returns structured mapping dict.
 
-    Caches result to output_dir/analysis.json — skips LLM if cache exists.
+    Searches the current and prior run directories for a valid cached analysis
+    (validated by job_id, job_url, and input hash). Falls back to LLM if no
+    valid cache is found.
     """
     cache_path = output_dir / "analysis.json"
-    cached = load_cached_analysis(job, output_dir)
+    cached = _find_prior_analysis(job, output_dir)
     if cached is not None:
+        # Copy the valid cache into the current output dir for downstream use
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(json.dumps(cached, indent=2))
         return cached
 
-    skills_data = json.loads(cfg.SKILLS_JSON.read_text())
+    skills_data = cfg.read_json_cached(cfg.SKILLS_JSON)
     persona_text = get_persona().for_analysis()
-    baseline_resume = cfg.RESUME_TEX.read_text()
+    baseline_resume = cfg.read_cached(cfg.RESUME_TEX)
     grounding = build_grounding_context(baseline_tex=baseline_resume, skills_data=skills_data)
 
     jd_text = job.jd_text or job.snippet or ""
@@ -216,11 +267,21 @@ def analyze_job(
         trace_recorder=trace_recorder,
     )
     analysis = enrich_analysis_with_grounding(normalize_analysis(analysis), grounding)
+    analysis, validation = validate_analysis_semantics(
+        analysis, skills_data=skills_data, baseline_tex=baseline_resume,
+    )
     analysis["_job_id"] = job.id
     analysis["_job_url"] = job.url
+    analysis["_input_hash"] = _compute_input_hash(job)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(json.dumps(analysis, indent=2))
     write_grounding_artifacts(output_dir, grounding=grounding, analysis=analysis)
-    logger.info("Analysis saved to %s (%d requirements mapped)", cache_path, len(analysis.get("requirements", [])))
+    if not validation.clean:
+        logger.info(
+            "Analysis saved with %d semantic repair(s) to %s (%d requirements kept)",
+            len(validation.issues), cache_path, len(analysis.get("requirements", [])),
+        )
+    else:
+        logger.info("Analysis saved to %s (%d requirements mapped)", cache_path, len(analysis.get("requirements", [])))
     return analysis

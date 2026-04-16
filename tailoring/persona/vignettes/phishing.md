@@ -2,7 +2,7 @@
 ---
 tags: [internal_tooling, security_engineering]
 company_types: [startup, security_focused]
-skill_categories: [Security Engineering, Internal Tooling]
+skill_categories: [Security Engineering, Web and Internal Security Tooling]
 keywords: [phishing, detection, browser extension, API, URL analysis, prototype, innovation]
 ---
-Built a phishing detection system from scratch as a school capstone project — browser extension frontend, Python backend API, real-time URL analysis. It earned Most Innovative Project at the 2024 Capstone Festival. But the real point is: I see a security gap, I prototype a solution, and I ship it. Not a proposal deck — working code.
+I watched an AI-generated spearphishing attack succeed in the wild — a sophisticated thread that mimicked executive communication convincingly enough to extract sensitive financial data. The techniques were exotic enough that existing defenses didn't flag it. That stuck with me. When I chose my capstone project, I built a phishing detection system from scratch: browser extension frontend, Python backend API, real-time URL and content analysis. It wasn't an academic exercise — it came from seeing firsthand how fast social engineering is evolving and wanting to build something that could actually catch what the existing tools were missing. The project earned Most Innovative at the 2024 Capstone Festival, but the part that mattered was closing the loop between a real incident I'd observed and working code that addressed it.

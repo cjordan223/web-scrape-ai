@@ -11,6 +11,8 @@ import {
   CheckSquare,
   Workflow,
   Lightbulb,
+  Cpu,
+  BarChart3,
 } from 'lucide-react';
 
 type NavItem = {
@@ -64,6 +66,8 @@ const domains: Domain[] = [
         ],
       },
       { label: 'Traces', to: '/ops/traces', icon: GitBranch, desc: 'Tailoring LLM traces' },
+      { label: 'LLM', to: '/ops/llm', icon: Cpu, desc: 'Provider keys & models' },
+      { label: 'Metrics', to: '/ops/metrics', icon: BarChart3, desc: 'Tailoring performance' },
       { label: 'Admin', to: '/ops/admin', icon: Terminal, desc: 'SQL console & bulk ops' },
     ],
   },
@@ -82,6 +86,8 @@ const labelBySegment: Record<string, string> = {
   ops: 'Ops',
   inventory: 'Inventory',
   traces: 'Traces',
+  llm: 'LLM',
+  metrics: 'Metrics',
   admin: 'Admin',
 };
 

@@ -64,7 +64,7 @@ Open: `http://localhost:8899`
 |---|---:|---|
 | SearXNG | 8888 | Docker container, JSON API enabled |
 | Dashboard | 8899 | FastAPI + React static build |
-| LLM server | 1234 | OpenAI-compatible endpoint for tailoring + LLM review |
+| LLM server | 11434 | Ollama endpoint for tailoring + LLM review |
 
 ## Documentation Index
 

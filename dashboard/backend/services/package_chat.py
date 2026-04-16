@@ -457,6 +457,8 @@ def _call_package_chat_model(
     user_prompt: str,
     *,
     mode: str,
+    model: str | None = None,
+    llm_runtime: dict | None = None,
 ) -> str:
     import sys
 
@@ -464,12 +466,24 @@ def _call_package_chat_model(
     from tailor.ollama import chat as llm_chat
 
     config = MODE_CONFIG[mode]
+    # Per-mode env override takes priority, then the resolved model from
+    # runtime controls, then auto-discovery as last resort.
+    resolved_model = os.environ.get(config["model_env"]) or model or None
     return llm_chat(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
         max_tokens=config["max_tokens"],
         temperature=config["temperature"],
-        model=os.environ.get(config["model_env"]) or None,
+        model=resolved_model,
+        runtime=(
+            {
+                "provider": llm_runtime.get("provider"),
+                "chat_url": llm_runtime.get("chat_url"),
+                "api_key": llm_runtime.get("api_key", ""),
+            }
+            if llm_runtime
+            else None
+        ),
     )
 
 
@@ -562,7 +576,7 @@ def clear_history(slug: str) -> bool:
     return False
 
 
-def send_chat(slug: str, message: str, doc_focus: str | None = None) -> dict:
+def send_chat(slug: str, message: str, doc_focus: str | None = None, *, model: str | None = None, llm_runtime: dict | None = None) -> dict:
     context = _load_package_context(slug)
     if not context:
         return {"ok": False, "error": "Package not found"}
@@ -575,7 +589,7 @@ def send_chat(slug: str, message: str, doc_focus: str | None = None) -> dict:
     user_prompt = _build_user_prompt(message, history, mode, target_doc)
 
     try:
-        reply = _call_package_chat_model(system_prompt, user_prompt, mode=mode)
+        reply = _call_package_chat_model(system_prompt, user_prompt, mode=mode, model=model, llm_runtime=llm_runtime)
     except TimeoutError:
         return {"ok": False, "error": "LLM is busy (lock timeout). Try again shortly."}
     except Exception as e:

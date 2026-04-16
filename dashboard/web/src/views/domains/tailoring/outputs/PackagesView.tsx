@@ -1,11 +1,14 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { api } from '../../../../api';
-import { FileDiff, Pencil, MessageSquare, ChevronDown, ChevronUp, FileText, Layers, BookOpen, Trash2 } from 'lucide-react';
+import { FileDiff, Pencil, MessageSquare, ChevronDown, ChevronUp, FileText, Layers, BookOpen, Copy, Scissors } from 'lucide-react';
+import { copyText, toLocalInputValue } from '../../../../utils';
 import PackageChatPanel from './PackageChatTab';
 import { DetailContextSection, BriefingPanel, DocumentsSideBySide, StrategyCard, JdDisplay, timeAgo, safePdfName } from './shared';
 
 type MainTab = 'briefing' | 'strategy' | 'documents' | 'jd' | 'diff' | 'editor';
 type RunFilter = 'all' | 'recent_reruns' | 'latest_only' | 'previous_only' | 'with_history' | 'returned';
+type TimelineMode = 'off' | 'newer_than' | 'between';
+type TimelineUnit = 'hours' | 'days';
 
 type PackageGroup = {
     key: string;
@@ -15,10 +18,30 @@ type PackageGroup = {
     items: any[];
 };
 
-function toLocalInputValue(isoDate?: string | null) {
-    const date = isoDate ? new Date(isoDate) : new Date();
-    const offsetMs = date.getTimezoneOffset() * 60_000;
-    return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+function ActionHelp({ text }: { text: string }) {
+    return (
+        <span
+            title={text}
+            aria-label={text}
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '14px',
+                height: '14px',
+                borderRadius: '999px',
+                border: '1px solid var(--border)',
+                color: 'var(--text-secondary)',
+                fontSize: '.62rem',
+                fontWeight: 700,
+                lineHeight: 1,
+                cursor: 'help',
+                flexShrink: 0,
+            }}
+        >
+            ?
+        </span>
+    );
 }
 
 function packageUpdatedAt(item: any) {
@@ -29,6 +52,121 @@ function packageUpdatedAt(item: any) {
 
 function isTimestampedRerunSlug(slug?: string) {
     return Boolean(slug && /-\d{8}T\d{6}Z$/.test(slug));
+}
+
+function timelineUnitMs(unit: TimelineUnit) {
+    return unit === 'days' ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000;
+}
+
+function timelineMatches(
+    item: any,
+    {
+        mode,
+        unit,
+        newerThanValue,
+        betweenMinValue,
+        betweenMaxValue,
+    }: {
+        mode: TimelineMode;
+        unit: TimelineUnit;
+        newerThanValue: string;
+        betweenMinValue: string;
+        betweenMaxValue: string;
+    },
+) {
+    if (mode === 'off') return true;
+    const ts = packageUpdatedAt(item);
+    if (!ts) return false;
+    const ageMs = Date.now() - ts;
+    const unitMs = timelineUnitMs(unit);
+
+    if (mode === 'newer_than') {
+        const threshold = Number(newerThanValue);
+        if (!Number.isFinite(threshold) || threshold < 0) return true;
+        return ageMs <= threshold * unitMs;
+    }
+
+    const min = Number(betweenMinValue);
+    const max = Number(betweenMaxValue);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < 0) return true;
+    const lower = Math.min(min, max) * unitMs;
+    const upper = Math.max(min, max) * unitMs;
+    return ageMs >= lower && ageMs <= upper;
+}
+
+function describeTimelineFilter(
+    mode: TimelineMode,
+    unit: TimelineUnit,
+    newerThanValue: string,
+    betweenMinValue: string,
+    betweenMaxValue: string,
+) {
+    const unitLabel = unit === 'days' ? 'day' : 'hour';
+    if (mode === 'newer_than') {
+        const threshold = Number(newerThanValue);
+        if (!Number.isFinite(threshold) || threshold < 0) return 'Timeline off';
+        return `${threshold} ${unitLabel}${threshold === 1 ? '' : 's'} or newer`;
+    }
+    if (mode === 'between') {
+        const min = Number(betweenMinValue);
+        const max = Number(betweenMaxValue);
+        if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < 0) return 'Timeline off';
+        const lower = Math.min(min, max);
+        const upper = Math.max(min, max);
+        return `Between ${lower}-${upper} ${unitLabel}${upper === 1 ? '' : 's'} ago`;
+    }
+    return 'Timeline off';
+}
+
+const timelineInputStyle: React.CSSProperties = { borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', padding: '7px 9px', minWidth: 0 };
+
+function TimelineControls({
+    mode, setMode, unit, setUnit,
+    newerThanValue, setNewerThanValue,
+    betweenMinValue, setBetweenMinValue,
+    betweenMaxValue, setBetweenMaxValue,
+    summary,
+}: {
+    mode: TimelineMode; setMode: (m: TimelineMode) => void;
+    unit: TimelineUnit; setUnit: (u: TimelineUnit) => void;
+    newerThanValue: string; setNewerThanValue: (v: string) => void;
+    betweenMinValue: string; setBetweenMinValue: (v: string) => void;
+    betweenMaxValue: string; setBetweenMaxValue: (v: string) => void;
+    summary: string;
+}) {
+    const showInputs = mode !== 'off';
+    return (
+        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
+            <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px',
+                fontFamily: 'var(--font-mono)', fontSize: '.6rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.08em',
+            }}>
+                <span>Timeline View</span>
+                <span>{summary}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <button className={`btn btn-sm ${mode === 'newer_than' ? 'btn-primary' : 'btn-ghost'}`} style={{ fontSize: '.62rem', flex: 1 }} onClick={() => setMode('newer_than')}>Or newer</button>
+                <button className={`btn btn-sm ${mode === 'between' ? 'btn-primary' : 'btn-ghost'}`} style={{ fontSize: '.62rem', flex: 1 }} onClick={() => setMode('between')}>Between ages</button>
+                <button className={`btn btn-sm ${mode === 'off' ? 'btn-primary' : 'btn-ghost'}`} style={{ fontSize: '.62rem', flex: 1 }} onClick={() => setMode('off')}>All time</button>
+            </div>
+            {showInputs && (
+                <div style={{ display: 'grid', gridTemplateColumns: mode === 'between' ? '1fr 1fr auto' : '1fr auto', gap: '6px', marginTop: '8px' }}>
+                    {mode === 'newer_than' ? (
+                        <input type="number" min="0" step="1" value={newerThanValue} onChange={(e) => setNewerThanValue(e.target.value)} style={timelineInputStyle} />
+                    ) : (
+                        <>
+                            <input type="number" min="0" step="1" value={betweenMinValue} onChange={(e) => setBetweenMinValue(e.target.value)} style={timelineInputStyle} />
+                            <input type="number" min="0" step="1" value={betweenMaxValue} onChange={(e) => setBetweenMaxValue(e.target.value)} style={timelineInputStyle} />
+                        </>
+                    )}
+                    <select value={unit} onChange={(e) => setUnit(e.target.value as TimelineUnit)} style={timelineInputStyle}>
+                        <option value="hours">Hours</option>
+                        <option value="days">Days</option>
+                    </select>
+                </div>
+            )}
+        </div>
+    );
 }
 
 function groupPackages(items: any[]): PackageGroup[] {
@@ -61,6 +199,197 @@ function groupPackages(items: any[]): PackageGroup[] {
         .sort((a, b) => packageUpdatedAt(b.items[0]) - packageUpdatedAt(a.items[0]));
 }
 
+type ManualEntryItem = {
+    label: string;
+    value: string;
+    compact?: boolean;
+};
+
+type ManualEntrySection = {
+    title: string;
+    items: ManualEntryItem[];
+};
+
+function escapeRegex(value: string) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function cleanLatexText(value: string) {
+    if (!value) return '';
+    let text = value;
+    text = text.replace(/%.*$/gm, '');
+    text = text.replace(/\\href\{([^}]*)\}\{([\s\S]*?)\}/g, (_match, url, label) => {
+        const cleanedLabel = cleanLatexText(label).trim();
+        return cleanedLabel || String(url || '').trim();
+    });
+    text = text.replace(/\\textbf\{([\s\S]*?)\}/g, '$1');
+    text = text.replace(/\\textit\{([\s\S]*?)\}/g, '$1');
+    text = text.replace(/\\(?:emph|underline|small|large|Large|Huge)\{([\s\S]*?)\}/g, '$1');
+    text = text.replace(/\\(?:fa[A-Za-z]+|resumeBodySize|resumeCompanySize|resumeMetaSize|resumeHeaderRoleSize)\b/g, ' ');
+    text = text.replace(/\\hfill/g, ' ');
+    text = text.replace(/\\vspace\{[^}]*\}/g, '\n');
+    text = text.replace(/\\\\(?:\[[^\]]*\])?/g, '\n');
+    text = text.replace(/\\,/g, ' ');
+    text = text.replace(/\\\//g, '/');
+    text = text.replace(/\\\+/g, '+');
+    text = text.replace(/\\&/g, '&');
+    text = text.replace(/\\%/g, '%');
+    text = text.replace(/\\#/g, '#');
+    text = text.replace(/\\_/g, '_');
+    text = text.replace(/\\\$/g, '$');
+    text = text.replace(/\\\{/g, '{');
+    text = text.replace(/\\\}/g, '}');
+    text = text.replace(/\\(?:begin|end)\{[^}]*\}/g, ' ');
+    text = text.replace(/\\[a-zA-Z]+\*?(?:\[[^\]]*\])?/g, ' ');
+    text = text.replace(/\\(?=\s|[|,+()/:.-])/g, '');
+    text = text.replace(/\\(?![a-zA-Z])/g, ' ');
+    text = text.replace(/[{}]/g, ' ');
+    text = text.replace(/\s*\|\s*/g, ' | ');
+    text = text.replace(/[ \t]+\n/g, '\n');
+    text = text.replace(/\n[ \t]+/g, '\n');
+    text = text.replace(/[ \t]{2,}/g, ' ');
+    text = text.replace(/\n{3,}/g, '\n\n');
+    return text.trim();
+}
+
+function extractSection(tex: string, name: string) {
+    const match = tex.match(new RegExp(`\\\\section\\{${escapeRegex(name)}\\}([\\s\\S]*?)(?=\\\\section\\{|\\\\end\\{document\\})`));
+    return match?.[1] || '';
+}
+
+function extractHeaderItems(tex: string): ManualEntrySection | null {
+    const header = tex.match(/\\begin\{center\}([\s\S]*?)\\end\{center\}/)?.[1];
+    if (!header) return null;
+
+    const items: ManualEntryItem[] = [];
+    const name = cleanLatexText(header.match(/\{\\Huge\s+\\textbf\{([^}]*)\}\}/)?.[1] || '');
+    const role = cleanLatexText(header.match(/\{\\resumeHeaderRoleSize\s+([^}]*)\}/)?.[1] || '');
+    const location = cleanLatexText(header.match(/\\faMapMarker\\\s*([\s\S]*?)\\\\(?:\[[^\]]*\])?/)?.[1] || '');
+
+    if (name) items.push({ label: 'Name', value: name, compact: true });
+    if (role) items.push({ label: 'Headline', value: role, compact: true });
+
+    for (const match of header.matchAll(/\\href\{([^}]*)\}\{([\s\S]*?)\}/g)) {
+        const url = String(match[1] || '').trim();
+        const label = cleanLatexText(String(match[2] || '')) || url;
+        if (!url) continue;
+        if (url.startsWith('tel:')) items.push({ label: 'Phone', value: label, compact: true });
+        else if (url.startsWith('mailto:')) items.push({ label: 'Email', value: label, compact: true });
+        else if (url.includes('linkedin.com')) items.push({ label: 'LinkedIn', value: label, compact: true });
+        else if (url.includes('github.com')) items.push({ label: 'GitHub', value: label, compact: true });
+        else items.push({ label: 'Website', value: label, compact: true });
+    }
+
+    if (location) items.push({ label: 'Location', value: location, compact: true });
+    return items.length ? { title: 'Contact', items } : null;
+}
+
+function extractSummaryItems(tex: string): ManualEntrySection | null {
+    const block = cleanLatexText(extractSection(tex, 'PROFESSIONAL SUMMARY'));
+    if (!block) return null;
+    const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);
+    const value = lines.join(' ').replace(/\s{2,}/g, ' ').trim();
+    return value ? { title: 'Summary', items: [{ label: 'Professional Summary', value }] } : null;
+}
+
+function extractSkillsItems(tex: string): ManualEntrySection | null {
+    const block = extractSection(tex, 'TECHNICAL SKILLS');
+    if (!block) return null;
+    const items = Array.from(block.matchAll(/\\textbf\{([^}:]+):\}\s*([\s\S]*?)(?=(?:\\vspace\{)|(?:\\textbf\{)|$)/g))
+        .map((match) => ({
+            label: cleanLatexText(String(match[1] || '')),
+            value: cleanLatexText(String(match[2] || '')),
+        }))
+        .filter((item) => item.label && item.value);
+    return items.length ? { title: 'Skills', items } : null;
+}
+
+function extractExperienceSections(tex: string): ManualEntrySection[] {
+    const block = extractSection(tex, 'WORK EXPERIENCE');
+    if (!block) return [];
+    const pattern = /\\resumeSubheading\s*\{\s*([^}]*)\s*\}\s*\{\s*([^}]*)\s*\}\s*\{\s*([^}]*)\s*\}\s*\{\s*([^}]*)\s*\}([\s\S]*?)(?=(?:\\resumeSubheading\s*\{)|\\resumeSubHeadingListEnd|\\section\{|$)/g;
+    return Array.from(block.matchAll(pattern)).map((match) => {
+        const company = cleanLatexText(String(match[1] || ''));
+        const location = cleanLatexText(String(match[2] || ''));
+        const title = cleanLatexText(String(match[3] || ''));
+        const dates = cleanLatexText(String(match[4] || ''));
+        const body = String(match[5] || '');
+        const bullets = Array.from(body.matchAll(/\\resumeItem\{([\s\S]*?)\}/g))
+            .map((bullet) => cleanLatexText(String(bullet[1] || '')))
+            .filter(Boolean);
+        const items: ManualEntryItem[] = [];
+        if (company) items.push({ label: 'Company', value: company, compact: true });
+        if (title) items.push({ label: 'Title', value: title, compact: true });
+        if (dates) items.push({ label: 'Dates', value: dates, compact: true });
+        if (location) items.push({ label: 'Location', value: location, compact: true });
+        bullets.forEach((bullet, index) => items.push({ label: `Bullet ${index + 1}`, value: bullet }));
+        return {
+            title: company ? `Experience · ${company}` : 'Experience',
+            items,
+        };
+    }).filter((section) => section.items.length > 0);
+}
+
+function extractEducationItems(tex: string): ManualEntrySection | null {
+    const block = extractSection(tex, 'EDUCATION');
+    if (!block) return null;
+    const subheading = block.match(/\\resumeSubheading\s*\{\s*([^}]*)\s*\}\s*\{\s*([^}]*)\s*\}\s*\{\s*([^}]*)\s*\}\s*\{\s*([^}]*)\s*\}/);
+    const items: ManualEntryItem[] = [];
+    if (subheading) {
+        const school = cleanLatexText(subheading[1] || '');
+        const location = cleanLatexText(subheading[2] || '');
+        const degree = cleanLatexText(subheading[3] || '');
+        const dates = cleanLatexText(subheading[4] || '');
+        if (school) items.push({ label: 'School', value: school, compact: true });
+        if (degree) items.push({ label: 'Degree', value: degree, compact: true });
+        if (dates) items.push({ label: 'Dates', value: dates, compact: true });
+        if (location) items.push({ label: 'Location', value: location, compact: true });
+    }
+    const details = Array.from(block.matchAll(/\\item\s*\{([\s\S]*?)\}/g))
+        .map((match) => cleanLatexText(String(match[1] || '')))
+        .filter(Boolean);
+    details.forEach((detail, index) => items.push({ label: index === 0 ? 'Honors' : `Education Detail ${index}`, value: detail }));
+    return items.length ? { title: 'Education', items } : null;
+}
+
+function extractCertificationItems(tex: string): ManualEntrySection | null {
+    const block = extractSection(tex, 'CERTIFICATIONS');
+    if (!block) return null;
+    const items = Array.from(block.matchAll(/\\item\s*\{([\s\S]*?)\}/g))
+        .map((match) => cleanLatexText(String(match[1] || '')))
+        .filter(Boolean)
+        .map((value, index) => ({ label: `Certification ${index + 1}`, value, compact: true }));
+    return items.length ? { title: 'Certifications', items } : null;
+}
+
+function buildManualEntrySections(tex: string): ManualEntrySection[] {
+    if (!tex) return [];
+    const sections = [
+        extractHeaderItems(tex),
+        extractSummaryItems(tex),
+        extractSkillsItems(tex),
+        ...extractExperienceSections(tex),
+        extractEducationItems(tex),
+        extractCertificationItems(tex),
+    ].filter(Boolean) as ManualEntrySection[];
+
+    const fullResume = cleanLatexText(extractSection(tex, 'PROFESSIONAL SUMMARY') + '\n' + extractSection(tex, 'TECHNICAL SKILLS') + '\n' + extractSection(tex, 'WORK EXPERIENCE') + '\n' + extractSection(tex, 'EDUCATION') + '\n' + extractSection(tex, 'CERTIFICATIONS'));
+    if (fullResume) {
+        sections.push({ title: 'Full Resume', items: [{ label: 'Resume Text', value: fullResume }] });
+    }
+    return sections;
+}
+
+function buildCoverLetterManualEntrySection(tex: string): ManualEntrySection | null {
+    if (!tex) return null;
+    const plainText = cleanLatexText(tex).replace(/\n{3,}/g, '\n\n').trim();
+    if (!plainText) return null;
+    return {
+        title: 'Cover Letter',
+        items: [{ label: 'Plain Text Cover Letter', value: plainText }],
+    };
+}
+
 export default function PackagesView() {
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -85,6 +414,11 @@ export default function PackagesView() {
     const [bulkBusy, setBulkBusy] = useState(false);
     const [applyFilter, setApplyFilter] = useState<'all' | 'unapplied' | 'applied'>('unapplied');
     const [runFilter, setRunFilter] = useState<RunFilter>('all');
+    const [timelineMode, setTimelineMode] = useState<TimelineMode>('off');
+    const [timelineUnit, setTimelineUnit] = useState<TimelineUnit>('hours');
+    const [timelineNewerThanValue, setTimelineNewerThanValue] = useState('6');
+    const [timelineBetweenMinValue, setTimelineBetweenMinValue] = useState('2');
+    const [timelineBetweenMaxValue, setTimelineBetweenMaxValue] = useState('4');
     const [applyFormOpen, setApplyFormOpen] = useState(false);
     const [applyUrl, setApplyUrl] = useState('');
     const [applyAt, setApplyAt] = useState(toLocalInputValue());
@@ -95,6 +429,9 @@ export default function PackagesView() {
     const [regenerateBusy, setRegenerateBusy] = useState(false);
     const [regenerateMessage, setRegenerateMessage] = useState('');
     const [deleteBusy, setDeleteBusy] = useState(false);
+    const [resumeChunksOpen, setResumeChunksOpen] = useState(false);
+    const [copiedChunkIndex, setCopiedChunkIndex] = useState<number | null>(null);
+    const [copiedAllChunks, setCopiedAllChunks] = useState(false);
     const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
@@ -130,6 +467,9 @@ export default function PackagesView() {
         setApplyAt(toLocalInputValue(res.summary?.applied?.applied_at || new Date().toISOString()));
         setApplyFollowUpAt(res.summary?.applied?.follow_up_at ? toLocalInputValue(res.summary.applied.follow_up_at) : '');
         setApplyNotes(res.summary?.applied?.notes || '');
+        setResumeChunksOpen(false);
+        setCopiedChunkIndex(null);
+        setCopiedAllChunks(false);
         return res;
     }, []);
 
@@ -227,10 +567,10 @@ export default function PackagesView() {
         }
     };
 
-    const handleDelete = async (slug: string) => {
+    const handleRequeuePackage = async (slug: string) => {
         const pkg = data.find(p => p.slug === slug);
         const label = pkg?.meta?.job_title || pkg?.meta?.title || slug;
-        if (!confirm(`Delete package "${label}"? The output files will be permanently removed.`)) return;
+        if (!confirm(`Return "${label}" to Ready for re-tailoring? Output files will be removed but the job will stay approved for re-queuing.`)) return;
         setDeleteBusy(true);
         try {
             await api.deletePackage(slug);
@@ -243,13 +583,47 @@ export default function PackagesView() {
         }
     };
 
-    const handleBulkDelete = async () => {
+    const handleBulkRequeue = async () => {
         const slugs = [...selectedSlugs];
         if (!slugs.length) return;
-        if (!confirm(`Delete ${slugs.length} package(s)? Output files will be permanently removed.`)) return;
+        if (!confirm(`Return ${slugs.length} job(s) to Ready for re-tailoring? Output files will be removed but the jobs will stay approved for re-queuing.`)) return;
         setDeleteBusy(true);
         try {
             await Promise.allSettled(slugs.map(slug => api.deletePackage(slug)));
+            setSelectedSlugs(new Set());
+            setActiveSlug(null);
+            await fetchPackages();
+        } finally {
+            setDeleteBusy(false);
+        }
+    };
+
+    const handleDeadPackage = async (slug: string) => {
+        const pkg = data.find((item) => item.slug === slug);
+        const label = pkg?.meta?.job_title || pkg?.meta?.title || slug;
+        if (!confirm(`Mark "${label}" as dead? The package will be deleted and the job will be permanently rejected so it never resurfaces.`)) return;
+        setDeleteBusy(true);
+        try {
+            await api.permanentlyRejectPackage(slug);
+            if (activeSlug === slug) setActiveSlug(null);
+            await fetchPackages();
+        } catch (e: any) {
+            console.error(e);
+        } finally {
+            setDeleteBusy(false);
+        }
+    };
+
+    const handleBulkDead = async () => {
+        const slugs = [...selectedSlugs].filter((slug) => {
+            const item = visibleData.find((entry) => entry.slug === slug);
+            return item && !item.applied;
+        });
+        if (!slugs.length) return;
+        if (!confirm(`Mark ${slugs.length} job(s) as dead? Packages will be deleted and the jobs will be permanently rejected so they never resurface.`)) return;
+        setDeleteBusy(true);
+        try {
+            await Promise.allSettled(slugs.map((slug) => api.permanentlyRejectPackage(slug)));
             setSelectedSlugs(new Set());
             setActiveSlug(null);
             await fetchPackages();
@@ -283,7 +657,13 @@ export default function PackagesView() {
         if (applyFilter === 'applied') return Boolean(item.applied);
         if (applyFilter === 'unapplied') return !item.applied;
         return true;
-    });
+    }).filter((item) => timelineMatches(item, {
+        mode: timelineMode,
+        unit: timelineUnit,
+        newerThanValue: timelineNewerThanValue,
+        betweenMinValue: timelineBetweenMinValue,
+        betweenMaxValue: timelineBetweenMaxValue,
+    }));
     const groupedFilteredData = groupPackages(filteredData)
         .map((group) => {
             let items = group.items;
@@ -306,6 +686,14 @@ export default function PackagesView() {
         { value: 'with_history', label: 'With History' },
         { value: 'returned', label: 'Returned' },
     ];
+    const timelineSummary = describeTimelineFilter(
+        timelineMode,
+        timelineUnit,
+        timelineNewerThanValue,
+        timelineBetweenMinValue,
+        timelineBetweenMaxValue,
+    );
+
 
     useEffect(() => {
         if (!visibleData.some((item) => item.slug === activeSlug)) {
@@ -328,10 +716,17 @@ export default function PackagesView() {
     const coverPdfUrl = activeSlug && coverPdfKey
         ? `/api/tailoring/runs/${encodeURIComponent(activeSlug)}/artifact/${encodeURIComponent(coverPdfKey)}`
         : '';
+    const zipDownloadUrl = activeSlug && (resumePdfUrl || coverPdfUrl)
+        ? `/api/packages/${encodeURIComponent(activeSlug)}/download.zip`
+        : '';
     const strategy = pkgDetail?.resume_strategy;
     const coverStrategy = pkgDetail?.cover_strategy;
     const analysis = pkgDetail?.analysis;
     const appliedSummary = pkgDetail?.summary?.applied;
+    const manualEntrySections = useMemo(() => buildManualEntrySections(resumeTex), [resumeTex]);
+    const fullResumeEntry = manualEntrySections.find((section) => section.title === 'Full Resume')?.items[0]?.value || '';
+    const coverLetterManualEntry = useMemo(() => buildCoverLetterManualEntrySection(coverTex), [coverTex]);
+    const fullCoverLetterEntry = coverLetterManualEntry?.items[0]?.value || '';
 
     if (loading) {
         return (
@@ -395,6 +790,14 @@ export default function PackagesView() {
                                 </button>
                             ))}
                         </div>
+                        <TimelineControls
+                            mode={timelineMode} setMode={setTimelineMode}
+                            unit={timelineUnit} setUnit={setTimelineUnit}
+                            newerThanValue={timelineNewerThanValue} setNewerThanValue={setTimelineNewerThanValue}
+                            betweenMinValue={timelineBetweenMinValue} setBetweenMinValue={setTimelineBetweenMinValue}
+                            betweenMaxValue={timelineBetweenMaxValue} setBetweenMaxValue={setTimelineBetweenMaxValue}
+                            summary={timelineSummary}
+                        />
                     </div>
                 </div>
                 <div style={{
@@ -460,10 +863,18 @@ export default function PackagesView() {
                             </button>
                         ))}
                     </div>
-                    <div style={{ display: 'flex', gap: '6px', marginTop: '8px', alignItems: 'center' }}>
+                        <TimelineControls
+                            mode={timelineMode} setMode={setTimelineMode}
+                            unit={timelineUnit} setUnit={setTimelineUnit}
+                            newerThanValue={timelineNewerThanValue} setNewerThanValue={setTimelineNewerThanValue}
+                            betweenMinValue={timelineBetweenMinValue} setBetweenMinValue={setTimelineBetweenMinValue}
+                            betweenMaxValue={timelineBetweenMaxValue} setBetweenMaxValue={setTimelineBetweenMaxValue}
+                            summary={timelineSummary}
+                        />
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '8px', alignItems: 'stretch', flexWrap: 'wrap' }}>
                         <button
                             className="btn btn-ghost btn-sm"
-                            style={{ fontSize: '.62rem', flex: 1 }}
+                            style={{ fontSize: '.62rem', flex: '1 1 100%', minWidth: 0, whiteSpace: 'normal', lineHeight: 1.2 }}
                             disabled={visibleData.length === 0}
                             onClick={() => {
                                 const selectable = visibleData.filter(d => !d.applied);
@@ -477,7 +888,20 @@ export default function PackagesView() {
                         {selectedVisibleCount > 0 && (<>
                             <button
                                 className="btn btn-ghost btn-sm"
-                                style={{ fontSize: '.62rem', color: 'var(--amber, #d1a23b)', flex: 1 }}
+                                style={{ fontSize: '.62rem', color: 'var(--blue, #5b9fd4)', flex: '1 1 calc(50% - 3px)', minWidth: 0, whiteSpace: 'normal', lineHeight: 1.2 }}
+                                disabled={deleteBusy}
+                                onClick={handleBulkRequeue}
+                            >
+                                {deleteBusy ? 'Re-queuing...' : (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                        Re-queue for Tailoring ({selectedVisibleCount})
+                                        <ActionHelp text="Deletes the package files and keeps the job in Ready (qa_approved) so you can tailor it again." />
+                                    </span>
+                                )}
+                            </button>
+                            <button
+                                className="btn btn-ghost btn-sm"
+                                style={{ fontSize: '.62rem', color: 'var(--amber, #d1a23b)', flex: '1 1 calc(50% - 3px)', minWidth: 0, whiteSpace: 'normal', lineHeight: 1.2 }}
                                 disabled={bulkBusy}
                                 onClick={async () => {
                                     const selected = visibleData.filter(d => selectedSlugs.has(d.slug) && d.meta?.job_id && !d.applied);
@@ -493,15 +917,25 @@ export default function PackagesView() {
                                     finally { setBulkBusy(false); }
                                 }}
                             >
-                                {bulkBusy ? 'Returning...' : `Return to QA (${selectedVisibleCount})`}
+                                {bulkBusy ? 'Sending...' : (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                        Send Back to QA ({selectedVisibleCount})
+                                        <ActionHelp text="Keeps the package files, but moves the job back to QA Pending (qa_pending) for review." />
+                                    </span>
+                                )}
                             </button>
                             <button
                                 className="btn btn-ghost btn-sm"
-                                style={{ fontSize: '.62rem', color: 'var(--red)', flex: 1 }}
+                                style={{ fontSize: '.62rem', color: 'var(--red)', fontWeight: 600, flex: '1 1 calc(50% - 3px)', minWidth: 0, whiteSpace: 'normal', lineHeight: 1.2 }}
                                 disabled={deleteBusy}
-                                onClick={handleBulkDelete}
+                                onClick={handleBulkDead}
                             >
-                                {deleteBusy ? 'Deleting...' : (<><Trash2 size={11} /> Delete ({selectedVisibleCount})</>)}
+                                {deleteBusy ? 'Deleting...' : (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                        Dead ({selectedVisibleCount})
+                                        <ActionHelp text="Deletes the package files and permanently rejects the job so it never resurfaces." />
+                                    </span>
+                                )}
                             </button>
                         </>)}
                     </div>
@@ -707,6 +1141,14 @@ export default function PackagesView() {
                                     >
                                         Download Cover PDF
                                     </a>
+                                    <a
+                                        className="btn btn-ghost btn-sm"
+                                        style={{ fontSize: '.68rem', pointerEvents: zipDownloadUrl ? 'auto' : 'none', opacity: zipDownloadUrl ? 1 : 0.45 }}
+                                        href={zipDownloadUrl || undefined}
+                                        download={`${activeSlug || 'package'}.zip`}
+                                    >
+                                        Download ZIP
+                                    </a>
                                     <button
                                         className="btn btn-ghost btn-sm"
                                         style={{ fontSize: '.68rem' }}
@@ -733,6 +1175,19 @@ export default function PackagesView() {
                                             Mark Applied
                                         </button>
                                     )}
+                                    {!appliedSummary && activeSlug && (
+                                        <button
+                                            className="btn btn-ghost btn-sm"
+                                            style={{ fontSize: '.68rem', color: 'var(--blue, #5b9fd4)' }}
+                                            disabled={deleteBusy}
+                                            onClick={() => handleRequeuePackage(activeSlug)}
+                                        >
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                                Re-queue for Tailoring
+                                                <ActionHelp text="Deletes the package files and keeps the job in Ready (qa_approved) so you can tailor it again." />
+                                            </span>
+                                        </button>
+                                    )}
                                     {!appliedSummary && pkgDetail?.summary?.meta?.job_id && (
                                         <button
                                             className="btn btn-ghost btn-sm"
@@ -746,17 +1201,23 @@ export default function PackagesView() {
                                                 } catch { }
                                             }}
                                         >
-                                            Return to QA
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                                Send Back to QA
+                                                <ActionHelp text="Keeps the package files, but moves the job back to QA Pending (qa_pending) for review." />
+                                            </span>
                                         </button>
                                     )}
-                                    {!appliedSummary && (
+                                    {!appliedSummary && activeSlug && (
                                         <button
                                             className="btn btn-ghost btn-sm"
-                                            style={{ fontSize: '.68rem', color: 'var(--red)' }}
+                                            style={{ fontSize: '.68rem', color: 'var(--red)', fontWeight: 600 }}
                                             disabled={deleteBusy}
-                                            onClick={() => activeSlug && handleDelete(activeSlug)}
+                                            onClick={() => handleDeadPackage(activeSlug)}
                                         >
-                                            {deleteBusy ? 'Deleting...' : (<><Trash2 size={12} /> Delete</>)}
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                                Dead
+                                                <ActionHelp text="Deletes the package files and permanently rejects the job so it never resurfaces." />
+                                            </span>
                                         </button>
                                     )}
                                 </div>
@@ -873,6 +1334,19 @@ export default function PackagesView() {
                                 <Pencil size={13} /> Edit
                             </button>
                             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <button
+                                    className="btn btn-ghost btn-sm"
+                                    style={{ fontSize: '.68rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+                                    onClick={() => {
+                                        setCopiedChunkIndex(null);
+                                        setCopiedAllChunks(false);
+                                        setResumeChunksOpen(true);
+                                    }}
+                                    disabled={manualEntrySections.length === 0 && !coverLetterManualEntry}
+                                    title={manualEntrySections.length > 0 || coverLetterManualEntry ? 'Open manual-entry resume and cover-letter copy fields' : 'Resume and cover-letter text unavailable'}
+                                >
+                                    <Scissors size={12} /> Resume Fields
+                                </button>
                                 {mainTab === 'editor' && (
                                     <select
                                         value={packageDoc}
@@ -1081,6 +1555,107 @@ export default function PackagesView() {
                                 </div>
                             )}
                         </div>
+
+                        {resumeChunksOpen && (
+                            <div className="modal-overlay" onClick={() => setResumeChunksOpen(false)}>
+                                <div
+                                    className="modal"
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{ maxWidth: '980px', width: '92%', maxHeight: '86vh' }}
+                                >
+                                    <div className="modal-header">
+                                        <div>
+                                            <div style={{ fontWeight: 600, color: 'var(--text)' }}>Resume Manual-Entry Fields</div>
+                                            <div style={{ fontSize: '.74rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                                Click any field to copy just that text. Dates, companies, titles, bullets, links, the full resume, and a plain-text cover letter are separated for manual application forms.
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <button
+                                                className="btn btn-ghost btn-sm"
+                                                onClick={async () => {
+                                                    const ok = await copyText(fullResumeEntry);
+                                                    setCopiedAllChunks(ok);
+                                                    setCopiedChunkIndex(null);
+                                                }}
+                                                disabled={!fullResumeEntry}
+                                            >
+                                                <Copy size={12} /> {copiedAllChunks ? 'Copied Full Resume' : 'Copy Full Resume'}
+                                            </button>
+                                            <button
+                                                className="btn btn-ghost btn-sm"
+                                                onClick={async () => {
+                                                    const ok = await copyText(fullCoverLetterEntry);
+                                                    setCopiedAllChunks(ok);
+                                                    setCopiedChunkIndex(null);
+                                                }}
+                                                disabled={!fullCoverLetterEntry}
+                                            >
+                                                <Copy size={12} /> Copy Cover Letter
+                                            </button>
+                                            <button className="btn btn-ghost btn-sm" onClick={() => setResumeChunksOpen(false)}>Close</button>
+                                        </div>
+                                    </div>
+                                    <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                        {manualEntrySections.length === 0 && !coverLetterManualEntry ? (
+                                            <div style={{ color: 'var(--text-secondary)', fontSize: '.82rem' }}>No resume or cover-letter text available for manual-entry copy.</div>
+                                        ) : (
+                                            [...manualEntrySections, ...(coverLetterManualEntry ? [coverLetterManualEntry] : [])].map((section, sectionIndex) => (
+                                                <div key={`${section.title}-${sectionIndex}`} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.68rem', letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+                                                        {section.title}
+                                                    </div>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px' }}>
+                                                        {section.items.map((item, itemIndex) => {
+                                                            const copyIndex = sectionIndex * 100 + itemIndex;
+                                                            const longValue = item.value.length > 120 || item.value.includes('\n');
+                                                            return (
+                                                                <button
+                                                                    key={`${item.label}-${itemIndex}`}
+                                                                    onClick={async () => {
+                                                                        const ok = await copyText(item.value);
+                                                                        setCopiedChunkIndex(ok ? copyIndex : null);
+                                                                        setCopiedAllChunks(false);
+                                                                    }}
+                                                                    style={{
+                                                                        textAlign: 'left',
+                                                                        width: '100%',
+                                                                        border: '1px solid var(--border)',
+                                                                        background: copiedChunkIndex === copyIndex ? 'rgba(75, 142, 240, 0.12)' : 'var(--surface-2)',
+                                                                        color: 'var(--text)',
+                                                                        borderRadius: '18px',
+                                                                        padding: '12px 14px',
+                                                                        cursor: 'pointer',
+                                                                        display: 'flex',
+                                                                        flexDirection: 'column',
+                                                                        gap: '6px',
+                                                                        gridColumn: longValue ? '1 / -1' : undefined,
+                                                                        boxShadow: copiedChunkIndex === copyIndex ? '0 0 0 1px rgba(75, 142, 240, 0.35) inset' : 'none',
+                                                                    }}
+                                                                    title="Click to copy"
+                                                                >
+                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.66rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                                                                            {item.label}
+                                                                        </span>
+                                                                        <span style={{ fontSize: '.68rem', color: copiedChunkIndex === copyIndex ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                                                                            {copiedChunkIndex === copyIndex ? 'Copied' : 'Copy'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.45, fontSize: item.compact ? '.82rem' : '.8rem' }}>
+                                                                        {item.value}
+                                                                    </div>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </>
                 )}
             </div>

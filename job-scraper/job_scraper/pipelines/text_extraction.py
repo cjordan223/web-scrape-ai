@@ -17,6 +17,11 @@ _MIN_JD_CHARS = 30
 
 class TextExtractionPipeline:
     def process_item(self, item, spider):
+        # If jd_text is already set (e.g. API spiders), keep it
+        existing = item.get("jd_text") or ""
+        if len(existing.strip()) >= _MIN_JD_CHARS:
+            return item
+
         html = item.get("jd_html")
         if html:
             text = trafilatura.extract(html, include_comments=False, include_tables=True)

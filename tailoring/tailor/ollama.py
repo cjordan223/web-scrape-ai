@@ -8,25 +8,50 @@ import logging
 import re
 import time
 import uuid
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 import requests
 from requests import HTTPError
+from requests.exceptions import (
+    ChunkedEncodingError,
+    ConnectionError as RequestsConnectionError,
+    ReadTimeout,
+)
 
 from . import config as cfg
 from .tracing import utc_now_iso
 
 logger = logging.getLogger(__name__)
 
+# Transient connection-level failures we retry on. MLX in particular can
+# drop connections mid-response when the server crashes, or refuse new
+# connections for a few seconds while it recovers. HTTP 4xx/5xx responses
+# are NOT retried here — those indicate a deterministic failure and should
+# surface to the caller.
+_TRANSIENT_LLM_ERRORS: tuple[type[Exception], ...] = (
+    RequestsConnectionError,
+    ChunkedEncodingError,
+    ReadTimeout,
+)
+_LLM_REQUEST_MAX_ATTEMPTS = 3
+_LLM_REQUEST_BACKOFF_BASE = 1.5
+
 
 @contextmanager
 def _ollama_lock():
     """Acquire an exclusive file lock. Blocks up to LOCK_TIMEOUT seconds."""
-    cfg.LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
-    fd = open(cfg.LOCK_PATH, "w")
-    deadline = time.monotonic() + cfg.LOCK_TIMEOUT
+    with _file_lock(cfg.LOCK_PATH, cfg.LOCK_TIMEOUT):
+        yield
+
+
+@contextmanager
+def _file_lock(lock_path: Path, timeout_seconds: int):
+    """Acquire an exclusive file lock. Blocks up to timeout_seconds."""
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = open(lock_path, "w")
+    deadline = time.monotonic() + timeout_seconds
     while True:
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -35,7 +60,7 @@ def _ollama_lock():
             if time.monotonic() > deadline:
                 fd.close()
                 raise TimeoutError(
-                    f"Could not acquire LLM lock after {cfg.LOCK_TIMEOUT}s — "
+                    f"Could not acquire LLM lock after {timeout_seconds}s — "
                     "another tailoring or package-chat LLM task may still be running."
                 )
             time.sleep(2)
@@ -56,9 +81,104 @@ def _auth_headers() -> dict[str, str]:
     return {}
 
 
-def _use_file_lock() -> bool:
+def _rv(runtime: Mapping[str, Any] | None, key: str, fallback: Any, *, cast: type | None = None) -> Any:
+    """Resolve a runtime override, falling back to a config default."""
+    value = (runtime or {}).get(key)
+    if value in (None, ""):
+        return fallback
+    if cast is not None:
+        try:
+            return cast(value)
+        except (TypeError, ValueError):
+            return fallback
+    return value
+
+
+def _runtime_provider(runtime: Mapping[str, Any] | None = None) -> str:
+    return str(_rv(runtime, "provider", cfg.LLM_PROVIDER or "ollama")).strip().lower()
+
+
+def _runtime_chat_url(runtime: Mapping[str, Any] | None = None) -> str:
+    return str(_rv(runtime, "chat_url", cfg.OLLAMA_URL)).strip()
+
+
+def _runtime_api_key(runtime: Mapping[str, Any] | None = None) -> str:
+    return str(_rv(runtime, "api_key", cfg.LLM_API_KEY)).strip()
+
+
+def _runtime_timeout(runtime: Mapping[str, Any] | None = None) -> int:
+    return _rv(runtime, "timeout", cfg.OLLAMA_TIMEOUT, cast=int)
+
+
+def _runtime_lock_timeout(runtime: Mapping[str, Any] | None = None) -> int:
+    return _rv(runtime, "lock_timeout", cfg.LOCK_TIMEOUT, cast=int)
+
+
+def _runtime_lock_path(runtime: Mapping[str, Any] | None = None) -> Path:
+    value = (runtime or {}).get("lock_path")
+    if not value:
+        return cfg.LOCK_PATH
+    return Path(value)
+
+
+def _use_file_lock(runtime: Mapping[str, Any] | None = None) -> bool:
     """Only use file lock for local providers (single GPU)."""
-    return cfg.LLM_PROVIDER in ("ollama", "mlx", "")
+    if runtime is not None and "use_lock" in runtime:
+        return bool(runtime.get("use_lock"))
+    return _runtime_provider(runtime) in ("ollama", "mlx", "")
+
+
+def _lock_context(runtime: Mapping[str, Any] | None = None):
+    if runtime is None:
+        return _ollama_lock() if _use_file_lock() else nullcontext()
+    return (
+        _file_lock(_runtime_lock_path(runtime), _runtime_lock_timeout(runtime))
+        if _use_file_lock(runtime)
+        else nullcontext()
+    )
+
+
+def _post_with_retry(
+    endpoint: str,
+    *,
+    json_payload: dict[str, Any],
+    headers: dict[str, str],
+    connect_timeout: int,
+    read_timeout: int,
+) -> requests.Response:
+    """POST to an LLM endpoint, retrying transient connection failures.
+
+    Retries on ConnectionError/ChunkedEncodingError/ReadTimeout with exponential
+    backoff — these are the failure modes seen when MLX crashes mid-request or
+    refuses new connections for a few seconds during recovery. HTTP 4xx/5xx
+    responses are NOT retried (the caller handles those).
+    """
+    last_exc: Exception | None = None
+    for attempt in range(1, _LLM_REQUEST_MAX_ATTEMPTS + 1):
+        try:
+            return requests.post(
+                endpoint,
+                json=json_payload,
+                headers=headers,
+                timeout=(connect_timeout, read_timeout),
+            )
+        except _TRANSIENT_LLM_ERRORS as exc:
+            last_exc = exc
+            if attempt == _LLM_REQUEST_MAX_ATTEMPTS:
+                break
+            delay = _LLM_REQUEST_BACKOFF_BASE ** attempt
+            logger.warning(
+                "LLM request to %s failed (%s: %s); retry %d/%d in %.1fs",
+                endpoint,
+                type(exc).__name__,
+                exc,
+                attempt,
+                _LLM_REQUEST_MAX_ATTEMPTS,
+                delay,
+            )
+            time.sleep(delay)
+    assert last_exc is not None
+    raise last_exc
 
 
 def get_loaded_model() -> str:
@@ -90,6 +210,8 @@ def chat(
     json_mode: bool = False,
     trace: dict[str, Any] | None = None,
     trace_recorder: Callable[[dict[str, Any]], None] | None = None,
+    runtime: Mapping[str, Any] | None = None,
+    thinking_multiplier: int = 4,
 ) -> str:
     """Send a chat completion to the LLM with lock protection. Returns raw content string."""
     model_id = model or get_loaded_model()
@@ -97,6 +219,9 @@ def chat(
     call_id = str(uuid.uuid4())
     started_monotonic = time.monotonic()
     started_at = utc_now_iso()
+    endpoint = _runtime_chat_url(runtime)
+    timeout_seconds = _runtime_timeout(runtime)
+    provider = _runtime_provider(runtime)
 
     if trace_recorder is not None:
         trace_recorder(
@@ -105,7 +230,7 @@ def chat(
                 "call_id": call_id,
                 "started_at": started_at,
                 "model": model_id,
-                "endpoint": cfg.OLLAMA_URL,
+                "endpoint": endpoint,
                 "max_tokens": max_tokens,
                 "temperature": temperature,
                 "system_prompt": system_prompt,
@@ -114,13 +239,12 @@ def chat(
             }
         )
 
-    lock = _ollama_lock() if _use_file_lock() else contextmanager(lambda: (yield))()
+    lock = _lock_context(runtime)
     with lock:
         logger.info("LLM call starting (model=%s, max_tokens=%d)", model_id, max_tokens)
-        endpoint = cfg.OLLAMA_URL  # default; overridden below for Ollama native
         try:
-            is_ollama = cfg.LLM_PROVIDER in ("ollama", "")
-            hdrs = _auth_headers()
+            is_ollama = provider in ("ollama", "")
+            hdrs = {"Authorization": f"Bearer {_runtime_api_key(runtime)}"} if _runtime_api_key(runtime) else {}
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": effective_user_prompt},
@@ -129,14 +253,14 @@ def chat(
             if is_ollama:
                 # Use Ollama native /api/chat — the OpenAI-compat endpoint
                 # silently drops thinking model content (Qwen 3 returns empty).
-                base = cfg.OLLAMA_URL.split("/v1/")[0].rstrip("/")
+                base = endpoint.split("/v1/")[0].rstrip("/")
                 endpoint = f"{base}/api/chat"
                 # Qwen 3 thinking models generate chain-of-thought even with
                 # think=false (it just leaks into content instead of a separate
                 # field). The thinking consumes num_predict budget, so we
                 # multiply by 4x to leave room for the actual response.
                 # strip_think_tags() removes the thinking text after.
-                thinking_headroom = max_tokens * 4
+                thinking_headroom = max_tokens * thinking_multiplier
                 payload: dict[str, Any] = {
                     "model": model_id,
                     "messages": messages,
@@ -149,10 +273,15 @@ def chat(
                 }
                 if json_mode:
                     payload["format"] = "json"
-                resp = requests.post(endpoint, json=payload, headers=hdrs, timeout=cfg.OLLAMA_TIMEOUT)
+                resp = _post_with_retry(
+                    endpoint,
+                    json_payload=payload,
+                    headers=hdrs,
+                    connect_timeout=30,
+                    read_timeout=timeout_seconds,
+                )
             else:
                 # OpenAI-compatible endpoint for cloud providers
-                endpoint = cfg.OLLAMA_URL
                 payload = {
                     "model": model_id,
                     "messages": messages,
@@ -170,10 +299,22 @@ def chat(
                             },
                         },
                     }
-                resp = requests.post(endpoint, json=payload, headers=hdrs, timeout=cfg.OLLAMA_TIMEOUT)
+                resp = _post_with_retry(
+                    endpoint,
+                    json_payload=payload,
+                    headers=hdrs,
+                    connect_timeout=30,
+                    read_timeout=timeout_seconds,
+                )
                 if json_mode and resp.status_code == 400:
                     payload.pop("response_format", None)
-                    resp = requests.post(endpoint, json=payload, headers=hdrs, timeout=cfg.OLLAMA_TIMEOUT)
+                    resp = _post_with_retry(
+                        endpoint,
+                        json_payload=payload,
+                        headers=hdrs,
+                        connect_timeout=30,
+                        read_timeout=timeout_seconds,
+                    )
 
             if resp.status_code >= 400:
                 body = resp.text[:600].replace("\n", " ")
@@ -272,6 +413,11 @@ def _sanitize_json_text(text: str) -> str:
     return cleaned.strip()
 
 
+def _fix_trailing_commas(text: str) -> str:
+    """Remove trailing commas before } or ] (common LLM JSON error)."""
+    return re.sub(r",\s*([}\]])", r"\1", text)
+
+
 def _append_missing_braces(candidate: str) -> str:
     """Best-effort fix for truncated objects by balancing braces outside strings."""
     depth = 0
@@ -319,13 +465,18 @@ def extract_json(text: str) -> dict:
         except Exception as e:  # noqa: BLE001
             if first_error is None:
                 first_error = e
-            # Common truncation case: attempt brace balancing once.
-            try:
-                obj = json.loads(_append_missing_braces(candidate))
-                if isinstance(obj, dict):
-                    return obj
-            except Exception:  # noqa: BLE001
-                pass
+            # Repair attempts in order of likelihood:
+            for repaired in (
+                _fix_trailing_commas(candidate),
+                _append_missing_braces(candidate),
+                _append_missing_braces(_fix_trailing_commas(candidate)),
+            ):
+                try:
+                    obj = json.loads(repaired)
+                    if isinstance(obj, dict):
+                        return obj
+                except Exception:  # noqa: BLE001
+                    pass
 
     raise ValueError(
         f"Could not parse JSON object in response: {text[:200]}"
@@ -354,6 +505,9 @@ def chat_expect_json(
     temperature: float = 0.2,
     trace: dict[str, Any] | None = None,
     trace_recorder: Callable[[dict[str, Any]], None] | None = None,
+    model: str | None = None,
+    runtime: Mapping[str, Any] | None = None,
+    thinking_multiplier: int = 4,
 ) -> dict[str, Any]:
     """Get JSON from chat with compatibility + repair fallback for weaker models."""
     raw = chat(
@@ -361,9 +515,12 @@ def chat_expect_json(
         user_prompt=user_prompt,
         max_tokens=max_tokens,
         temperature=temperature,
+        model=model,
         json_mode=True,
         trace=trace,
         trace_recorder=trace_recorder,
+        runtime=runtime,
+        thinking_multiplier=thinking_multiplier,
     )
     try:
         return extract_json(raw)
@@ -383,8 +540,10 @@ def chat_expect_json(
             user_prompt=regen_prompt,
             max_tokens=max_tokens,
             temperature=0.0,
+            model=model,
             json_mode=True,
             trace=regen_trace,
             trace_recorder=trace_recorder,
+            runtime=runtime,
         )
         return extract_json(regenerated)

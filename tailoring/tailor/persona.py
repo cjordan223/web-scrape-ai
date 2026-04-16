@@ -71,11 +71,12 @@ class PersonaStore:
         self._voice = ""
         self._evidence = ""
         self._interests = ""
+        self._motivation = ""
         self._vignettes: list[Vignette] = []
         self._load()
 
     def _load(self):
-        for name in ("identity", "contributions", "voice", "evidence", "interests"):
+        for name in ("identity", "contributions", "voice", "evidence", "interests", "motivation"):
             p = self._dir / f"{name}.md"
             if p.exists():
                 _, body = _parse_frontmatter(p.read_text())
@@ -111,8 +112,20 @@ class PersonaStore:
     def evidence(self) -> str:
         return self._evidence
 
-    def select_vignettes(self, analysis: dict, budget_chars: int) -> list[Vignette]:
-        """Score and select vignettes that fit within budget_chars."""
+    def select_vignettes(
+        self,
+        analysis: dict,
+        budget_chars: int,
+        *,
+        diverse: bool = False,
+    ) -> list[Vignette]:
+        """Score and select vignettes that fit within budget_chars.
+
+        When ``diverse`` is true, the selector caps each ``skill_category`` at one
+        vignette so a single project area cannot anchor the entire output. This is
+        used for cover letters, where breadth across distinct experiences matters
+        more than piling on multiple stories from the same domain.
+        """
         company_type = analysis.get("company_context", {}).get("company_type", "")
         matched_categories: set[str] = set()
         matched_skills: set[str] = set()
@@ -141,9 +154,15 @@ class PersonaStore:
 
         selected: list[Vignette] = []
         used = 0
+        used_categories: set[str] = set()
         for _score, v in scored:
             if used + len(v.body) > budget_chars:
                 continue
+            if diverse:
+                v_cats = {sc.lower() for sc in v.skill_categories}
+                if v_cats & used_categories:
+                    continue
+                used_categories |= v_cats
             selected.append(v)
             used += len(v.body)
 
@@ -158,23 +177,41 @@ class PersonaStore:
         parts = [self._identity, self._contributions, self._interests]
         return "\n\n".join(p for p in parts if p)
 
+    def _render_vignettes(self, vigs: list[Vignette]) -> str:
+        """Render selected vignettes with explicit per-vignette source headers.
+
+        The header uses the filename stem (e.g. `coraline`, `rag_chatbot`) so the
+        LLM can see which project each narrative describes and does not braid
+        details from adjacent vignettes into a single story.
+        """
+        if not vigs:
+            return ""
+        rendered = []
+        for v in vigs:
+            rendered.append(f"### Source project: {v.path.stem}\n{v.body}")
+        return "## Narrative Vignettes (each ### block is a discrete project — do not merge details across blocks)\n" + "\n\n".join(rendered)
+
     def for_strategy(self, analysis: dict, doc_type: str) -> str:
         """Persona text for strategy stage."""
         if doc_type == "cover":
             vignette_budget = 1200
             parts = [self._identity]
-            vigs = self.select_vignettes(analysis, vignette_budget)
-            if vigs:
-                parts.append("## Narrative Vignettes\n" + "\n\n".join(v.body for v in vigs))
+            vigs = self.select_vignettes(analysis, vignette_budget, diverse=True)
+            rendered = self._render_vignettes(vigs)
+            if rendered:
+                parts.append(rendered)
             parts.append(self._voice)
             parts.append(self._evidence)
+            if self._motivation:
+                parts.append(self._motivation)
             return "\n\n".join(p for p in parts if p)
         else:  # resume
             vignette_budget = 1500
             parts = [self._identity]
             vigs = self.select_vignettes(analysis, vignette_budget)
-            if vigs:
-                parts.append("## Narrative Vignettes\n" + "\n\n".join(v.body for v in vigs))
+            rendered = self._render_vignettes(vigs)
+            if rendered:
+                parts.append(rendered)
             parts.append(self._contributions)
             return "\n\n".join(p for p in parts if p)
 
@@ -183,10 +220,13 @@ class PersonaStore:
         if doc_type == "cover":
             vignette_budget = 1500
             parts = [self._identity]
-            vigs = self.select_vignettes(analysis, vignette_budget)
-            if vigs:
-                parts.append("## Narrative Vignettes\n" + "\n\n".join(v.body for v in vigs))
+            vigs = self.select_vignettes(analysis, vignette_budget, diverse=True)
+            rendered = self._render_vignettes(vigs)
+            if rendered:
+                parts.append(rendered)
             parts.append(self._voice)
+            if self._motivation:
+                parts.append(self._motivation)
             if self._interests:
                 parts.append(self._interests)
             return "\n\n".join(p for p in parts if p)
@@ -194,8 +234,9 @@ class PersonaStore:
             vignette_budget = 1500
             parts = [self._identity]
             vigs = self.select_vignettes(analysis, vignette_budget)
-            if vigs:
-                parts.append("## Narrative Vignettes\n" + "\n\n".join(v.body for v in vigs))
+            rendered = self._render_vignettes(vigs)
+            if rendered:
+                parts.append(rendered)
             return "\n\n".join(p for p in parts if p)
 
     def for_qa(self, doc_type: str) -> str:

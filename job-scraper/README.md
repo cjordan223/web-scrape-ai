@@ -123,6 +123,5 @@ job-scraper/
     ├── fetcher.py
     ├── dedup.py
     ├── filters.py
-    ├── llm_reviewer.py
     └── urlnorm.py
 ```

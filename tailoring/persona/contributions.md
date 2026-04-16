@@ -9,26 +9,21 @@ EDIT: Update bullet list items as your role profile evolves. Each item is a cont
 KEEP UNDER ~1700 chars so it fits comfortably within the stage budgets.
 -->
 I am strongest at the intersection of:
-- Security engineering
+- Full-stack development (React, TypeScript, Python, Java, Node.js)
+- Security engineering and operations
 - Application security (SAST/DAST/SCA, secure SDLC, pentesting)
-- Automation
-- Cloud / containerized delivery
+- AI-native development (Claude Code, Cursor, Copilot, Codex, Gemini CLI — daily production use)
+- System integration (SAML, REST APIs, multi-source data connectors)
+- Automation and DevOps
+- Threat hunting and incident response
+- Cloud / containerized delivery (AWS ECS, CodePipeline)
 - Data integration and correlation
 - Operational reliability
-- AI-assisted security tooling (with governance and auditability)
 
-I consistently contribute by:
-- building automation that removes repetitive work
-- improving visibility across fragmented systems
-- reconciling inconsistent records into actionable data
-- accelerating remediation workflows
-- creating guardrails and documentation so delivery scales
-- shipping tools that stay useful after launch
-
-What I bring to a team:
-- Security Engineering: I build and operate production security systems. I focus on deployable controls and measurable risk reduction. I think in terms of remediation, reliability, and operational fit.
-- Application Security: I pioneered Checkmarx SAST integration into CI/CD pipelines. I do hands-on pentesting with Burp Suite, ZAP, Nmap, and other offensive tools. I understand secure SDLC from code review through production deployment.
-- Automation and DevSecOps: I automate high-friction workflows with Python and PowerShell. I build CI/CD-oriented workflows and operational tooling. I care about repeatability, maintainability, and handoff quality.
-- Cloud / Platform: I deliver containerized services and internal tools in cloud environments. I work at the intersection of infrastructure, security, and application engineering. I design with operational realities in mind.
-- Security Data and Analytics: I integrate multiple data sources and reconcile drift/inconsistency. I build pipelines and tooling that improve visibility and decision quality. I value metrics and actionable reporting over noisy dashboards.
-- AI for Security (Applied, not hype): I use AI where it improves workflow quality and speed. I care about auditability, safety, and responsible deployment. I treat AI systems as operational tools that need governance.
+How I actually work:
+- Everything starts manual. I validate by hand before automating anything, and I build safeguards before flipping switches. I've never had a production disaster because of this discipline.
+- I communicate constantly. I work with a long leash and non-technical leadership, so I've gotten good at the "this is the problem, this is why, this is what I'm doing about it" pitch — often compressing weeks of work into a 15-minute sync.
+- I fill gaps nobody assigned. At UCOP, I'm the only one on a 6-person security team with an SWE background. Coraline, the governance framework, the automation — none of those were asked for. I saw problems and built solutions.
+- I learn fast when I have to. Went from zero AWS knowledge to leading ECS deployments and teaching the org's AWS engineer in about two and a half weeks.
+- I protect working relationships over credit. I'd rather learn from a stronger engineer than take kudos for their idea.
+- I build for handoff. Excessive documentation is intentional — the code needs to be readable by IAM engineers and AWS devs who aren't developers. Six months after leaving GWR, the automation was still running.

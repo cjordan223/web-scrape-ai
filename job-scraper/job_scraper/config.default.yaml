@@ -60,7 +60,8 @@ filter:
   - manager
   - director
   max_experience_years: 5
-  min_salary_k: 70
+  min_salary_k: 100
+  target_salary_k: 150
   content_blocklist:
   - clearance
   - ts/sci
@@ -113,7 +114,7 @@ pipeline_order:
 - storage
 llm_review:
   enabled: true
-  url: http://localhost:1234/v1/chat/completions
+  url: http://localhost:11434/v1/chat/completions
   model: default
   fail_open: true
   timeout: 30

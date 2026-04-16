@@ -1,0 +1,260 @@
+{
+  "version": 1,
+  "precedence": [
+    "Immutable employment facts come from the baseline resume.",
+    "Approved optional narrative detail may come from persona files.",
+    "Skills inventory authorizes skills claims, not employer-specific implementation history."
+  ],
+  "approved_sources": {
+    "company_aliases": {
+      "University of California, Office of the President": [
+        "UCOP",
+        "UC",
+        "University of California"
+      ],
+      "Great Wolf Resorts": [
+        "GWR",
+        "Great Wolf"
+      ],
+      "Simple.biz": [
+        "Simple"
+      ]
+    },
+    "company_terms": {
+      "University of California, Office of the President": [
+        "macOS",
+        "Windows",
+        "CrowdStrike RTR",
+        "Defender",
+        "runbooks",
+        "10,000+ macOS and Windows devices",
+        "7,000+ endpoints",
+        "2,900-user identity portal",
+        "MFA providers",
+        "network security protocols",
+        "operational guardrails",
+        "review standards"
+      ],
+      "Great Wolf Resorts": [
+        "hybrid Azure tenant",
+        "Python",
+        "PowerShell",
+        "endpoint agent updates",
+        "patching",
+        "BitLocker",
+        "10,000+ devices",
+        "CrowdStrike RTR",
+        "200 hours annually",
+        "Microsoft Graph API",
+        "10,000+ users",
+        "Rapid7",
+        "Pandas",
+        "NumPy",
+        "KnowBe4",
+        "25 percent",
+        "analytics tooling",
+        "agent health monitoring"
+      ],
+      "Simple.biz": [
+        "client-facing web applications",
+        "CMS platforms",
+        "PHP backend integrations",
+        "JavaScript",
+        "MySQL",
+        "content management workflows",
+        "cross-browser testing",
+        "domain configuration",
+        "hosting setup"
+      ]
+    },
+    "projects": {
+      "phishfinder": {
+        "label": "school capstone project",
+        "match_keywords": [
+          "phishfinder",
+          "capstone",
+          "chrome extension"
+        ],
+        "approved_terms": [
+          "PhishFinder",
+          "browser extension frontend",
+          "Chrome extension",
+          "Python backend API",
+          "SPF",
+          "DKIM",
+          "DMARC",
+          "NLP",
+          "LLM-based classification",
+          "real-time URL analysis",
+          "Most Innovative Project",
+          "2024 Capstone Festival"
+        ]
+      },
+      "coraline": {
+        "label": "internal asset correlation tool built at UCOP",
+        "match_keywords": [
+          "coraline",
+          "asset correlation",
+          "hardware uuid",
+          "reconciliation",
+          "drifted assets",
+          "flask",
+          "aws ecs",
+          "rapid7",
+          "bigfix",
+          "jamf"
+        ],
+        "approved_terms": [
+          "Coraline",
+          "Flask",
+          "React",
+          "Docker",
+          "AWS ECS",
+          "Rapid7",
+          "BigFix",
+          "Jamf",
+          "hardware UUID",
+          "asset correlation",
+          "hierarchical confidence matching",
+          "hierarchical confidence-matching",
+          "500 drifted assets",
+          "500+ drifted asset records",
+          "five disparate security and IT inventory sources",
+          "five separate data sources",
+          "reconciliation"
+        ],
+        "forbidden_terms": [
+          "LangChain",
+          "vector databases",
+          "vector database",
+          "RAG chatbot",
+          "RAG-based security knowledge chatbot",
+          "retrieval accuracy",
+          "source attribution",
+          "AI governance",
+          "audit trails"
+        ]
+      },
+      "rag_chatbot": {
+        "label": "internal SecOps knowledge tool",
+        "match_keywords": [
+          "rag",
+          "langchain",
+          "chatbot",
+          "knowledge chatbot",
+          "vector database",
+          "retrieval accuracy"
+        ],
+        "approved_terms": [
+          "RAG-based security knowledge chatbot",
+          "LangChain",
+          "vector databases",
+          "retrieval accuracy",
+          "source attribution",
+          "SecOps knowledge",
+          "auditability",
+          "NLP",
+          "AI governance",
+          "audit trails"
+        ],
+        "forbidden_terms": [
+          "AWS Lambda",
+          "Step Functions",
+          "SNS",
+          "SQS",
+          "latency constraints",
+          "SLA-backed uptime",
+          "alongside Coraline",
+          "technical standard for future AI deployments",
+          "AWS ECS",
+          "Flask",
+          "React",
+          "Docker",
+          "hierarchical confidence matching",
+          "500 drifted assets",
+          "Rapid7",
+          "BigFix",
+          "Jamf",
+          "hardware UUID"
+        ]
+      }
+    },
+    "approved_ai_details": [
+      "LangChain",
+      "vector databases",
+      "retrieval accuracy",
+      "source attribution",
+      "audit trails",
+      "operational guardrails"
+    ],
+    "approved_identity_details": [
+      "MFA providers",
+      "identity portal",
+      "network security protocols",
+      "IAM coordination"
+    ],
+    "approved_compliance_details": [
+      "auditability",
+      "audit-ready governance",
+      "operational guardrails"
+    ]
+  },
+  "high_risk_patterns": {
+    "role_title_renamed": {
+      "message": "Baseline employer role titles are immutable and must not be rewritten."
+    },
+    "unsupported_tool_claim": [
+      "\\bTerraform\\b",
+      "\\bAnsible\\b",
+      "\\bAzure DevOps\\b"
+    ],
+    "unsupported_compliance_claim": [
+      "\\bSOC ?2\\b",
+      "\\bHIPAA\\b",
+      "\\bNIST\\b",
+      "\\bISO 27001\\b"
+    ],
+    "unsupported_identity_stack_claim": [
+      "\\bOkta\\b",
+      "\\bActive Directory\\b",
+      "\\bSCCM\\b",
+      "\\bJAMF\\b",
+      "\\bServiceNow\\b",
+      "\\bEntra ID\\b",
+      "\\bPAM\\b",
+      "\\bzero-trust\\b"
+    ],
+    "unsupported_ai_deployment_claim": [
+      "RAG[^.\\n]{0,40}chatbot[^.\\n]{0,160}(?:AWS ECS|Flask|React|Docker)",
+      "(?:AWS ECS|Flask|React|Docker)[^.\\n]{0,160}RAG[^.\\n]{0,40}chatbot",
+      "LangChain[^.\\n]{0,160}Coraline",
+      "Coraline[^.\\n]{0,160}(?:LangChain|vector database)",
+      "vector database[^.\\n]{0,160}Coraline",
+      "\\bAWS Lambda\\b",
+      "\\bStep Functions\\b",
+      "\\bSNS\\b",
+      "\\bSQS\\b",
+      "\\balongside Coraline\\b",
+      "\\blatency constraints\\b",
+      "\\bSLA-backed uptime\\b",
+      "technical standard for (?:future |internal )?AI deployments?",
+      "standard for (?:future |internal )AI deployments?",
+      "established a (?:technical )?standard for[^.\\n]{0,60}AI deployment"
+    ],
+    "unsupported_operational_mechanic_claim": [
+      "\\bidempotent\\b",
+      "\\brollback\\b",
+      "\\bcanary\\b"
+    ],
+    "unsupported_scale_claim": [
+      "\\b20\\+ internal teams\\b",
+      "\\bhundreds of devices\\b"
+    ]
+  },
+  "forbidden_global_claims": [
+    "Do not rename prior job titles to target-role titles.",
+    "Do not attach unsupported tools, frameworks, identity platforms, compliance regimes, or deployment topology to prior employer work.",
+    "Do not infer implementation mechanics from persona style text.",
+    "Do not fuse distinct projects: when two projects share an employer, their stacks, metrics, and mechanics must remain separated sentence-by-sentence."
+  ]
+}

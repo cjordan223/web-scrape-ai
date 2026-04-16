@@ -156,7 +156,7 @@ class TestResumeValidation(unittest.TestCase):
         baseline = cfg.RESUME_TEX.read_text(encoding="utf-8")
         pruned = baseline.replace("\\prunedresumefalse", "\\prunedresumetrue", 1)
         pruned = pruned.replace(
-            "  \\resumeItem{Conducted systematic cross-browser and cross-device compatibility testing with scripted automation, root-causing rendering discrepancies and achieving a 30 percent reduction in user-reported issues.}\n",
+            "  \\resumeItem{Managed full project lifecycle for multiple concurrent clients, handling domain configuration, hosting setup, cross-browser testing, and post-launch support to ensure reliable delivery.}\n",
             "",
             1,
         )
@@ -175,8 +175,13 @@ class TestResumeValidation(unittest.TestCase):
                 result = validate_resume(tex_path)
 
         self.assertFalse(result.passed)
+        floor = cfg.RESUME_COMPANY_BULLET_FLOORS["Simple.biz"]
+        cap = cfg.RESUME_COMPANY_BULLET_TARGETS["Simple.biz"]
         self.assertTrue(
-            any("Simple.biz bullet count 2, expected 3-3 in pruned mode" in failure for failure in result.failures)
+            any(
+                f"Simple.biz bullet count 2, expected {floor}-{cap} in pruned mode" in failure
+                for failure in result.failures
+            )
         )
 
     def test_validate_resume_fails_when_page_underfilled(self):

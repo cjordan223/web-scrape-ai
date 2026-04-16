@@ -42,7 +42,8 @@ api.getScraperConfig(): Promise<ScraperConfig>
     "domain_blocklist": ["linkedin.com"],
     "title_blocklist": ["staff", "principal"],
     "content_blocklist": [],
-    "min_salary_k": 70
+    "min_salary_k": 100,
+    "target_salary_k": 150
   },
   "filter": {
     "title_keywords": ["engineer", "security"],
@@ -230,8 +231,8 @@ api.getRunsControls(): Promise<RuntimeControls>
 {
   "scrape_enabled": true,
   "llm_enabled": true,
-  "llm_provider": "lmstudio",
-  "llm_base_url": "http://localhost:1234",
+  "llm_provider": "ollama",
+  "llm_base_url": "http://localhost:11434",
   "llm_model": "default",
   "schedule_interval_minutes": null,
   "schedule_started_at": null,

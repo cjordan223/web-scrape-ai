@@ -230,8 +230,8 @@ export const api = {
         return data;
     },
 
-    getLlmModels: async () => {
-        const { data } = await apiClient.get('/llm/models');
+    getLlmModels: async (provider?: string) => {
+        const { data } = await apiClient.get('/llm/models', { params: provider ? { provider } : undefined });
         return data;
     },
 
@@ -255,13 +255,33 @@ export const api = {
         return data;
     },
 
-    activateLlmProvider: async (provider: string, base_url?: string) => {
-        const { data } = await apiClient.post('/llm/providers/activate', { provider, base_url });
+    activateLlmProvider: async (provider: string, base_url?: string, model?: string) => {
+        const { data } = await apiClient.post('/llm/providers/activate', { provider, base_url, model });
         return data;
     },
 
     testLlmProvider: async (provider: string) => {
         const { data } = await apiClient.post('/llm/providers/test', { provider });
+        return data;
+    },
+
+    // Infrastructure & chat
+    getLlmInfrastructure: async () => {
+        const { data } = await apiClient.get('/llm/infrastructure');
+        return data;
+    },
+    llmChat: async (messages: { role: string; content: string }[], opts?: { model?: string; max_tokens?: number; temperature?: number }) => {
+        const { data } = await apiClient.post('/llm/chat', { messages, ...opts }, { timeout: 130000 });
+        return data;
+    },
+
+    // Model catalog
+    getLlmCatalog: async () => {
+        const { data } = await apiClient.get('/llm/catalog');
+        return data;
+    },
+    runLlmBenchmark: async (model_id: string, provider = 'ollama') => {
+        const { data } = await apiClient.post('/llm/benchmark', { model_id, provider }, { timeout: 130000 });
         return data;
     },
 

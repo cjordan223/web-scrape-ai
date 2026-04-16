@@ -97,22 +97,48 @@ I built a SOC 2-aligned RAG chatbot on AWS Lambda.
             "requirements": [],
         }
 
-        def fake_chat(system_prompt, user_prompt, max_tokens=0, temperature=0.0, trace=None, trace_recorder=None):
+        baseline_skills = {
+            "Languages": ["Python", "SQL"],
+            "Security Tooling": ["Splunk"],
+            "AI/ML and Research": ["RAG pipelines"],
+            "Frameworks and Infrastructure": ["Flask"],
+            "DevOps and CI/CD": ["CI/CD pipelines"],
+            "Databases": ["PostgreSQL"],
+        }
+
+        def fake_chat(system_prompt, user_prompt, max_tokens=0, temperature=0.0, trace=None, trace_recorder=None, **kwargs):
             from tailor import config as cfg
             if (trace or {}).get("doc_type") == "resume":
                 return Path(cfg.RESUME_TEX).read_text(encoding="utf-8")
             return Path(cfg.COVER_TEX).read_text(encoding="utf-8")
 
-        def fake_chat_expect_json(system_prompt, user_prompt, max_tokens=0, temperature=0.0, trace=None, trace_recorder=None):
-            if (trace or {}).get("doc_type") == "resume":
+        def fake_chat_expect_json(system_prompt, user_prompt, max_tokens=0, temperature=0.0, trace=None, trace_recorder=None, **kwargs):
+            doc = (trace or {}).get("doc_type")
+            phase = (trace or {}).get("phase")
+            if doc == "resume" and phase == "strategy":
                 return {"summary_strategy": "x", "skills_tailoring": {}, "experience_rewrites": [], "risk_controls": []}
+            if doc == "resume":
+                return {
+                    "summary": "Security engineer building reliable systems.",
+                    "skills": baseline_skills,
+                    "experience": {
+                        "University of California, Office of the President": ["a", "b", "c", "d", "e", "f"],
+                        "Great Wolf Resorts": ["a", "b", "c", "d", "e"],
+                        "Simple.biz": ["a", "b", "c"],
+                    },
+                }
+            if phase == "strategy":
+                return {
+                    "company_hook": "x",
+                    "structure": [],
+                    "closing_angle": "x",
+                    "voice_controls": [],
+                    "claims_to_avoid": [],
+                    "vignettes_to_use": [],
+                }
             return {
-                "company_hook": "x",
-                "structure": [],
-                "closing_angle": "x",
-                "voice_controls": [],
-                "claims_to_avoid": [],
-                "vignettes_to_use": [],
+                "paragraphs": ["Paragraph one.", "Paragraph two."],
+                "closing": "Closing paragraph.",
             }
 
         with (
@@ -157,18 +183,24 @@ I built a SOC 2-aligned RAG chatbot on AWS Lambda.
             "requirements": [],
         }
 
-        def fake_chat(system_prompt, user_prompt, max_tokens=0, temperature=0.0, trace=None, trace_recorder=None):
+        def fake_chat(system_prompt, user_prompt, max_tokens=0, temperature=0.0, trace=None, trace_recorder=None, **kwargs):
             from tailor import config as cfg
             return Path(cfg.COVER_TEX).read_text(encoding="utf-8")
 
-        def fake_chat_expect_json(system_prompt, user_prompt, max_tokens=0, temperature=0.0, trace=None, trace_recorder=None):
+        def fake_chat_expect_json(system_prompt, user_prompt, max_tokens=0, temperature=0.0, trace=None, trace_recorder=None, **kwargs):
+            phase = (trace or {}).get("phase")
+            if phase == "strategy":
+                return {
+                    "company_hook": "x",
+                    "structure": [],
+                    "closing_angle": "x",
+                    "voice_controls": [],
+                    "claims_to_avoid": [],
+                    "vignettes_to_use": [],
+                }
             return {
-                "company_hook": "x",
-                "structure": [],
-                "closing_angle": "x",
-                "voice_controls": [],
-                "claims_to_avoid": [],
-                "vignettes_to_use": [],
+                "paragraphs": ["Paragraph one.", "Paragraph two."],
+                "closing": "Closing paragraph.",
             }
 
         with (

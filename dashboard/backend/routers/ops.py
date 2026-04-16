@@ -25,6 +25,7 @@ ROUTES: list[tuple[str, str, str]] = [
     ("GET", "/api/scraper/config", "scraper_config_get"),
     ("POST", "/api/scraper/config", "scraper_config_save"),
     ("GET", "/api/scraper/pipeline/stats", "scraper_pipeline_stats"),
+    ("GET", "/api/ops/tailoring/metrics", "tailoring_metrics_get"),
     ("GET", "/{full_path:path}", "catch_all"),
 ]
 

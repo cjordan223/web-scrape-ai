@@ -51,3 +51,11 @@ class TraceRecorder:
         with self._lock:
             with self.path.open("a", encoding="utf-8") as f:
                 f.write(line)
+
+    def phase_start(self, phase: str, **extra: Any) -> None:
+        """Record the start of a pipeline phase."""
+        self.record({"event_type": "phase_start", "phase": phase, **extra})
+
+    def phase_end(self, phase: str, **extra: Any) -> None:
+        """Record the end of a pipeline phase."""
+        self.record({"event_type": "phase_end", "phase": phase, **extra})

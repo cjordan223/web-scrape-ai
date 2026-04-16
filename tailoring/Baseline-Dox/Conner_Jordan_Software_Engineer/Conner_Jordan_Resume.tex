@@ -26,6 +26,8 @@
 \compactresumefalse
 \newif\ifprunedresume
 \prunedresumefalse
+\newif\iflooseresume
+\looseresumefalse
 
 \newcommand{\resumeLineSpread}{0.88}
 \newcommand{\resumeItemSep}{1pt}
@@ -65,6 +67,17 @@
   \renewcommand{\resumeSectionIntroGap}{5pt}
   \renewcommand{\resumeSectionOutroGap}{4pt}
   \renewcommand{\resumeHeaderBottomGap}{2pt}
+\fi
+
+\iflooseresume
+  \renewcommand{\resumeLineSpread}{0.92}
+  \renewcommand{\resumeItemSep}{2pt}
+  \renewcommand{\resumeSectionBeforeSpace}{3pt}
+  \renewcommand{\resumeSubheadingGap}{-1pt}
+  \renewcommand{\resumeListEndGap}{-1pt}
+  \renewcommand{\resumeSectionIntroGap}{10pt}
+  \renewcommand{\resumeSectionOutroGap}{8pt}
+  \renewcommand{\resumeHeaderBottomGap}{6pt}
 \fi
 
 \linespread{\resumeLineSpread}
@@ -161,7 +174,7 @@ Security/DevSecOps Engineer who ships production security services and automatio
   \vspace{2pt}
 \resumeItemListStart
   \resumeItem{Designed and built Coraline, an open-source-ready Dockerized Flask \& React security tool on AWS ECS that ingests and correlates data from five disparate security and IT inventory sources; implemented hierarchical confidence-matching algorithms to reconcile over 500 drifted assets across 7,000+ endpoints.}
-  \resumeItem{Engineered an AI/ML-powered RAG security chatbot using LangChain, vector databases, and NLP techniques, establishing the technical standard for internal AI deployments and enabling instant retrieval of SecOps knowledge across the organization.}
+  \resumeItem{Built an internal RAG security knowledge chatbot using LangChain and vector databases, focused on retrieval accuracy and source attribution to reduce repeated questions to the security team.}
   \resumeItem{Built API-driven vulnerability response automation for a heterogeneous fleet of macOS and Windows devices, analyzing vulnerability classes and accelerating patch deployment to ensure compliance with University-wide cybersecurity mandates.}
   \resumeItem{Architected secure server infrastructure for a 2,900-user identity portal; led cross-departmental integration of MFA providers and enforced strict network security protocols through code review and secure implementation practices.}
   \resumeItem{Translated complex security requirements into deployable controls by partnering across IAM, Networking, and Endpoint teams; communicated technical architectures to both engineers and leadership to drive informed decision-making.}
@@ -187,9 +200,9 @@ Security/DevSecOps Engineer who ships production security services and automatio
   {Freelance Web Developer}{August 2022 - May 2023}
 \vspace{2pt}
 \resumeItemListStart
-  \resumeItem{Delivered production-grade web applications to paying clients, building CI/CD pipelines with automated build and deployment scripts that ensured consistent, secure releases.}
-  \resumeItem{Implemented automated security and accessibility testing using Selenium, integrating WCAG/ADA compliance checks into development workflows to surface issues early and reduce defects.}
-  \resumeItem{Conducted systematic cross-browser and cross-device compatibility testing with scripted automation, root-causing rendering discrepancies and achieving a 30 percent reduction in user-reported issues.}
+  \resumeItem{Delivered client-facing web applications end-to-end, gathering requirements, designing responsive layouts, and deploying production sites on CMS platforms with custom PHP backend integrations.}
+  \resumeItem{Built and maintained dynamic web features using PHP, JavaScript, and MySQL, implementing content management workflows and database-backed functionality tailored to each client's business needs.}
+  \resumeItem{Managed full project lifecycle for multiple concurrent clients, handling domain configuration, hosting setup, cross-browser testing, and post-launch support to ensure reliable delivery.}
 \resumeItemListEnd
 
 \resumeSubHeadingListEnd

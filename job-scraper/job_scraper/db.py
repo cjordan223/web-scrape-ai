@@ -10,7 +10,8 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS seen_urls (
     url TEXT PRIMARY KEY,
     first_seen TEXT NOT NULL,
-    last_seen TEXT NOT NULL
+    last_seen TEXT NOT NULL,
+    permanently_rejected INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_seen_urls_first_seen ON seen_urls(first_seen);
 
@@ -80,9 +81,11 @@ class JobDB:
             db_path = DB_PATH
         self._path = Path(db_path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(self._path), timeout=30)
+        self._conn = sqlite3.connect(str(self._path), timeout=60)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA busy_timeout=60000")
+        self._conn.execute("PRAGMA synchronous=NORMAL")
         self._migrate_schema()
         self._conn.executescript(_SCHEMA)
 
@@ -108,6 +111,16 @@ class JobDB:
                 ]:
                     if col not in cols:
                         self._conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} {defn}")
+                self._conn.commit()
+        except Exception:
+            pass
+        # Add permanently_rejected column to seen_urls if missing
+        try:
+            cols = {r[1] for r in self._conn.execute("PRAGMA table_info(seen_urls)")}
+            if cols and "permanently_rejected" not in cols:
+                self._conn.execute(
+                    "ALTER TABLE seen_urls ADD COLUMN permanently_rejected INTEGER NOT NULL DEFAULT 0"
+                )
                 self._conn.commit()
         except Exception:
             pass
@@ -142,10 +155,12 @@ class JobDB:
 
     def is_seen(self, url: str, ttl_days: int = 14) -> bool:
         row = self._conn.execute(
-            "SELECT first_seen FROM seen_urls WHERE url = ?", (url,)
+            "SELECT first_seen, permanently_rejected FROM seen_urls WHERE url = ?", (url,)
         ).fetchone()
         if row is None:
             return False
+        if row["permanently_rejected"]:
+            return True
         first = datetime.fromisoformat(row["first_seen"])
         if first.tzinfo is None:
             first = first.replace(tzinfo=timezone.utc)
@@ -157,6 +172,15 @@ class JobDB:
         self._conn.execute(
             "INSERT INTO seen_urls (url, first_seen, last_seen) VALUES (?, ?, ?) "
             "ON CONFLICT(url) DO UPDATE SET last_seen = ?",
+            (url, now, now, now),
+        )
+
+    def mark_permanently_rejected(self, url: str) -> None:
+        now = _now()
+        self._conn.execute(
+            "INSERT INTO seen_urls (url, first_seen, last_seen, permanently_rejected) "
+            "VALUES (?, ?, ?, 1) "
+            "ON CONFLICT(url) DO UPDATE SET permanently_rejected = 1, last_seen = ?",
             (url, now, now, now),
         )
 

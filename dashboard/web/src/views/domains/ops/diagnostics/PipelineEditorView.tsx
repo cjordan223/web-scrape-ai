@@ -42,7 +42,7 @@ interface ScraperConfig {
   queries: { title_phrase: string; board_site: string; board: string; suffix: string }[];
   searxng: { enabled: boolean; url: string; timeout: number; engines: string; time_range: string; request_delay: number };
   usajobs: { enabled: boolean; keywords: string[]; series: string[]; agencies: string[]; days: number; remote: boolean };
-  hard_filters: { domain_blocklist: string[]; title_blocklist: string[]; content_blocklist: string[]; min_salary_k: number };
+  hard_filters: { domain_blocklist: string[]; title_blocklist: string[]; content_blocklist: string[]; min_salary_k: number; target_salary_k: number };
   filter: { title_keywords: string[]; title_role_words: string[]; require_remote: boolean; require_us_location: boolean; min_jd_chars: number; max_experience_years: number; score_accept_threshold: number; score_reject_threshold: number };
   seen_ttl_days: number;
   target_max_results: number;
@@ -645,6 +645,8 @@ function StagePanel({ stageId, config, onChange, onClose }: {
             <div className="ps-section-title">Thresholds</div>
             <NumberField label="Min salary ($k)" value={hf.min_salary_k}
               onChange={v => onChange({ hard_filters: { ...hf, min_salary_k: v } })} />
+            <NumberField label="Target salary ($k)" value={hf.target_salary_k}
+              onChange={v => onChange({ hard_filters: { ...hf, target_salary_k: v } })} />
             <NumberField label="Max experience (years)" value={config.filter.max_experience_years}
               onChange={v => onChange({ filter: { ...config.filter, max_experience_years: v } })} />
           </div>
@@ -788,7 +790,7 @@ Returns: { "requirements_summary": "...", "approved_jd_text": "...", "removed_no
           <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
             <div style={{ marginBottom: 8 }}>
               <strong style={{ color: 'var(--text)' }}>Endpoint:</strong>{' '}
-              <code style={{ fontFamily: 'var(--font-mono)', fontSize: '.68rem' }}>localhost:1234/v1/chat/completions</code>
+              <code style={{ fontFamily: 'var(--font-mono)', fontSize: '.68rem' }}>localhost:11434/v1/chat/completions</code>
             </div>
             <div style={{ marginBottom: 8 }}>
               <strong style={{ color: 'var(--text)' }}>Temperature:</strong> 0.2 (review) / 0.1 (polish)

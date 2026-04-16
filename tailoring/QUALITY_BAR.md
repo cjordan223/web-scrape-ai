@@ -30,7 +30,7 @@ Threshold values live in `tailor/config.py`.
 - `MAX_RETRIES` controls attempts per document.
 - Validation failures are fed back to subsequent attempts.
 - Error feedback includes concrete counts/targets to help recovery.
-- Resume generation now includes fit-stage recovery: condense → compact layout → last-resort prune.
+- Resume generation now includes fit-stage recovery: condense → last-resort prune.
 
 ## Tuning Guidance
 

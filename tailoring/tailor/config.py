@@ -6,6 +6,7 @@ are here. See QUALITY_BAR.md for what each gate does and how to tune.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -19,32 +20,31 @@ SOUL_MD = TAILORING_ROOT / "soul.md"
 PERSONA_DIR = TAILORING_ROOT / "persona"
 QUALITY_BAR_MD = TAILORING_ROOT / "QUALITY_BAR.md"
 OUTPUT_DIR = TAILORING_ROOT / "output"
+GROUNDING_CONFIG = TAILORING_ROOT / "grounding" / "v1.json"
 
 DB_PATH = Path.home() / ".local" / "share" / "job_scraper" / "jobs.db"
-LOCK_PATH = Path.home() / ".local" / "share" / "job_scraper" / "ollama.lock"
+LOCK_PATH = Path.home() / ".local" / "share" / "jobforge" / "llm.lock"
 
-# ── LM Studio (OpenAI-compatible) ─────────────────────────────────────
-# Backward compatible env overrides:
-# - TAILOR_LMSTUDIO_URL / TAILOR_LMSTUDIO_MODELS_URL (preferred)
-# - TAILOR_OLLAMA_URL / TAILOR_OLLAMA_MODELS_URL (legacy)
+# ── LLM Endpoint (Ollama default) ─────────────────────────────────────
 OLLAMA_URL = os.environ.get(
-    "TAILOR_LMSTUDIO_URL",
-    os.environ.get("TAILOR_OLLAMA_URL", "http://localhost:1234/v1/chat/completions"),
+    "TAILOR_LLM_URL",
+    os.environ.get("TAILOR_OLLAMA_URL", "http://localhost:11434/v1/chat/completions"),
 )
 OLLAMA_MODELS_URL = os.environ.get(
-    "TAILOR_LMSTUDIO_MODELS_URL",
-    os.environ.get("TAILOR_OLLAMA_MODELS_URL", "http://localhost:1234/v1/models"),
+    "TAILOR_LLM_MODELS_URL",
+    os.environ.get("TAILOR_OLLAMA_MODELS_URL", "http://localhost:11434/v1/models"),
 )
-# Optional explicit model override:
-# - TAILOR_LMSTUDIO_MODEL (preferred)
-# - TAILOR_OLLAMA_MODEL (legacy)
 # Use "default" to auto-pick the first model returned by /v1/models.
 OLLAMA_MODEL = os.environ.get(
-    "TAILOR_LMSTUDIO_MODEL",
+    "TAILOR_LLM_MODEL",
     os.environ.get("TAILOR_OLLAMA_MODEL", "default"),
 )
-OLLAMA_TIMEOUT = 300  # seconds per LLM call
+OLLAMA_TIMEOUT = 600  # seconds per LLM call (thinking models need extra time)
 LOCK_TIMEOUT = 300  # seconds to wait for file lock (prevents concurrent LLM access)
+
+# ── Multi-provider support ────────────────────────────────────────────
+LLM_API_KEY = os.environ.get("TAILOR_LLM_API_KEY", "")
+LLM_PROVIDER = os.environ.get("TAILOR_LLM_PROVIDER", "ollama")
 
 # ── Validation thresholds ──────────────────────────────────────────────
 # These control the hard gates in validator.py. Adjust based on your model's output.
@@ -57,8 +57,8 @@ MAX_RETRIES = 3  # full pipeline retries (strategy + draft + QA) per document
 
 RESUME_TARGET_PAGES = 1
 RESUME_MIN_FILL_RATIO = 0.85  # page 1 must be ≥85% filled vertically
-RESUME_COMPACT_MODE_ENABLED = True
-RESUME_FIT_MAX_STAGES = 3
+RESUME_COMPACT_MODE_ENABLED = False  # manual-only; auto-fit should prefer content reduction
+RESUME_FIT_MAX_STAGES = 2
 RESUME_COMPANIES = [
     "University of California, Office of the President",
     "Great Wolf Resorts",
@@ -84,3 +84,30 @@ RESUME_SECTIONS = [
     "EDUCATION",
     "CERTIFICATIONS",
 ]
+
+# ── Run-scoped file read cache ────────────────────────────────────────
+# Avoids re-reading baseline files that don't change mid-run.
+_FILE_CACHE: dict[str, str] = {}
+_JSON_CACHE: dict[str, dict] = {}
+
+
+def clear_file_cache() -> None:
+    """Clear the run-scoped file read cache (call at run start)."""
+    _FILE_CACHE.clear()
+    _JSON_CACHE.clear()
+
+
+def read_cached(path: Path) -> str:
+    """Read a file with run-scoped caching."""
+    key = str(path)
+    if key not in _FILE_CACHE:
+        _FILE_CACHE[key] = path.read_text(encoding="utf-8")
+    return _FILE_CACHE[key]
+
+
+def read_json_cached(path: Path) -> dict:
+    """Read and parse a JSON file with run-scoped caching."""
+    key = str(path)
+    if key not in _JSON_CACHE:
+        _JSON_CACHE[key] = json.loads(read_cached(path))
+    return _JSON_CACHE[key]

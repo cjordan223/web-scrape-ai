@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import sys
 import zipfile
 
 from fastapi.responses import StreamingResponse
@@ -11,8 +12,61 @@ from fastapi.responses import StreamingResponse
 import app as _app
 globals().update({k: v for k, v in _app.__dict__.items() if not k.startswith("__")})
 
+_scraper_root = str(SCRAPER_ROOT)
+if _scraper_root not in sys.path:
+    sys.path.insert(0, _scraper_root)
+from job_scraper.config import load_config as _load_scraper_config
+from job_scraper.salary_policy import evaluate_salary_policy as _evaluate_salary_policy
+
+_tailoring_root = str(TAILORING_ROOT)
+if _tailoring_root not in sys.path:
+    sys.path.insert(0, _tailoring_root)
+
+_chat_expect_json = None  # lazy-loaded to avoid circular import
+
 def _sync_app_state() -> None:
     globals().update({k: v for k, v in _app.__dict__.items() if not k.startswith("__")})
+
+
+def _salary_policy_for_job(*, salary_text: str = "", salary_k: object = None):
+    cfg = _load_scraper_config()
+    return _evaluate_salary_policy(
+        min_salary_k=cfg.hard_filters.min_salary_k,
+        target_salary_k=cfg.hard_filters.target_salary_k,
+        salary_text=salary_text,
+        salary_k=salary_k,
+    )
+
+
+def _shared_chat_expect_json(
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    llm_runtime: dict,
+    model_id: str,
+    max_tokens: int = 2048,
+    temperature: float = 0.2,
+    trace: dict | None = None,
+) -> dict:
+    """Use tailoring's shared LLM helper while keeping dashboard runtime controls authoritative."""
+    global _chat_expect_json
+    if _chat_expect_json is None:
+        from tailor.ollama import chat_expect_json
+        _chat_expect_json = chat_expect_json
+    return _chat_expect_json(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        model=model_id,
+        runtime={
+            "provider": llm_runtime.get("provider"),
+            "chat_url": llm_runtime.get("chat_url"),
+            "api_key": llm_runtime.get("api_key", ""),
+            "timeout": max(90, int(max_tokens / 32)),
+        },
+        trace=trace,
+    )
 
 
 def _ready_job_for_tailoring(job_id: int) -> tuple[dict | None, JSONResponse | None]:
@@ -533,7 +587,12 @@ def tailoring_artifact(slug: str, name: str):
 
 def _package_job_context(summary: dict) -> dict:
     meta = summary.get("meta", {}) or {}
-    job_context = _get_job_context(meta.get("job_id")) if meta.get("job_id") else None
+    job_context = None
+    if meta.get("job_id"):
+        try:
+            job_context = _get_job_context(meta.get("job_id"))
+        except sqlite3.Error:
+            job_context = None
     if job_context is None:
         job_context = {
             "id": meta.get("job_id"),
@@ -591,13 +650,17 @@ def package_runs(status: str = Query("complete")):
     job_ids = [r.get("meta", {}).get("job_id") for r in rows if r.get("meta", {}).get("job_id")]
     decision_map: dict[int, str] = {}
     if job_ids:
-        conn = get_db()
         try:
-            placeholders = ",".join("?" for _ in job_ids)
-            for r in conn.execute(f"SELECT id, decision FROM results WHERE id IN ({placeholders})", job_ids):
-                decision_map[r["id"]] = r["decision"]
-        finally:
-            conn.close()
+            conn = get_db()
+        except sqlite3.Error:
+            conn = None
+        if conn is not None:
+            try:
+                placeholders = ",".join("?" for _ in job_ids)
+                for r in conn.execute(f"SELECT id, decision FROM results WHERE id IN ({placeholders})", job_ids):
+                    decision_map[r["id"]] = r["decision"]
+            finally:
+                conn.close()
     filtered = []
     for row in rows:
         row["applied"] = applied_by_slug.get(str(row.get("slug") or ""))
@@ -730,7 +793,7 @@ def package_permanently_reject(slug: str):
             if row:
                 old = row["status"]
                 if _normalize_decision(old) != "permanently_rejected":
-                    _cancel_tailoring_queue_items(job_ids=[int(job_id)], statuses=("queued",), reason="Job permanently rejected from package view.")
+                    _cancel_tailoring_queue_items(conn=conn, job_ids=[int(job_id)], statuses=("queued",), reason="Job permanently rejected from package view.")
                     _stop_active_tailoring_job([int(job_id)], "Job permanently rejected from package view.")
                     _set_ready_bucket_for_job_ids_in_conn(conn, [int(job_id)], _DEFAULT_READY_BUCKET)
                     conn.execute(
@@ -837,7 +900,16 @@ trace = TraceRecorder(
     },
 )
 
-previous_errors = None
+def _build_validator_retry_feedback(result):
+    return {
+        "source": "validator",
+        "summary": str(result),
+        "failures": list(result.failures),
+        "failure_details": list(result.failure_details),
+    }
+
+
+previous_feedback = None
 passed = False
 last_result = None
 last_tex_path = None
@@ -846,7 +918,7 @@ for attempt in range(1, cfg.MAX_RETRIES + 1):
         job,
         analysis,
         output_dir,
-        previous_errors=previous_errors,
+        previous_feedback=previous_feedback,
         attempt=attempt,
         trace_recorder=trace.record,
     )
@@ -859,6 +931,7 @@ for attempt in range(1, cfg.MAX_RETRIES + 1):
             "attempt": attempt,
             "passed": result.passed,
             "failures": result.failures,
+            "failure_details": result.failure_details,
             "metrics": result.metrics,
             "timestamp": utc_now_iso(),
         }
@@ -879,7 +952,7 @@ for attempt in range(1, cfg.MAX_RETRIES + 1):
     if result.passed:
         passed = True
         break
-    previous_errors = str(result)
+    previous_feedback = _build_validator_retry_feedback(result)
 
 print(json.dumps({
     "ok": passed,
@@ -1355,29 +1428,17 @@ def tailoring_ingest_parse(payload: dict = Body(...)):
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, 503)
 
-    req_body = json.dumps({
-        "model": model_id,
-        "messages": [
-            {"role": "system", "content": _INGEST_EXTRACT_SYSTEM},
-            {"role": "user", "content": jd_text[:12000]},
-        ],
-        "temperature": 0.1,
-    }).encode()
-
     try:
-        req = urllib.request.Request(
-            llm_runtime["chat_url"],
-            data=req_body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
+        fields = _shared_chat_expect_json(
+            _INGEST_EXTRACT_SYSTEM,
+            jd_text[:12000],
+            llm_runtime=llm_runtime,
+            model_id=model_id,
+            max_tokens=1200,
+            temperature=0.1,
+            trace={"phase": "dashboard_ingest_parse", "response_parse_kind": "json"},
         )
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            cdata = json.loads(resp.read())
-        raw = _strip_llm_fences(_extract_llm_content(cdata))
-        fields = json.loads(raw)
         return {"ok": True, "fields": fields}
-    except json.JSONDecodeError:
-        return {"ok": True, "fields": {}, "warning": "LLM returned non-JSON; fill fields manually"}
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"LLM call failed: {_http_error_details(e)}"}, 500)
 
@@ -1689,24 +1750,15 @@ def _polish_job_description(
         f"Scraped JD Text:\n{user_text[:12000]}"
     )
     try:
-        req_body = json.dumps({
-            "model": model_id,
-            "messages": [
-                {"role": "system", "content": _QA_POLISH_SYSTEM},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": 0.1,
-        }).encode()
-        req = urllib.request.Request(
-            llm_runtime["chat_url"],
-            data=req_body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
+        fields = _shared_chat_expect_json(
+            _QA_POLISH_SYSTEM,
+            user_prompt,
+            llm_runtime=llm_runtime,
+            model_id=model_id,
+            max_tokens=2400,
+            temperature=0.1,
+            trace={"phase": "dashboard_jd_polish", "response_parse_kind": "json"},
         )
-        with urllib.request.urlopen(req, timeout=90) as resp:
-            cdata = json.loads(resp.read())
-        raw = _strip_llm_fences(_extract_llm_content(cdata))
-        fields = json.loads(raw)
         summary = (fields.get("requirements_summary") or "").strip() or heuristic_summary
         approved_jd_text = (fields.get("approved_jd_text") or "").strip() or heuristic_text
         return summary, approved_jd_text, True
@@ -1875,7 +1927,7 @@ def tailoring_qa_approve(payload: dict = Body(...)):
         results = []
         for jid in job_ids:
             row = conn.execute(
-                "SELECT id, title, url, snippet, jd_text, decision FROM results WHERE id = ?",
+                "SELECT id, title, url, snippet, jd_text, salary_text, salary_k, decision FROM results WHERE id = ?",
                 (jid,),
             ).fetchone()
             if not row:
@@ -1887,6 +1939,22 @@ def tailoring_qa_approve(payload: dict = Body(...)):
             source_text = row["jd_text"] or row["snippet"] or ""
             if len(source_text.strip()) < 50:
                 results.append({"job_id": jid, "skipped": True, "reason": "No JD text (too short to tailor)"})
+                continue
+            salary_verdict = _salary_policy_for_job(
+                salary_text=row["salary_text"] or "",
+                salary_k=row["salary_k"],
+            )
+            if salary_verdict.hard_reject:
+                conn.execute("UPDATE jobs SET status='qa_rejected' WHERE id=?", (jid,))
+                from services.audit import log_state_change
+                log_state_change(conn, job_id=jid, job_url=row["url"],
+                                 old_state=old_decision, new_state="qa_rejected",
+                                 action="qa_reject")
+                results.append({
+                    "job_id": jid,
+                    "rejected": True,
+                    "reason": salary_verdict.reason,
+                })
                 continue
             req_summary, approved_jd_text, polished_with_llm = _polish_job_description(
                 source_text,
@@ -1936,7 +2004,7 @@ def tailoring_qa_reject(payload: dict = Body(...)):
             old_decision = _normalize_decision(row["decision"]) if row else None
             if old_decision not in ("qa_pending", "qa_approved"):
                 continue
-            _cancel_tailoring_queue_items(job_ids=[int(jid)], statuses=("queued",), reason="Job rejected.")
+            _cancel_tailoring_queue_items(conn=conn, job_ids=[int(jid)], statuses=("queued",), reason="Job rejected.")
             _stop_active_tailoring_job([int(jid)], "Job rejected.")
             _set_ready_bucket_for_job_ids_in_conn(conn, [int(jid)], _DEFAULT_READY_BUCKET)
             conn.execute("UPDATE jobs SET status='qa_rejected' WHERE id=?", (jid,))
@@ -1970,7 +2038,7 @@ def tailoring_qa_permanently_reject(payload: dict = Body(...)):
             old_decision = _normalize_decision(row["decision"])
             if old_decision == "permanently_rejected":
                 continue
-            _cancel_tailoring_queue_items(job_ids=[int(jid)], statuses=("queued",), reason="Job permanently rejected.")
+            _cancel_tailoring_queue_items(conn=conn, job_ids=[int(jid)], statuses=("queued",), reason="Job permanently rejected.")
             _stop_active_tailoring_job([int(jid)], "Job permanently rejected.")
             _set_ready_bucket_for_job_ids_in_conn(conn, [int(jid)], _DEFAULT_READY_BUCKET)
             conn.execute("UPDATE jobs SET status='permanently_rejected' WHERE id=?", (jid,))
@@ -2006,13 +2074,24 @@ _QA_LLM_REVIEW_SYSTEM = (
     "Evaluation criteria:\n"
     "- Requirement coverage: do candidate skills map to core JD requirements?\n"
     "- Experience relevance: does baseline evidence support the role?\n"
-    "- Seniority alignment: mid-to-senior IC roles are ideal (not staff/principal/management)\n"
+    "- Experience band (HARD GATE — most common reason to reject):\n"
+    "    * Ideal: mid-level IC, 2-3 years total professional experience\n"
+    "    * Acceptable: 3-5 years when the role is otherwise a strong fit\n"
+    "    * REJECT: JD states a minimum of 6+ years required, regardless of title\n"
+    "    * REJECT: staff / principal / lead-with-management-scope / manager / director titles\n"
+    "    * Parse the JD for explicit experience floors — e.g. '5+ years', 'minimum 7 years of X', "
+    "'senior-level: typically 8+ years of...'. These are hard signals and override the title. "
+    "A 'Senior Engineer' that only requires 3-4 years can still pass; a 'Software Engineer' that "
+    "requires 8+ years must fail. When the JD gives a range ('5-8 years'), use the floor.\n"
+    "    * When no explicit floor is stated, infer from title: bare 'senior' is acceptable, "
+    "bare 'staff' / 'principal' / 'lead' is reject.\n"
     "- Domain fit: software engineering, full-stack, backend, frontend, security, cloud, devops, "
     "platform, AI/ML, integration, data engineering — reject ONLY if the role is entirely outside "
     "software engineering (e.g., pure sales, marketing, hardware, mechanical engineering)\n"
     "- Red flags: onsite-only disguised as remote, clearance required, etc.\n\n"
     "Return ONLY valid JSON:\n"
     '{ "pass": true/false, "reason": "1-2 sentences", "confidence": 0.0-1.0, '
+    '"min_years_required": <integer or null — experience floor parsed from JD, null if not stated>, '
     '"top_matches": ["skill1", "skill2"], "gaps": ["gap1"] }'
 )
 
@@ -2142,78 +2221,234 @@ def _coerce_confidence(value: object, default: float = 0.5) -> float:
         return default
 
 
+def _qa_llm_review_reconcile_stale_items(conn: sqlite3.Connection) -> int:
+    """A restarted server should resume unfinished QA work instead of losing it."""
+    now = datetime.now(timezone.utc).isoformat()
+    cur = conn.execute(
+        """
+        UPDATE qa_llm_review_items
+        SET status='queued',
+            started_at = COALESCE(started_at, queued_at),
+            reason = CASE
+                WHEN COALESCE(reason, '') = '' THEN 'Resumed after server restart.'
+                ELSE reason
+            END
+        WHERE status='reviewing'
+        """
+    )
+    unfinished = conn.execute(
+        "SELECT COUNT(*) FROM qa_llm_review_items WHERE status IN ('queued', 'reviewing')"
+    ).fetchone()[0]
+    if not unfinished:
+        conn.execute(
+            """
+            UPDATE qa_llm_review_batches
+            SET ended_at = COALESCE(ended_at, ?)
+            WHERE ended_at IS NULL
+            """,
+            (now,),
+        )
+    return max(int(cur.rowcount or 0), 0)
+
+
+def _qa_llm_review_get_batch(conn: sqlite3.Connection, batch_id: int | None = None) -> sqlite3.Row | None:
+    if batch_id is not None:
+        return conn.execute(
+            "SELECT id, started_at, ended_at, resolved_model FROM qa_llm_review_batches WHERE id = ?",
+            (int(batch_id),),
+        ).fetchone()
+    row = conn.execute(
+        """
+        SELECT id, started_at, ended_at, resolved_model
+        FROM qa_llm_review_batches
+        WHERE ended_at IS NULL
+        ORDER BY id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    if row:
+        return row
+    return conn.execute(
+        """
+        SELECT id, started_at, ended_at, resolved_model
+        FROM qa_llm_review_batches
+        ORDER BY id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+
+
+def _qa_llm_review_fetch_items(conn: sqlite3.Connection, batch_id: int) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT id, batch_id, job_id, title, status, queued_at, started_at, completed_at,
+               reason, confidence, top_matches, gaps, polished, polished_with_llm
+        FROM qa_llm_review_items
+        WHERE batch_id = ?
+        ORDER BY id ASC
+        """,
+        (int(batch_id),),
+    ).fetchall()
+    items: list[dict] = []
+    for row in rows:
+        items.append(
+            {
+                "id": int(row["id"]),
+                "job_id": int(row["job_id"]),
+                "title": row["title"],
+                "status": row["status"],
+                "queued_at": row["queued_at"],
+                "started_at": row["started_at"],
+                "completed_at": row["completed_at"],
+                "reason": row["reason"] or "",
+                "confidence": row["confidence"],
+                "top_matches": list(json.loads(row["top_matches"] or "[]")),
+                "gaps": list(json.loads(row["gaps"] or "[]")),
+                "polished": bool(row["polished"]),
+                "polished_with_llm": bool(row["polished_with_llm"]),
+            }
+        )
+    return items
+
+
+def _qa_llm_review_counts(items: list[dict]) -> dict:
+    counts = {
+        "total": len(items),
+        "queued": 0,
+        "reviewing": 0,
+        "completed": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "errors": 0,
+    }
+    for item in items:
+        status = item.get("status")
+        if status == "queued":
+            counts["queued"] += 1
+        elif status == "reviewing":
+            counts["reviewing"] += 1
+        elif status == "pass":
+            counts["completed"] += 1
+            counts["passed"] += 1
+        elif status == "fail":
+            counts["completed"] += 1
+            counts["failed"] += 1
+        elif status == "skipped":
+            counts["completed"] += 1
+            counts["skipped"] += 1
+        elif status == "error":
+            counts["completed"] += 1
+            counts["errors"] += 1
+    return counts
+
+
 def _qa_llm_review_snapshot() -> dict:
+    _sync_app_state()
     with _app._QA_LLM_REVIEW_LOCK:
         thread = _app._QA_LLM_REVIEW_RUNNER.get("thread")
         if thread is not None and not thread.is_alive():
             _app._QA_LLM_REVIEW_RUNNER["thread"] = None
             thread = None
-
-        items = []
-        for item in _app._QA_LLM_REVIEW_RUNNER.get("items", []):
-            copied = dict(item)
-            copied["top_matches"] = list(item.get("top_matches") or [])
-            copied["gaps"] = list(item.get("gaps") or [])
-            items.append(copied)
-
-        counts = {
-            "total": len(items),
-            "queued": 0,
-            "reviewing": 0,
-            "completed": 0,
-            "passed": 0,
-            "failed": 0,
-            "skipped": 0,
-            "errors": 0,
-        }
-        for item in items:
-            status = item.get("status")
-            if status == "queued":
-                counts["queued"] += 1
-            elif status == "reviewing":
-                counts["reviewing"] += 1
-            elif status == "pass":
-                counts["completed"] += 1
-                counts["passed"] += 1
-            elif status == "fail":
-                counts["completed"] += 1
-                counts["failed"] += 1
-            elif status == "skipped":
-                counts["completed"] += 1
-                counts["skipped"] += 1
-            elif status == "error":
-                counts["completed"] += 1
-                counts["errors"] += 1
-
+    conn = get_db_write()
+    try:
+        if thread is None:
+            _qa_llm_review_reconcile_stale_items(conn)
+        batch = _qa_llm_review_get_batch(conn)
+        if not batch:
+            return {
+                "running": False,
+                "batch_id": 0,
+                "started_at": None,
+                "ended_at": None,
+                "resolved_model": None,
+                "active_job": None,
+                "items": [],
+                "summary": _qa_llm_review_counts([]),
+            }
+        items = _qa_llm_review_fetch_items(conn, int(batch["id"]))
+        counts = _qa_llm_review_counts(items)
         active_job = next((dict(item) for item in items if item.get("status") == "reviewing"), None)
-        if active_job is not None:
-            active_job["top_matches"] = list(active_job.get("top_matches") or [])
-            active_job["gaps"] = list(active_job.get("gaps") or [])
-
         return {
-            "running": thread is not None,
-            "batch_id": int(_app._QA_LLM_REVIEW_RUNNER.get("batch_id") or 0),
-            "started_at": _app._QA_LLM_REVIEW_RUNNER.get("started_at"),
-            "ended_at": _app._QA_LLM_REVIEW_RUNNER.get("ended_at"),
-            "resolved_model": _app._QA_LLM_REVIEW_RUNNER.get("resolved_model"),
+            "running": bool(thread is not None or counts["queued"] > 0 or counts["reviewing"] > 0),
+            "batch_id": int(batch["id"]),
+            "started_at": batch["started_at"],
+            "ended_at": batch["ended_at"],
+            "resolved_model": batch["resolved_model"],
             "active_job": active_job,
             "items": items,
             "summary": counts,
         }
+    finally:
+        conn.commit()
+        conn.close()
 
 
-def _qa_llm_review_mark_pending_as_error(reason: str) -> None:
+def _qa_llm_review_mark_pending_as_error(reason: str, *, batch_id: int | None = None) -> None:
     completed_at = datetime.now(timezone.utc).isoformat()
+    conn = get_db_write()
+    try:
+        batch = _qa_llm_review_get_batch(conn, batch_id=batch_id)
+        if not batch:
+            return
+        conn.execute(
+            """
+            UPDATE qa_llm_review_items
+            SET status='error',
+                reason=?,
+                completed_at=?,
+                started_at = COALESCE(started_at, queued_at)
+            WHERE batch_id=? AND status IN ('queued', 'reviewing')
+            """,
+            (reason, completed_at, int(batch["id"])),
+        )
+        conn.execute(
+            "UPDATE qa_llm_review_batches SET ended_at = COALESCE(ended_at, ?) WHERE id = ?",
+            (completed_at, int(batch["id"])),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _ensure_qa_llm_review_worker_running() -> None:
     with _app._QA_LLM_REVIEW_LOCK:
-        for item in _app._QA_LLM_REVIEW_RUNNER.get("items", []):
-            if item.get("status") not in {"queued", "reviewing"}:
-                continue
-            item["status"] = "error"
-            item["reason"] = reason
-            item["completed_at"] = completed_at
-        _app._QA_LLM_REVIEW_RUNNER["active_job_id"] = None
-        _app._QA_LLM_REVIEW_RUNNER["active_started_at"] = None
-        _app._QA_LLM_REVIEW_RUNNER["ended_at"] = completed_at
+        thread = _app._QA_LLM_REVIEW_RUNNER.get("thread")
+        if thread is not None and thread.is_alive():
+            return
+    conn = get_db_write()
+    try:
+        _qa_llm_review_reconcile_stale_items(conn)
+        batch = conn.execute(
+            """
+            SELECT b.id
+            FROM qa_llm_review_batches b
+            WHERE EXISTS (
+                SELECT 1
+                FROM qa_llm_review_items i
+                WHERE i.batch_id = b.id AND i.status IN ('queued', 'reviewing')
+            )
+            ORDER BY b.id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        conn.commit()
+    finally:
+        conn.close()
+    if not batch:
+        return
+    worker = threading.Thread(
+        target=_qa_llm_review_worker,
+        kwargs={"batch_id": int(batch["id"])},
+        daemon=True,
+        name="qa-llm-review",
+    )
+    with _app._QA_LLM_REVIEW_LOCK:
+        thread = _app._QA_LLM_REVIEW_RUNNER.get("thread")
+        if thread is not None and thread.is_alive():
+            return
+        _app._QA_LLM_REVIEW_RUNNER["thread"] = worker
+    worker.start()
 
 
 def _run_single_qa_llm_review(
@@ -2225,7 +2460,7 @@ def _run_single_qa_llm_review(
     profile_ctx: str,
 ) -> dict:
     row = conn.execute(
-        "SELECT id, title, url, snippet, jd_text, decision FROM results WHERE id = ?",
+        "SELECT id, title, url, snippet, jd_text, salary_text, salary_k, decision FROM results WHERE id = ?",
         (job_id,),
     ).fetchone()
     if not row:
@@ -2245,31 +2480,25 @@ def _run_single_qa_llm_review(
         f"URL: {row['url'] or 'N/A'}\n\n"
         f"Job Description:\n{jd_text[:12000]}"
     )
-    if model_id and "qwen" in model_id.lower():
-        user_msg = f"{user_msg}\n\n/no_think"
 
     try:
-        req_body = json.dumps({
-            "model": model_id,
-            "messages": [
-                {"role": "system", "content": _QA_LLM_REVIEW_SYSTEM + "\n\n" + profile_ctx},
-                {"role": "user", "content": user_msg},
-            ],
-            "temperature": 0.2,
-        }).encode()
-        req = urllib.request.Request(
-            llm_runtime["chat_url"],
-            data=req_body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
+        verdict = _shared_chat_expect_json(
+            _QA_LLM_REVIEW_SYSTEM + "\n\n" + profile_ctx,
+            user_msg,
+            llm_runtime=llm_runtime,
+            model_id=model_id,
+            max_tokens=1800,
+            temperature=0.2,
+            trace={"phase": "dashboard_qa_llm_review", "response_parse_kind": "json"},
         )
-        with urllib.request.urlopen(req, timeout=90) as resp:
-            cdata = json.loads(resp.read())
-
-        raw = _strip_llm_fences(_extract_llm_content(cdata))
-        verdict = json.loads(raw)
 
         passed = bool(verdict.get("pass", False))
+        salary_verdict = _salary_policy_for_job(
+            salary_text=row["salary_text"] or "",
+            salary_k=row["salary_k"],
+        )
+        if salary_verdict.hard_reject:
+            passed = False
         new_decision = "qa_approved" if passed else "qa_rejected"
         req_summary = row["snippet"]
         approved_jd_text = row["jd_text"]
@@ -2298,7 +2527,7 @@ def _run_single_qa_llm_review(
             )
         return {
             "status": "pass" if passed else "fail",
-            "reason": str(verdict.get("reason") or ""),
+            "reason": salary_verdict.reason if salary_verdict.hard_reject else str(verdict.get("reason") or ""),
             "confidence": _coerce_confidence(verdict.get("confidence")),
             "top_matches": list(verdict.get("top_matches") or []),
             "gaps": list(verdict.get("gaps") or []),
@@ -2310,39 +2539,60 @@ def _run_single_qa_llm_review(
         return {"status": "error", "reason": _http_error_details(exc)}
 
 
-def _qa_llm_review_worker() -> None:
+def _qa_llm_review_worker(*, batch_id: int) -> None:
     try:
         llm_runtime, model_id = _resolve_active_llm_runtime()
     except Exception as exc:
-        _qa_llm_review_mark_pending_as_error(str(exc))
+        _qa_llm_review_mark_pending_as_error(str(exc), batch_id=batch_id)
         with _app._QA_LLM_REVIEW_LOCK:
             _app._QA_LLM_REVIEW_RUNNER["thread"] = None
         return
 
-    profile_ctx = _load_profile_context()
-    with _app._QA_LLM_REVIEW_LOCK:
-        _app._QA_LLM_REVIEW_RUNNER["resolved_model"] = model_id
-
     conn = get_db_write()
     try:
+        _qa_llm_review_reconcile_stale_items(conn)
+        conn.execute(
+            """
+            UPDATE qa_llm_review_batches
+            SET started_at = COALESCE(started_at, ?),
+                resolved_model = ?
+            WHERE id = ?
+            """,
+            (datetime.now(timezone.utc).isoformat(), model_id, int(batch_id)),
+        )
+        conn.commit()
         _ensure_results_approved_jd_column(conn)
+        profile_ctx = _load_profile_context()
         while True:
-            with _app._QA_LLM_REVIEW_LOCK:
-                next_item = next(
-                    (item for item in _app._QA_LLM_REVIEW_RUNNER.get("items", []) if item.get("status") == "queued"),
-                    None,
+            next_item = conn.execute(
+                """
+                SELECT id, job_id
+                FROM qa_llm_review_items
+                WHERE batch_id = ? AND status IN ('queued', 'reviewing')
+                ORDER BY CASE status WHEN 'reviewing' THEN 0 ELSE 1 END, id ASC
+                LIMIT 1
+                """,
+                (int(batch_id),),
+            ).fetchone()
+            if next_item is None:
+                conn.execute(
+                    "UPDATE qa_llm_review_batches SET ended_at = COALESCE(ended_at, ?) WHERE id = ?",
+                    (datetime.now(timezone.utc).isoformat(), int(batch_id)),
                 )
-                if next_item is None:
-                    _app._QA_LLM_REVIEW_RUNNER["active_job_id"] = None
-                    _app._QA_LLM_REVIEW_RUNNER["active_started_at"] = None
-                    _app._QA_LLM_REVIEW_RUNNER["ended_at"] = datetime.now(timezone.utc).isoformat()
-                    break
-                started_at = datetime.now(timezone.utc).isoformat()
-                next_item["status"] = "reviewing"
-                next_item["started_at"] = started_at
-                _app._QA_LLM_REVIEW_RUNNER["active_job_id"] = next_item["job_id"]
-                _app._QA_LLM_REVIEW_RUNNER["active_started_at"] = started_at
-                job_id = int(next_item["job_id"])
+                conn.commit()
+                break
+            started_at = datetime.now(timezone.utc).isoformat()
+            conn.execute(
+                """
+                UPDATE qa_llm_review_items
+                SET status='reviewing',
+                    started_at = COALESCE(started_at, ?)
+                WHERE id = ?
+                """,
+                (started_at, int(next_item["id"])),
+            )
+            conn.commit()
+            job_id = int(next_item["job_id"])
 
             result = _run_single_qa_llm_review(
                 conn,
@@ -2354,36 +2604,64 @@ def _qa_llm_review_worker() -> None:
             conn.commit()
 
             completed_at = datetime.now(timezone.utc).isoformat()
-            with _app._QA_LLM_REVIEW_LOCK:
-                for item in _app._QA_LLM_REVIEW_RUNNER.get("items", []):
-                    if int(item.get("job_id") or -1) != job_id:
-                        continue
-                    item.update(result)
-                    item["completed_at"] = completed_at
-                    break
-                _app._QA_LLM_REVIEW_RUNNER["active_job_id"] = None
-                _app._QA_LLM_REVIEW_RUNNER["active_started_at"] = None
+            conn.execute(
+                """
+                UPDATE qa_llm_review_items
+                SET status=?,
+                    reason=?,
+                    confidence=?,
+                    top_matches=?,
+                    gaps=?,
+                    polished=?,
+                    polished_with_llm=?,
+                    completed_at=?
+                WHERE id = ?
+                """,
+                (
+                    result.get("status"),
+                    result.get("reason") or "",
+                    result.get("confidence"),
+                    json.dumps(list(result.get("top_matches") or [])),
+                    json.dumps(list(result.get("gaps") or [])),
+                    1 if result.get("polished") else 0,
+                    1 if result.get("polished_with_llm") else 0,
+                    completed_at,
+                    int(next_item["id"]),
+                ),
+            )
+            conn.commit()
     finally:
         conn.close()
         with _app._QA_LLM_REVIEW_LOCK:
             _app._QA_LLM_REVIEW_RUNNER["thread"] = None
-            if _app._QA_LLM_REVIEW_RUNNER.get("ended_at") is None:
-                _app._QA_LLM_REVIEW_RUNNER["ended_at"] = datetime.now(timezone.utc).isoformat()
 
 
 def tailoring_qa_llm_review_cancel():
     _sync_app_state()
-    cancelled = 0
-    with _app._QA_LLM_REVIEW_LOCK:
-        for item in _app._QA_LLM_REVIEW_RUNNER.get("items", []):
-            if item.get("status") == "queued":
-                item["status"] = "cancelled"
-                cancelled += 1
+    conn = get_db_write()
+    try:
+        batch = _qa_llm_review_get_batch(conn)
+        if not batch:
+            return {"ok": True, "cancelled": 0}
+        cur = conn.execute(
+            """
+            UPDATE qa_llm_review_items
+            SET status='cancelled',
+                completed_at = COALESCE(completed_at, ?)
+            WHERE batch_id = ? AND status = 'queued'
+            """,
+            (datetime.now(timezone.utc).isoformat(), int(batch["id"])),
+        )
+        conn.commit()
+        cancelled = max(int(cur.rowcount or 0), 0)
+    finally:
+        conn.close()
     return {"ok": True, "cancelled": cancelled}
 
 
 def tailoring_qa_llm_review_status():
     _sync_app_state()
+    _ensure_qa_llm_review_worker_running()
     return _qa_llm_review_snapshot()
 
 
@@ -2410,35 +2688,37 @@ def tailoring_qa_llm_review(payload: dict = Body(...)):
         conn.close()
     titles_by_id = {int(row["id"]): row["title"] for row in rows}
 
-    now = datetime.now(timezone.utc).isoformat()
-    should_start = False
     duplicates: list[int] = []
     missing: list[int] = []
     added = 0
-
-    with _app._QA_LLM_REVIEW_LOCK:
-        thread = _app._QA_LLM_REVIEW_RUNNER.get("thread")
-        running = thread is not None and thread.is_alive()
-        if not running:
-            _app._QA_LLM_REVIEW_RUNNER.update(
-                {
-                    "thread": None,
-                    "batch_id": int(_app._QA_LLM_REVIEW_RUNNER.get("batch_id") or 0) + 1,
-                    "started_at": now,
-                    "ended_at": None,
-                    "active_job_id": None,
-                    "active_started_at": None,
-                    "resolved_model": None,
-                    "items": [],
-                }
+    now = datetime.now(timezone.utc).isoformat()
+    conn = get_db_write()
+    try:
+        _qa_llm_review_reconcile_stale_items(conn)
+        batch = conn.execute(
+            """
+            SELECT b.id
+            FROM qa_llm_review_batches b
+            WHERE EXISTS (
+                SELECT 1
+                FROM qa_llm_review_items i
+                WHERE i.batch_id = b.id AND i.status IN ('queued', 'reviewing')
             )
-
+            ORDER BY b.id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        if batch is None:
+            cur = conn.execute("INSERT INTO qa_llm_review_batches (started_at, ended_at, resolved_model) VALUES (?, NULL, NULL)", (now,))
+            batch_id = int(cur.lastrowid)
+        else:
+            batch_id = int(batch["id"])
         existing_ids = {
-            int(item.get("job_id") or -1)
-            for item in _app._QA_LLM_REVIEW_RUNNER.get("items", [])
-            if item.get("status") in {"queued", "reviewing"}
+            int(row["job_id"])
+            for row in conn.execute(
+                "SELECT job_id FROM qa_llm_review_items WHERE status IN ('queued', 'reviewing')"
+            ).fetchall()
         }
-
         for job_id in unique_ids:
             if job_id not in titles_by_id:
                 missing.append(job_id)
@@ -2446,32 +2726,23 @@ def tailoring_qa_llm_review(payload: dict = Body(...)):
             if job_id in existing_ids:
                 duplicates.append(job_id)
                 continue
-            _app._QA_LLM_REVIEW_RUNNER["items"].append(
-                {
-                    "job_id": job_id,
-                    "title": titles_by_id.get(job_id),
-                    "status": "queued",
-                    "queued_at": now,
-                    "started_at": None,
-                    "completed_at": None,
-                    "reason": "",
-                    "confidence": None,
-                    "top_matches": [],
-                    "gaps": [],
-                    "polished": False,
-                    "polished_with_llm": False,
-                }
+            conn.execute(
+                """
+                INSERT INTO qa_llm_review_items (
+                    batch_id, job_id, title, status, queued_at, started_at, completed_at,
+                    reason, confidence, top_matches, gaps, polished, polished_with_llm
+                ) VALUES (?, ?, ?, 'queued', ?, NULL, NULL, '', NULL, '[]', '[]', 0, 0)
+                """,
+                (batch_id, job_id, titles_by_id.get(job_id), now),
             )
+            existing_ids.add(job_id)
             added += 1
+        conn.commit()
+    finally:
+        conn.close()
 
-        if added > 0 and _app._QA_LLM_REVIEW_RUNNER.get("thread") is None:
-            should_start = True
-
-    if should_start:
-        worker = threading.Thread(target=_qa_llm_review_worker, daemon=True, name="qa-llm-review")
-        with _app._QA_LLM_REVIEW_LOCK:
-            _app._QA_LLM_REVIEW_RUNNER["thread"] = worker
-        worker.start()
+    if added > 0:
+        _ensure_qa_llm_review_worker_running()
 
     return {
         "ok": True,
@@ -2490,7 +2761,7 @@ def tailoring_qa_reset_approved():
         rows = conn.execute("SELECT id, url FROM results WHERE decision='qa_approved'").fetchall()
         job_ids = [int(row["id"]) for row in rows]
         if job_ids:
-            _cancel_tailoring_queue_items(job_ids=job_ids, statuses=("queued",), reason="Returned to QA.")
+            _cancel_tailoring_queue_items(conn=conn, job_ids=job_ids, statuses=("queued",), reason="Returned to QA.")
             _stop_active_tailoring_job(job_ids, "Job returned to QA.")
             _set_ready_bucket_for_job_ids_in_conn(conn, job_ids, _DEFAULT_READY_BUCKET)
         conn.execute("UPDATE jobs SET status='qa_pending' WHERE status='qa_approved'")
@@ -2518,7 +2789,7 @@ def tailoring_qa_undo_approve(payload: dict = Body(...)):
     conn = get_db_write()
     try:
         from services.audit import log_state_change
-        _cancel_tailoring_queue_items(job_ids=[int(jid) for jid in job_ids], statuses=("queued",), reason="Returned to QA.")
+        _cancel_tailoring_queue_items(conn=conn, job_ids=[int(jid) for jid in job_ids], statuses=("queued",), reason="Returned to QA.")
         _stop_active_tailoring_job([int(jid) for jid in job_ids], "Job returned to QA.")
         _set_ready_bucket_for_job_ids_in_conn(conn, [int(jid) for jid in job_ids], _DEFAULT_READY_BUCKET)
         reverted = 0
@@ -2579,7 +2850,7 @@ def tailoring_qa_rollback(payload: dict = Body(...)):
     conn = get_db_write()
     try:
         from services.audit import log_state_change
-        _cancel_tailoring_queue_items(job_ids=[int(jid) for jid in job_ids], statuses=("queued",), reason="Returned to QA.")
+        _cancel_tailoring_queue_items(conn=conn, job_ids=[int(jid) for jid in job_ids], statuses=("queued",), reason="Returned to QA.")
         _stop_active_tailoring_job([int(jid) for jid in job_ids], "Job returned to QA.")
         _set_ready_bucket_for_job_ids_in_conn(conn, [int(jid) for jid in job_ids], _DEFAULT_READY_BUCKET)
         rolled_back = 0
@@ -2710,10 +2981,18 @@ def llm_status():
         }
 
 
-def llm_models():
+def llm_models(provider: str | None = None):
     _sync_app_state()
-    """Return models from the configured provider."""
+    """Return models from the configured provider or an explicit provider override."""
     controls = _load_runtime_controls()
+    provider_override = (provider or "").strip().lower()
+    if provider_override:
+        from providers import PROVIDERS
+        controls = dict(controls)
+        if provider_override in PROVIDERS:
+            controls["llm_provider"] = provider_override
+            if provider_override != "custom":
+                controls["llm_base_url"] = PROVIDERS[provider_override]["base_url"]
     llm_runtime = _resolve_llm_runtime(controls)
     api_key = llm_runtime.get("api_key", "")
     try:
@@ -2856,7 +3135,7 @@ def llm_test_provider(payload: dict = Body(...)):
 
     pdef = PROVIDERS[provider]
     base_url = pdef["base_url"]
-    if provider in ("ollama", "mlx", "custom"):
+    if provider == "custom":
         controls = _load_runtime_controls()
         base_url = str(controls.get("llm_base_url") or base_url or "http://localhost:11434").rstrip("/")
 
@@ -2880,11 +3159,6 @@ def llm_test_provider(payload: dict = Body(...)):
 # ---------------------------------------------------------------------------
 
 
-def _mlx_management_enabled() -> bool:
-    """Check if MLX lifecycle management is enabled (opt-in)."""
-    return os.environ.get("JOBFORGE_MANAGE_MLX", "").strip() in ("1", "true", "yes")
-
-
 def mlx_status():
     """Return MLX server status."""
     from services.mlx_manager import status
@@ -2892,12 +3166,7 @@ def mlx_status():
 
 
 def mlx_start(payload: dict = Body(...)):
-    """Start MLX server with a model. Requires JOBFORGE_MANAGE_MLX=1."""
-    if not _mlx_management_enabled():
-        return JSONResponse(
-            {"ok": False, "error": "MLX lifecycle management is disabled. Set JOBFORGE_MANAGE_MLX=1 to enable."},
-            403,
-        )
+    """Start MLX server with a model."""
     from services.mlx_manager import start
     model = payload.get("model")
     if not model:
@@ -2907,12 +3176,7 @@ def mlx_start(payload: dict = Body(...)):
 
 
 def mlx_stop():
-    """Stop the running MLX server. Requires JOBFORGE_MANAGE_MLX=1."""
-    if not _mlx_management_enabled():
-        return JSONResponse(
-            {"ok": False, "error": "MLX lifecycle management is disabled. Set JOBFORGE_MANAGE_MLX=1 to enable."},
-            403,
-        )
+    """Stop the running MLX server."""
     from services.mlx_manager import stop
     return stop()
 
@@ -2924,12 +3188,7 @@ def mlx_models():
 
 
 def mlx_pull(payload: dict = Body(...)):
-    """Start downloading a model from HuggingFace. Requires JOBFORGE_MANAGE_MLX=1."""
-    if not _mlx_management_enabled():
-        return JSONResponse(
-            {"ok": False, "error": "MLX lifecycle management is disabled. Set JOBFORGE_MANAGE_MLX=1 to enable."},
-            403,
-        )
+    """Start downloading a model from HuggingFace."""
     from services.mlx_manager import pull
     model_id = payload.get("model_id")
     if not model_id:
@@ -2941,6 +3200,196 @@ def mlx_pull_status():
     """Return current model download progress."""
     from services.mlx_manager import pull_status
     return pull_status()
+
+
+# ---------------------------------------------------------------------------
+# LLM infrastructure status
+# ---------------------------------------------------------------------------
+
+
+def llm_infrastructure():
+    """Return process/service info for all LLM backends."""
+    import shutil
+    import subprocess
+
+    services: list[dict] = []
+
+    # --- Ollama ---
+    ollama: dict = {
+        "name": "Ollama",
+        "port": 11434,
+        "managed_by": "Homebrew service",
+        "pid": None,
+        "status": "offline",
+        "disk_usage": None,
+    }
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "ollama serve"], capture_output=True, text=True, timeout=3
+        )
+        pids = result.stdout.strip().split()
+        if pids:
+            ollama["pid"] = int(pids[0])
+            ollama["status"] = "running"
+    except Exception:
+        pass
+    ollama_models = Path.home() / ".ollama" / "models"
+    if ollama_models.exists():
+        try:
+            result = subprocess.run(
+                ["du", "-sk", str(ollama_models)], capture_output=True, text=True, timeout=5
+            )
+            kb = int(result.stdout.split()[0])
+            ollama["disk_usage"] = kb * 1024
+        except Exception:
+            pass
+    services.append(ollama)
+
+    # --- MLX ---
+    mlx: dict = {
+        "name": "MLX",
+        "port": 8080,
+        "managed_by": "Dashboard (auto-managed)",
+        "manage_enabled": True,
+        "pid": None,
+        "status": "offline",
+        "model": None,
+        "disk_usage": None,
+    }
+    try:
+        from services.mlx_manager import status as mlx_st
+        st = mlx_st()
+        if st.get("running"):
+            mlx["status"] = "running"
+            mlx["pid"] = st.get("pid")
+            mlx["model"] = st.get("model")
+    except Exception:
+        pass
+    hf_cache = Path.home() / ".cache" / "huggingface" / "hub"
+    if hf_cache.exists():
+        try:
+            total = 0
+            for d in hf_cache.iterdir():
+                if d.name.startswith("models--mlx-community--"):
+                    result = subprocess.run(
+                        ["du", "-sk", str(d)], capture_output=True, text=True, timeout=5
+                    )
+                    total += int(result.stdout.split()[0]) * 1024
+            if total:
+                mlx["disk_usage"] = total
+        except Exception:
+            pass
+    services.append(mlx)
+
+    # --- Dashboard ---
+    dashboard: dict = {
+        "name": "Dashboard",
+        "port": 8899,
+        "managed_by": "launchd (com.jobscraper.dashboard)",
+        "pid": os.getpid(),
+        "status": "running",
+    }
+    services.append(dashboard)
+
+    return {"services": services}
+
+
+# ---------------------------------------------------------------------------
+# LLM chat proxy (simple model testing)
+# ---------------------------------------------------------------------------
+
+
+def llm_chat(payload: dict = Body(...)):
+    """Proxy a chat message to the active LLM provider. Stateless — no history."""
+    _sync_app_state()
+    controls = _load_runtime_controls()
+    llm_runtime = _resolve_llm_runtime(controls)
+
+    messages = payload.get("messages")
+    if not messages or not isinstance(messages, list):
+        return JSONResponse({"ok": False, "error": "messages required"}, 400)
+
+    model = payload.get("model") or llm_runtime["selected_model"]
+    if not model:
+        return JSONResponse({"ok": False, "error": "No model selected"}, 400)
+
+    max_tokens = int(payload.get("max_tokens", 1024))
+    temperature = float(payload.get("temperature", 0.7))
+
+    import urllib.request
+
+    req_body = json.dumps({
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    }).encode()
+
+    headers = {"Content-Type": "application/json"}
+    api_key = llm_runtime.get("api_key", "")
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    try:
+        req = urllib.request.Request(
+            llm_runtime["chat_url"], data=req_body, headers=headers, method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read())
+        choice = (data.get("choices") or [{}])[0]
+        reply = (choice.get("message") or {}).get("content", "")
+        usage = data.get("usage", {})
+        return {
+            "ok": True,
+            "reply": reply,
+            "model": data.get("model", model),
+            "usage": usage,
+        }
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 502)
+
+
+# ---------------------------------------------------------------------------
+# Routes — API: Model Catalog
+# ---------------------------------------------------------------------------
+
+
+def llm_catalog():
+    """Return enriched model catalog with machine profile and fit scores."""
+    _sync_app_state()
+    from services.model_catalog import get_catalog
+
+    controls = _load_runtime_controls()
+    llm_runtime = _resolve_llm_runtime(controls)
+    # Catalog only works against Ollama's native API
+    if llm_runtime.get("manage_models"):
+        base_url = llm_runtime["base_url"]
+    else:
+        base_url = "http://localhost:11434"
+
+    catalog = get_catalog(base_url)
+    catalog["selected_model"] = llm_runtime["selected_model"]
+    return catalog
+
+
+def llm_benchmark(payload: dict = Body(...)):
+    """Run a micro-benchmark against an installed model (Ollama or MLX)."""
+    _sync_app_state()
+    from services.model_catalog import run_benchmark
+
+    model_id = payload.get("model_id")
+    if not model_id:
+        return JSONResponse({"error": "model_id required"}, 400)
+
+    provider = payload.get("provider", "ollama")
+
+    controls = _load_runtime_controls()
+    llm_runtime = _resolve_llm_runtime(controls)
+    base_url = llm_runtime["base_url"]
+    if not llm_runtime.get("manage_models"):
+        base_url = "http://localhost:11434"
+
+    return run_benchmark(model_id, base_url, provider=provider)
 
 
 # ---------------------------------------------------------------------------

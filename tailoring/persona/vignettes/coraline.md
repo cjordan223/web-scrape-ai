@@ -1,37 +1,8 @@
+<!-- See coraline.md for full frontmatter field documentation -->
 ---
 tags: [data_correlation, cloud_security, internal_tooling]
 company_types: [large_tech, security_focused]
 skill_categories: [Security Data Engineering, Cloud Security]
 keywords: [correlation, reconciliation, asset, inventory, Flask, Docker, ECS, endpoint, vulnerability]
 ---
-<!--
-VIGNETTE TEMPLATE — use this file as the canonical example when adding new vignettes.
-
-FRONTMATTER FIELDS
-──────────────────
-tags:             Free-form labels (unused by scoring — for human navigation).
-company_types:    Which company archetypes this story resonates with. Must match values
-                  the analyzer emits: large_tech | security_focused | startup |
-                  enterprise_regulated | platform_devops | other.
-                  Scoring: +2 if the target company_type appears here.
-skill_categories: Must match 'name' values in skills.json → core_skills[].name exactly.
-                  Scoring: +3 per overlap with analysis matched_category.
-keywords:         Individual skills/tools/concepts. Match against analysis matched_skills.
-                  Scoring: +1 per keyword found in matched_skills.
-
-BODY GUIDELINES
-───────────────
-  - Structure: problem → approach → concrete outcome
-  - Length: 150-350 chars ideal; vignette budget per stage is ~1200-1500 chars total,
-    so 4-5 vignettes can fit if each is concise
-  - Tone: plain past-tense technical narrative. No buzzwords, no hedging.
-  - Metrics: include real numbers if grounded (500 assets, 7000 endpoints, etc.)
-  - The LLM should reshape this — write for comprehension, not for verbatim copying
-
-TO ADD A NEW VIGNETTE
-─────────────────────
-  cp coraline.md <new_name>.md
-  Edit frontmatter + body. File is auto-discovered on next pipeline run.
-  No registration required.
--->
-The University of California had five separate data sources for endpoint and vulnerability information — and none of them agreed. Asset counts drifted, ownership records conflicted, and remediation couldn't target what it couldn't see. I built Coraline, a containerized Flask/React service deployed on AWS ECS, that ingests all five feeds and reconciles them using hierarchical confidence matching. It resolved 500+ drifted asset records and gave the security team a single, trustworthy inventory across 7,000+ endpoints. The lesson: I solve problems by building the correlation layer nobody else wants to build.
+Coraline started as a command-line script to answer one question: which managed assets were missing vulnerability agents? I pulled inventories from Rapid7, BigFix, and Jamf via their APIs and tried to match records. IP addresses were the obvious join key — and immediately unreliable. VPNs, network configs, and multi-homed devices meant the same machine had different IPs across platforms. I tried MAC addresses next — better, but still inconsistent across a spread-out network. Through my own research I landed on hardware UUID: a machine-level identifier that's 99.9% stable and wasn't something anyone was tracking. That became the correlation key. Once matching was reliable, the scope grew — other teams needed the same reconciled view. The CLI became a full-stack Flask/React app on AWS ECS so anyone could access it. And once asset tracking was trivial, we uncovered deeper problems — like Rapid7's scan engine not covering our full inventory, which we wouldn't have caught otherwise. The data is still messy; that's why the tool exists.

@@ -39,22 +39,22 @@ def test_falls_back_to_snippet_when_html_empty(spider):
     pipe = TextExtractionPipeline()
     item = JobItem(
         url="https://example.com/job/1", title="Engineer", company="Test",
-        board="test", source="test", jd_html="", snippet="Great job opportunity",
+        board="test", source="test", jd_html="", snippet="Great job opportunity for backend security engineering",
         created_at="2026-01-01T00:00:00Z",
     )
     result = pipe.process_item(item, spider)
-    assert result["jd_text"] == "Great job opportunity"
+    assert result["jd_text"] == "Great job opportunity for backend security engineering"
 
 
 def test_handles_none_html(spider):
     pipe = TextExtractionPipeline()
     item = JobItem(
         url="https://example.com/job/1", title="Engineer", company="Test",
-        board="test", source="test", snippet="Snippet text",
+        board="test", source="test", snippet="Snippet text for a longer backend platform engineering role",
         created_at="2026-01-01T00:00:00Z",
     )
     result = pipe.process_item(item, spider)
-    assert result["jd_text"] == "Snippet text"
+    assert result["jd_text"] == "Snippet text for a longer backend platform engineering role"
 
 
 # --- Dedup ---
@@ -99,7 +99,8 @@ def filter_pipeline():
         domain_blocklist=["dictionary.com", "wikipedia.org"],
         title_blocklist=["staff", "principal", "manager", "director"],
         content_blocklist=["ts/sci", "top secret", "polygraph"],
-        min_salary_k=70,
+        min_salary_k=100,
+        target_salary_k=150,
     )
     return HardFilterPipeline(config=cfg)
 
@@ -137,12 +138,30 @@ def test_unparseable_salary_passes(filter_pipeline, spider):
     assert result.get("status") != "rejected"
 
 
+def test_salary_at_floor_but_below_target_passes(filter_pipeline, spider):
+    item = JobItem(url="https://example.com/job/3b", title="Engineer",
+                   company="C", board="b", source="s", salary_text="$100,000 - $120,000",
+                   created_at="2026-01-01T00:00:00Z")
+    result = filter_pipeline.process_item(item, spider)
+    assert result.get("status") != "rejected"
+
+
 def test_clean_job_passes(filter_pipeline, spider):
     item = JobItem(url="https://example.com/job/4", title="Security Engineer",
                    company="Acme", board="greenhouse", source="s",
                    created_at="2026-01-01T00:00:00Z")
     result = filter_pipeline.process_item(item, spider)
     assert result.get("status") != "rejected"
+
+
+def test_international_location_rejected(filter_pipeline, spider):
+    item = JobItem(url="https://example.com/job/4b", title="Security Engineer",
+                   company="Acme", board="remoteok", source="s",
+                   location="International",
+                   created_at="2026-01-01T00:00:00Z")
+    result = filter_pipeline.process_item(item, spider)
+    assert result["status"] == "rejected"
+    assert result["rejection_stage"] == "geo_non_us"
 
 
 def test_content_blocklist_rejected(filter_pipeline, spider):

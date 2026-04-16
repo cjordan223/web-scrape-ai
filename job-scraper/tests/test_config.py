@@ -24,6 +24,7 @@ def test_hard_filters_loaded():
     assert len(cfg.hard_filters.domain_blocklist) > 0
     assert len(cfg.hard_filters.title_blocklist) > 0
     assert cfg.hard_filters.min_salary_k > 0
+    assert cfg.hard_filters.target_salary_k >= cfg.hard_filters.min_salary_k
 
 
 def test_searxng_optional():

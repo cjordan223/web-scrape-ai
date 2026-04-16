@@ -104,15 +104,17 @@ Mobile routes (auto-redirect on `width < 768`), tab bar order: Ingest, QA, Jobs,
 - `POST /api/tailoring/run`, `POST /api/tailoring/run-latest`
 - `POST /api/tailoring/queue`, `GET /api/tailoring/queue`, `DELETE /api/tailoring/queue`, `DELETE /api/tailoring/queue/{index}`
 - `GET /api/tailoring/runs`, `GET /api/tailoring/runs/{slug}`, `GET /api/tailoring/runs/{slug}/trace`, `GET /api/tailoring/runs/{slug}/artifact/{name}`
-- `GET /api/packages`, `GET /api/packages/{slug}`, `DELETE /api/packages/{slug}`
-- `POST /api/packages/{slug}/reject`, `POST /api/packages/{slug}/apply`
+- `GET /api/packages`, `GET /api/packages/{slug}`, `DELETE /api/packages/{slug}`, `GET /api/packages/{slug}/download.zip`
+- `POST /api/packages/{slug}/reject`, `POST /api/packages/{slug}/dead`, `POST /api/packages/{slug}/apply`
 - `POST /api/packages/{slug}/regenerate/cover`
 - `POST /api/packages/{slug}/latex/{doc_type}`, `POST /api/packages/{slug}/compile/{doc_type}`
 - `GET /api/packages/{slug}/diff-preview/{doc_type}`
 - `POST /api/packages/{slug}/chat`, `GET /api/packages/{slug}/chat`, `DELETE /api/packages/{slug}/chat`
 - `GET /api/applied`, `GET /api/applied/{application_id}`, `POST /api/applied/{application_id}/tracking`, `GET /api/applied/{application_id}/artifact/{name}`
-- `GET /api/llm/status`, `GET /api/llm/models`, `POST /api/llm/models/load`, `POST /api/llm/models/unload`
+- `GET /api/llm/status`, `GET /api/llm/models`, `POST /api/llm/models/select`, `POST /api/llm/models/deselect` (legacy aliases: `/load`, `/unload`)
 - `GET /api/llm/providers`, `POST /api/llm/providers/key`, `POST /api/llm/providers/activate`, `POST /api/llm/providers/test`
+- `GET /api/llm/infrastructure`, `GET /api/llm/catalog`, `POST /api/llm/chat`, `POST /api/llm/benchmark`
+- `GET /api/llm/mlx/status`, `POST /api/llm/mlx/start`, `POST /api/llm/mlx/stop`, `GET /api/llm/mlx/models`, `POST /api/llm/mlx/pull`, `GET /api/llm/mlx/pull/status`
 - `POST /api/tailoring/ingest/fetch-url`, `POST /api/tailoring/ingest/parse`, `POST /api/tailoring/ingest/commit`, `POST /api/tailoring/ingest/scan-mobile`
 - `GET /api/tailoring/qa`, `POST /api/tailoring/qa/approve`, `POST /api/tailoring/qa/reject`, `POST /api/tailoring/qa/permanently-reject`
 - `GET /api/tailoring/qa/llm-review`, `POST /api/tailoring/qa/llm-review`, `DELETE /api/tailoring/qa/llm-review`
@@ -126,18 +128,21 @@ Mobile routes (auto-redirect on `width < 768`), tab bar order: Ingest, QA, Jobs,
 - `GET /api/runtime-controls`, `POST /api/runtime-controls`
 - `POST /api/tailoring/archive`, `GET /api/tailoring/archives`, `GET /api/tailoring/archives/{archive_id}`
 - `GET /api/ops/pipeline/packages`, `GET /api/ops/pipeline/trace/{archive_id}/{slug}`
+- `GET /api/ops/tailoring/metrics`
 - `GET /api/scraper/config`, `POST /api/scraper/config`
 - `GET /api/scraper/pipeline/stats`
 
 ## Scraper Package Layout (high-level)
 
-- `job_scraper/searcher.py` — SearXNG querying
-- `job_scraper/crawler.py` — crawl targets + extraction
+Scrapy-style layout: discovery via spiders, processing via item pipelines.
+
+- `job_scraper/config.py` — config models + YAML loader
+- `job_scraper/db.py` — SQLite persistence (seen_urls, jobs, rejected, runs)
 - `job_scraper/fetcher.py` — page/JD retrieval
-- `job_scraper/filters.py` — policy pipeline
-- `job_scraper/dedup.py` — SQLite persistence
-- `job_scraper/llm_reviewer.py` — LLM review stage
-- `job_scraper/urlnorm.py` — URL canonicalization
+- `job_scraper/items.py` — Scrapy item definitions
+- `job_scraper/settings.py` — Scrapy settings
+- `job_scraper/spiders/` — discovery sources: `searxng`, `ashby`, `greenhouse`, `lever`, `hn_hiring`, `remoteok`, `usajobs`, `generic`, `aggregator`
+- `job_scraper/pipelines/` — processing stages: `dedup`, `text_extraction`, `hard_filter`, `storage`
 
 ## Tailoring Package Layout (high-level)
 

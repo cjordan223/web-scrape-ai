@@ -99,11 +99,11 @@
   left: 10px;
   right: 10px;
   z-index: 7;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: minmax(160px, auto) minmax(0, 1fr);
+  gap: 10px 14px;
+  align-items: start;
+  padding: 10px 14px 12px;
   background: rgba(11, 15, 21, 0.92);
   border: 1px solid rgba(40, 52, 74, 0.6);
   border-radius: 14px;
@@ -115,6 +115,7 @@
 
 .pipeline-toolbar-copy {
   min-width: 160px;
+  align-self: center;
 }
 
 .pipeline-toolbar-label {
@@ -138,10 +139,11 @@
 .pipeline-toolbar-chips {
   display: flex;
   gap: 6px;
-  flex: 1;
+  grid-column: 1 / -1;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
+  padding-top: 2px;
 }
 
 .pipeline-toolbar-chips::-webkit-scrollbar {
@@ -153,19 +155,20 @@
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  margin-left: auto;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .pipeline-toolbar-meta {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  gap: 10px;
   margin-right: 6px;
   font-family: 'DM Mono', var(--font-mono);
   font-size: 0.56rem;
   color: var(--text-secondary);
-  text-align: right;
   opacity: 0.7;
+  white-space: nowrap;
 }
 
 /* ── Status chips ────────────────────────────────────────── */
@@ -173,8 +176,8 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-width: 120px;
-  padding: 7px 11px;
+  min-width: 112px;
+  padding: 6px 10px;
   border: 1px solid rgba(40, 52, 74, 0.5);
   border-radius: 10px;
   background: rgba(17, 22, 31, 0.7);
@@ -227,7 +230,7 @@
 
 .pe-chip-label {
   font-family: 'DM Sans', var(--font);
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 600;
   color: var(--text);
   letter-spacing: -0.01em;
@@ -235,7 +238,7 @@
 
 .pe-chip-detail {
   font-family: 'DM Mono', var(--font-mono);
-  font-size: 0.56rem;
+  font-size: 0.54rem;
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -244,13 +247,13 @@
 
 /* ── Toolbar buttons ─────────────────────────────────────── */
 .pe-btn {
-  padding: 7px 12px;
+  padding: 6px 10px;
   border-radius: 8px;
   border: 1px solid rgba(40, 52, 74, 0.6);
   background: rgba(17, 22, 31, 0.8);
   color: var(--text-secondary);
   font-family: 'DM Sans', var(--font);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1221,17 +1224,15 @@
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 1480px) {
   .pipeline-toolbar {
-    flex-wrap: wrap;
+    grid-template-columns: 1fr;
   }
 
   .pipeline-toolbar-right {
     width: 100%;
-    justify-content: flex-end;
+    justify-content: flex-start;
   }
 
   .pipeline-toolbar-meta {
-    flex-direction: row;
-    gap: 10px;
     margin-right: auto;
   }
 }

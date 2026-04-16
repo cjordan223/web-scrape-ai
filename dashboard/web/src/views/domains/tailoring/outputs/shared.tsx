@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { ExternalLink } from 'lucide-react';
+export { timeAgo } from '../../../../utils';
 
 export type ContextTab = 'overview' | 'strategy' | 'jd';
 
@@ -12,16 +13,6 @@ export function safePdfName(company: string | undefined | null, title: string | 
     const suffix = c && t ? `${c}_${t}` : (c || t || fallback);
     const base = kind === 'resume' ? 'Conner_Jordan_Resume' : 'Conner_Jordan_Cover_Letter';
     return `${base}_${suffix}.pdf`;
-}
-
-export function timeAgo(isoDate: string | undefined | null) {
-    if (!isoDate) return 'Never';
-    const d = new Date(isoDate);
-    const diff = (Date.now() - d.getTime()) / 1000;
-    if (diff < 60) return 'just now';
-    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-    return Math.floor(diff / 86400) + 'd ago';
 }
 
 function parseMaybeJson(value: unknown): unknown {

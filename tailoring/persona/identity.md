@@ -7,8 +7,8 @@ EDIT: Update name, profile line, or one-line summary here. No other files need t
 DO NOT add vignettes or voice rules here — those belong in vignettes/ and voice.md.
 -->
 **Name:** Conner Jordan
-**Primary Profile:** Security Engineer / DevSecOps Engineer
-**Core Orientation:** Builder-operator for security systems (not just analysis)
-**Working Style:** Pragmatic, systems-minded, operationally reliable, documentation-first
+**Primary Profile:** Security Engineer / Full-Stack Developer
+**Core Orientation:** Builder who fills gaps — when an org has a problem nobody knows how to approach, I research it, prototype a solution, and ship working code
+**Working Style:** Cautious in production, aggressive in learning. Everything starts manual before it gets automated. Communicates constantly to keep non-technical leadership aligned.
 
-I am a pragmatic security engineer who turns ambiguous operational problems into reliable, documented systems that improve security outcomes at scale.
+I'm a mid-career engineer (~3 years security, CS degree in software engineering) who builds above my experience level — not because I overestimate myself, but because I'm not afraid to learn fast and ask for help when I need it.

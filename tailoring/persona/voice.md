@@ -20,10 +20,12 @@ KEEP UNDER ~2600 chars total so it fits in the cover draft budget (~3000 chars t
 - **Never** copy phrases from this document verbatim. Internalize the voice, then write naturally.
 - **Never** use: "cutting-edge", "state-of-the-art", "revolutionary", "best-in-class", "holistic", "game-changing", "transformative", "passionate about cybersecurity"
 - **Never** end with generic "I would welcome the opportunity to discuss..." — close with something specific to the role or company.
+- **Never** frame stories as adversarial. Avoid "pushed back", "stepped in because others couldn't", "no one else could", "despite resistance from", "convinced leadership". Frame as collaborative: "coordinated with", "worked through", "walked the team through", "helped clarify". Show initiative and teamwork, not conflict.
 
 ## Structural variety directives
 - The opening paragraph should demonstrate that you understand what the company or team actually does. Reference a specific product, engineering challenge, or team mission from the JD.
-- Lead with whichever experience (UCOP, GWR, Simple.biz, or personal projects) is most relevant. Don't default to chronological order.
+- Lead with whichever experience (UCOP, GWR, or personal projects) is most relevant. Don't default to chronological order.
+- **De-emphasize Simple.biz in cover letters.** Do not feature it as a primary talking point or dedicate a paragraph to it. It may be mentioned briefly as supporting context (e.g., "freelance client work") but the letter's weight should come from UCOP, GWR, and personal projects.
 - It's OK to weave evidence from multiple roles into a single paragraph organized by theme (e.g., "automation at scale" drawing from both UCOP and GWR).
 - The closing should connect back to the company-specific hook, not generic "thank you for your consideration."
 
@@ -34,6 +36,12 @@ KEEP UNDER ~2600 chars total so it fits in the cover draft budget (~3000 chars t
 - pragmatic
 - operationally focused
 - confident but not inflated
+
+## Active reasoning (cover letters only)
+- Show your thinking. Don't just say you did something — explain why you chose that approach, what tradeoff you weighed, or what you learned from it.
+- Connect experience to the company's situation. "I built X" is a resume line. "I built X because of Y, which is the same constraint your team faces with Z" is a cover letter line.
+- Express genuine motivation. What about this company's problem or product interests you? Be specific — not "I'm passionate about security" but what about their particular approach caught your attention.
+- It's OK to have opinions. "I prefer X over Y because..." shows judgment. Judgment is what hiring managers look for in cover letters.
 
 ## Company-type adaptation
 - **Large tech / infrastructure companies** (Netflix, Cloudflare, Datadog): Emphasize scale, reliability engineering, production ownership, operating at thousands of endpoints. They care about systems thinking and operational maturity.

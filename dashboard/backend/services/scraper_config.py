@@ -94,7 +94,8 @@ def _yaml_to_json(raw: dict) -> dict:
             "domain_blocklist": filt.get("url_domain_blocklist", []),
             "title_blocklist": filt.get("seniority_exclude", []),
             "content_blocklist": filt.get("content_blocklist", []),
-            "min_salary_k": filt.get("min_salary_k", 70),
+            "min_salary_k": filt.get("min_salary_k", 100),
+            "target_salary_k": filt.get("target_salary_k", 150),
         },
         "filter": {
             "title_keywords": filt.get("title_keywords", []),
@@ -193,6 +194,8 @@ def _json_to_yaml(config_json: dict, existing: dict) -> dict:
             filt["content_blocklist"] = hf["content_blocklist"]
         if "min_salary_k" in hf:
             filt["min_salary_k"] = hf["min_salary_k"]
+        if "target_salary_k" in hf:
+            filt["target_salary_k"] = hf["target_salary_k"]
 
     if "filter" in config_json:
         f = config_json["filter"]

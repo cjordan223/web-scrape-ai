@@ -17,7 +17,7 @@ python -m tailor validate output/<slug>
 ## Requirements
 
 - Scraper DB populated (`~/.local/share/job_scraper/jobs.db`)
-- OpenAI-compatible LLM endpoint on `localhost:1234` (or override env var)
+- Ollama running on `localhost:11434` (or any OpenAI-compatible endpoint via env var)
 - `pdflatex` available (`PDFLATEX_BIN` override supported)
 
 ## Pipeline
@@ -63,11 +63,11 @@ Detailed gate behavior: [`QUALITY_BAR.md`](QUALITY_BAR.md)
 The engine auto-discovers the first loaded model from `/v1/models` at runtime. To pin a specific model:
 
 ```bash
-export TAILOR_LMSTUDIO_URL=http://localhost:1234/v1/chat/completions
-export TAILOR_LMSTUDIO_MODEL=qwen/qwen3-coder-next   # omit to auto-discover
+export TAILOR_LLM_URL=http://localhost:11434/v1/chat/completions
+export TAILOR_LLM_MODEL=qwen3.5:27b   # omit to auto-discover
 ```
 
-The dashboard Tailoring view includes a model switcher panel that loads/unloads LM Studio models directly.
+The dashboard Ops > LLM view allows switching providers and models.
 
 ## Key Files
 
@@ -75,6 +75,8 @@ The dashboard Tailoring view includes a model switcher panel that loads/unloads 
 tailoring/
 ├── Baseline-Dox/
 ├── output/
+├── persona/
+├── PROFILE_INGESTION.md
 ├── skills.json
 ├── soul.md
 ├── QUALITY_BAR.md

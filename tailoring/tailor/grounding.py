@@ -56,13 +56,185 @@ def _load_persona_texts() -> dict[str, str]:
     return texts
 
 
+def _normalize_string_list(values: object, *, context: str) -> list[str]:
+    if not isinstance(values, list):
+        raise ValueError(f"{context} must be a list of strings")
+    normalized: list[str] = []
+    for item in values:
+        if not isinstance(item, str):
+            raise ValueError(f"{context} must contain only strings")
+        text = _normalize_text(item)
+        if text:
+            normalized.append(text)
+    return normalized
+
+
+def _validate_projects(raw_projects: object) -> dict[str, dict[str, Any]]:
+    if not isinstance(raw_projects, dict):
+        raise ValueError("approved_sources.projects must be an object")
+    projects: dict[str, dict[str, Any]] = {}
+    for key, value in raw_projects.items():
+        if not isinstance(key, str) or not key.strip():
+            raise ValueError("approved_sources.projects keys must be non-empty strings")
+        if not isinstance(value, dict):
+            raise ValueError(f"approved_sources.projects.{key} must be an object")
+        label = value.get("label")
+        if not isinstance(label, str) or not label.strip():
+            raise ValueError(f"approved_sources.projects.{key}.label must be a non-empty string")
+        project: dict[str, Any] = {
+            "label": _normalize_text(label),
+            "approved_terms": _normalize_string_list(
+                value.get("approved_terms", []),
+                context=f"approved_sources.projects.{key}.approved_terms",
+            ),
+        }
+        forbidden_terms = value.get("forbidden_terms")
+        if forbidden_terms is not None:
+            project["forbidden_terms"] = _normalize_string_list(
+                forbidden_terms,
+                context=f"approved_sources.projects.{key}.forbidden_terms",
+            )
+        match_keywords = value.get("match_keywords")
+        if match_keywords is not None:
+            project["match_keywords"] = [
+                kw.lower()
+                for kw in _normalize_string_list(
+                    match_keywords,
+                    context=f"approved_sources.projects.{key}.match_keywords",
+                )
+            ]
+        projects[key.strip()] = project
+    return projects
+
+
+def _validate_grounding_file(path: Path) -> dict[str, Any]:
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError(f"Grounding config not found: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Grounding config is not valid JSON: {path} ({exc})") from exc
+
+    if not isinstance(raw, dict):
+        raise ValueError("Grounding config root must be an object")
+    version = raw.get("version")
+    if version != 1:
+        raise ValueError(f"Unsupported grounding config version: {version!r}")
+
+    precedence = _normalize_string_list(raw.get("precedence", []), context="precedence")
+    forbidden_global_claims = _normalize_string_list(
+        raw.get("forbidden_global_claims", []),
+        context="forbidden_global_claims",
+    )
+
+    approved_sources = raw.get("approved_sources")
+    if not isinstance(approved_sources, dict):
+        raise ValueError("approved_sources must be an object")
+
+    raw_company_terms = approved_sources.get("company_terms")
+    if not isinstance(raw_company_terms, dict):
+        raise ValueError("approved_sources.company_terms must be an object")
+    company_terms: dict[str, list[str]] = {}
+    for company, terms in raw_company_terms.items():
+        if not isinstance(company, str) or not company.strip():
+            raise ValueError("approved_sources.company_terms keys must be non-empty strings")
+        company_terms[_normalize_text(company)] = _normalize_string_list(
+            terms,
+            context=f"approved_sources.company_terms.{company}",
+        )
+
+    raw_company_aliases = approved_sources.get("company_aliases", {}) or {}
+    if not isinstance(raw_company_aliases, dict):
+        raise ValueError("approved_sources.company_aliases must be an object")
+    company_aliases: dict[str, list[str]] = {}
+    for company, aliases in raw_company_aliases.items():
+        if not isinstance(company, str) or not company.strip():
+            raise ValueError("approved_sources.company_aliases keys must be non-empty strings")
+        company_aliases[_normalize_text(company)] = [
+            a.lower()
+            for a in _normalize_string_list(
+                aliases,
+                context=f"approved_sources.company_aliases.{company}",
+            )
+        ]
+
+    high_risk_patterns = raw.get("high_risk_patterns")
+    if not isinstance(high_risk_patterns, dict):
+        raise ValueError("high_risk_patterns must be an object")
+    if not isinstance(high_risk_patterns.get("role_title_renamed"), dict):
+        raise ValueError("high_risk_patterns.role_title_renamed must be an object")
+    rename_msg = high_risk_patterns["role_title_renamed"].get("message")
+    if not isinstance(rename_msg, str) or not rename_msg.strip():
+        raise ValueError("high_risk_patterns.role_title_renamed.message must be a non-empty string")
+
+    validated_patterns: dict[str, Any] = {
+        "role_title_renamed": {"message": _normalize_text(rename_msg)},
+    }
+    for rule_name, patterns in high_risk_patterns.items():
+        if rule_name == "role_title_renamed":
+            continue
+        validated_patterns[rule_name] = _normalize_string_list(
+            patterns,
+            context=f"high_risk_patterns.{rule_name}",
+        )
+
+    return {
+        "version": version,
+        "precedence": precedence,
+        "approved_sources": {
+            "company_terms": company_terms,
+            "company_aliases": company_aliases,
+            "projects": _validate_projects(approved_sources.get("projects", {})),
+            "approved_ai_details": _normalize_string_list(
+                approved_sources.get("approved_ai_details", []),
+                context="approved_sources.approved_ai_details",
+            ),
+            "approved_identity_details": _normalize_string_list(
+                approved_sources.get("approved_identity_details", []),
+                context="approved_sources.approved_identity_details",
+            ),
+            "approved_compliance_details": _normalize_string_list(
+                approved_sources.get("approved_compliance_details", []),
+                context="approved_sources.approved_compliance_details",
+            ),
+        },
+        "high_risk_patterns": validated_patterns,
+        "forbidden_global_claims": forbidden_global_claims,
+    }
+
+
+def _load_grounding_contract(path: Path | None = None) -> dict[str, Any]:
+    grounding_path = path or cfg.GROUNDING_CONFIG
+    return _validate_grounding_file(grounding_path)
+
+
+_GROUNDING_CACHE: dict[str, dict[str, Any]] = {}
+
+
+def clear_grounding_cache() -> None:
+    """Clear the run-scoped grounding cache (call at run start)."""
+    _GROUNDING_CACHE.clear()
+
+
+def _grounding_cache_key(baseline_tex: str, skills_json: str) -> str:
+    """Hash actual content so different inputs never collide."""
+    import hashlib
+    h = hashlib.sha1(baseline_tex.encode(), usedforsecurity=False)
+    h.update(skills_json.encode())
+    return h.hexdigest()
+
+
 def build_grounding_context(
     *,
     baseline_tex: str | None = None,
     skills_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    baseline_tex = baseline_tex or cfg.RESUME_TEX.read_text(encoding="utf-8")
-    skills_data = skills_data or json.loads(cfg.SKILLS_JSON.read_text(encoding="utf-8"))
+    baseline_tex = baseline_tex or cfg.read_cached(cfg.RESUME_TEX)
+    skills_data = skills_data or cfg.read_json_cached(cfg.SKILLS_JSON)
+    cache_key = _grounding_cache_key(baseline_tex, json.dumps(skills_data, sort_keys=True))
+    if cache_key in _GROUNDING_CACHE:
+        return _GROUNDING_CACHE[cache_key]
+    grounding_contract = _load_grounding_contract()
     persona_texts = _load_persona_texts()
     experiences = _extract_resume_companies(baseline_tex)
 
@@ -77,117 +249,9 @@ def build_grounding_context(
     approved_skill_terms.extend(inventory.get("devops_and_cloud", []))
     for items in inventory.get("tools_and_platforms", {}).values():
         approved_skill_terms.extend(items)
-
-    companies = {item["company"]: item for item in experiences}
-    company_terms = {
-        "University of California, Office of the President": [
-            "Coraline",
-            "AWS ECS",
-            "Flask",
-            "React",
-            "five disparate security and IT inventory sources",
-            "five separate data sources",
-            "hierarchical confidence matching",
-            "hierarchical confidence-matching",
-            "500 drifted assets",
-            "500+ drifted asset records",
-            "7,000+ endpoints",
-            "LangChain",
-            "vector databases",
-            "NLP",
-            "retrieval accuracy",
-            "source attribution",
-            "AI governance",
-            "audit trails",
-            "operational guardrails",
-            "review standards",
-            "macOS",
-            "Windows",
-            "CrowdStrike RTR",
-            "Defender",
-            "runbooks",
-            "10,000+ macOS and Windows devices",
-            "2,900-user identity portal",
-            "MFA providers",
-            "network security protocols",
-        ],
-        "Great Wolf Resorts": [
-            "hybrid Azure tenant",
-            "Python",
-            "PowerShell",
-            "endpoint agent updates",
-            "patching",
-            "BitLocker",
-            "10,000+ devices",
-            "CrowdStrike RTR",
-            "200 hours annually",
-            "Microsoft Graph API",
-            "10,000+ users",
-            "Rapid7",
-            "Pandas",
-            "NumPy",
-            "KnowBe4",
-            "25 percent",
-            "analytics tooling",
-            "agent health monitoring",
-        ],
-        "Simple.biz": [
-            "CI/CD pipelines",
-            "automated build and deployment scripts",
-            "Selenium",
-            "WCAG/ADA",
-            "cross-browser",
-            "cross-device",
-            "30 percent reduction in user-reported issues",
-        ],
-    }
-    approved_projects = {
-        "phishfinder": {
-            "label": "school capstone project",
-            "approved_terms": [
-                "PhishFinder",
-                "browser extension frontend",
-                "Chrome extension",
-                "Python backend API",
-                "SPF",
-                "DKIM",
-                "DMARC",
-                "NLP",
-                "LLM-based classification",
-                "real-time URL analysis",
-                "Most Innovative Project",
-                "2024 Capstone Festival",
-            ],
-        },
-        "rag_chatbot": {
-            "label": "internal SecOps knowledge tool",
-            "approved_terms": [
-                "RAG-based security knowledge chatbot",
-                "LangChain",
-                "vector databases",
-                "retrieval accuracy",
-                "source attribution",
-                "SecOps knowledge",
-                "auditability",
-            ],
-            "forbidden_terms": [
-                "AWS Lambda",
-                "Step Functions",
-                "SNS",
-                "SQS",
-                "latency constraints",
-                "SLA-backed uptime",
-                "alongside Coraline",
-                "technical standard for future AI deployments",
-            ],
-        },
-    }
-    return {
-        "precedence": [
-            "Immutable employment facts come from the baseline resume.",
-            "Approved optional narrative detail may come from persona files.",
-            "Skills inventory authorizes skills claims, not employer-specific implementation history.",
-        ],
+    result = {
+        "version": grounding_contract["version"],
+        "precedence": grounding_contract["precedence"],
         "immutable_facts": {
             "candidate_name": skills_data.get("candidate_profile", {}).get("name", "Conner Jordan"),
             "target_roles": skills_data.get("candidate_profile", {}).get("target_roles", []),
@@ -196,81 +260,13 @@ def build_grounding_context(
         "approved_sources": {
             "persona_files": sorted(persona_texts.keys()),
             "skills_terms": sorted({_normalize_text(str(term)) for term in approved_skill_terms if str(term).strip()}),
-            "company_terms": company_terms,
-            "projects": approved_projects,
-            "approved_ai_details": [
-                "LangChain",
-                "vector databases",
-                "retrieval accuracy",
-                "source attribution",
-                "audit trails",
-                "operational guardrails",
-            ],
-            "approved_identity_details": [
-                "MFA providers",
-                "identity portal",
-                "network security protocols",
-                "IAM coordination",
-            ],
-            "approved_compliance_details": [
-                "auditability",
-                "audit-ready governance",
-                "operational guardrails",
-            ],
+            **grounding_contract["approved_sources"],
         },
-        "high_risk_patterns": {
-            "role_title_renamed": {
-                "message": "Baseline employer role titles are immutable and must not be rewritten.",
-            },
-            "unsupported_tool_claim": [
-                r"\bTerraform\b",
-                r"\bAnsible\b",
-                r"\bAzure DevOps\b",
-            ],
-            "unsupported_compliance_claim": [
-                r"\bSOC ?2\b",
-                r"\bHIPAA\b",
-                r"\bNIST\b",
-                r"\bISO 27001\b",
-            ],
-            "unsupported_identity_stack_claim": [
-                r"\bOkta\b",
-                r"\bActive Directory\b",
-                r"\bSCCM\b",
-                r"\bJAMF\b",
-                r"\bServiceNow\b",
-                r"\bEntra ID\b",
-                r"\bPAM\b",
-                r"\bzero-trust\b",
-            ],
-            "unsupported_ai_deployment_claim": [
-                r"RAG chatbot.*AWS ECS",
-                r"AWS ECS.*RAG chatbot",
-                r"\bAWS Lambda\b",
-                r"\bStep Functions\b",
-                r"\bSNS\b",
-                r"\bSQS\b",
-                r"\balongside Coraline\b",
-                r"\blatency constraints\b",
-                r"\bSLA-backed uptime\b",
-                r"\btechnical standard for future AI deployments\b",
-            ],
-            "unsupported_operational_mechanic_claim": [
-                r"\bidempotent\b",
-                r"\brollback\b",
-                r"\bcanary\b",
-            ],
-            "unsupported_scale_claim": [
-                r"\b20\+ internal teams\b",
-                r"\bhundreds of devices\b",
-            ],
-        },
-        "forbidden_global_claims": [
-            "Do not rename prior job titles to target-role titles.",
-            "Do not attach unsupported tools, frameworks, identity platforms, compliance regimes, or deployment topology to prior employer work.",
-            "Do not infer implementation mechanics from persona style text.",
-        ],
+        "high_risk_patterns": grounding_contract["high_risk_patterns"],
+        "forbidden_global_claims": grounding_contract["forbidden_global_claims"],
     }
+    _GROUNDING_CACHE[cache_key] = result
+    return result
 
 
 def _terms_for_company(grounding: dict[str, Any], company: str) -> list[str]:
@@ -279,9 +275,14 @@ def _terms_for_company(grounding: dict[str, Any], company: str) -> list[str]:
 
 def _find_company_from_text(text: str, grounding: dict[str, Any]) -> str | None:
     lowered = text.lower()
-    for company in (grounding.get("approved_sources", {}).get("company_terms", {}) or {}):
+    approved = grounding.get("approved_sources", {})
+    company_aliases = approved.get("company_aliases", {}) or {}
+    for company in (approved.get("company_terms", {}) or {}):
         if company.lower() in lowered:
             return company
+        for alias in company_aliases.get(company, []) or []:
+            if alias and alias.lower() in lowered:
+                return company
     return None
 
 
@@ -343,7 +344,7 @@ def enrich_resume_strategy_with_grounding(strategy: dict[str, Any], grounding: d
             (exp["role"] for exp in grounding.get("immutable_facts", {}).get("experience", []) if exp["company"] == company),
             None,
         )
-        raw_rewrites = item.get("bullet_rewrites", [])
+        raw_rewrites = item.get("bullet_rewrites") or []
         if isinstance(raw_rewrites, str):
             try:
                 raw_rewrites = json.loads(raw_rewrites)
@@ -375,6 +376,13 @@ def enrich_resume_strategy_with_grounding(strategy: dict[str, Any], grounding: d
 
 
 def enrich_cover_strategy_with_grounding(strategy: dict[str, Any], grounding: dict[str, Any]) -> dict[str, Any]:
+    """Attach per-source allowed_evidence to each cover paragraph.
+
+    Crucially, `allowed_evidence` is scoped BY SOURCE rather than unioned into a
+    flat list. Unioning lets the LLM combine terms from separate projects under
+    the same employer (e.g. claiming the RAG chatbot runs on AWS ECS because
+    both live under UCOP). Per-source scoping makes the boundaries explicit.
+    """
     enriched = dict(strategy or {})
     raw_structure = enriched.get("structure", []) or []
     if isinstance(raw_structure, str):
@@ -382,22 +390,71 @@ def enrich_cover_strategy_with_grounding(strategy: dict[str, Any], grounding: di
             raw_structure = json.loads(raw_structure)
         except Exception:
             raw_structure = []
+    company_terms = grounding.get("approved_sources", {}).get("company_terms", {}) or {}
+    company_aliases = grounding.get("approved_sources", {}).get("company_aliases", {}) or {}
+    projects = grounding.get("approved_sources", {}).get("projects", {}) or {}
+
+    def _source_matches_company(source_str_lower: str, company_name: str) -> bool:
+        company_lower = company_name.lower()
+        if company_lower in source_str_lower:
+            return True
+        for alias in company_aliases.get(company_name, []) or []:
+            alias_lower = alias.lower()
+            if alias_lower and alias_lower in source_str_lower:
+                return True
+        return False
     structure = []
     for paragraph in raw_structure:
         item = dict(paragraph)
         sources = item.get("experience_sources", [])
         if not isinstance(sources, list):
             sources = [sources]
-        approved_terms: list[str] = []
+        allowed_by_source: dict[str, list[str]] = {}
+        narrative_text = " ".join(
+            str(item.get(k, "")) for k in ("narrative_angle", "theme", "focus", "connection_to_role")
+        ).lower()
         for source in sources:
-            text = str(source)
-            for company in (grounding.get("approved_sources", {}).get("company_terms", {}) or {}):
-                if company.lower() in text.lower():
-                    approved_terms.extend(_terms_for_company(grounding, company))
-            for project_key, project in (grounding.get("approved_sources", {}).get("projects", {}) or {}).items():
-                if project_key.replace("_", " ") in text.lower():
-                    approved_terms.extend(project.get("approved_terms", []))
-        item["allowed_evidence"] = sorted({_normalize_text(term) for term in approved_terms if term})
+            source_str = str(source).strip()
+            if not source_str:
+                continue
+            source_terms: list[str] = []
+            # Employer-level terms when the source names a known company
+            # (match the full company name OR any configured alias like
+            # "UCOP", "GWR").
+            source_str_lower = source_str.lower()
+            for company, terms in company_terms.items():
+                if _source_matches_company(source_str_lower, company):
+                    source_terms.extend(terms)
+                    break
+            # Project-level terms when the paragraph's narrative or source
+            # string mentions a known project key. A project's terms are
+            # only added when that project is explicitly referenced — this
+            # prevents Coraline terms from bleeding into a rag_chatbot
+            # paragraph and vice versa.
+            #
+            # Matching tries project_key.replace("_", " ") first, then any
+            # project-provided match_keywords. Keywords are needed because
+            # the strategy LLM rarely writes the exact key (e.g. it writes
+            # "RAG security chatbot" rather than "rag chatbot") so a literal
+            # key match misses common phrasings.
+            scope_text = f"{source_str.lower()} {narrative_text}"
+            for project_key, project in projects.items():
+                project_label = project_key.replace("_", " ")
+                triggers = [project_label]
+                triggers.extend(project.get("match_keywords", []) or [])
+                if any(trigger and trigger in scope_text for trigger in triggers):
+                    source_terms.extend(project.get("approved_terms", []))
+            if source_terms:
+                allowed_by_source[source_str] = sorted(
+                    {_normalize_text(term) for term in source_terms if term}
+                )
+        item["allowed_evidence_by_source"] = allowed_by_source
+        # Keep a flat list for backwards compatibility with any consumer that
+        # iterates over `allowed_evidence`, but the per-source mapping above
+        # is what the LLM should be reading.
+        item["allowed_evidence"] = sorted(
+            {term for terms in allowed_by_source.values() for term in terms}
+        )
         structure.append(item)
     enriched["structure"] = structure
     enriched["grounding_rules"] = grounding.get("forbidden_global_claims", [])
@@ -476,6 +533,8 @@ def write_grounding_artifacts(
 
 def grounding_prompt_block(grounding: dict[str, Any]) -> str:
     immutable = grounding.get("immutable_facts", {}).get("experience", [])
+    approved = grounding.get("approved_sources", {})
+    projects = approved.get("projects", {}) or {}
     lines = ["## Grounding Contract"]
     lines.append("Precedence:")
     for rule in grounding.get("precedence", []):
@@ -483,6 +542,16 @@ def grounding_prompt_block(grounding: dict[str, Any]) -> str:
     lines.append("Immutable employer facts:")
     for exp in immutable:
         lines.append(f"- {exp['company']} | role: {exp['role']} | dates: {exp['dates']}")
+    if projects:
+        lines.append("Discrete projects (do not mix implementation details between them):")
+        for project_key, project in projects.items():
+            label = project.get("label", project_key)
+            lines.append(f"- {project_key} — {label}")
+            forbidden = project.get("forbidden_terms") or []
+            if forbidden:
+                lines.append(
+                    f"  forbidden in {project_key} context: {', '.join(forbidden)}"
+                )
     lines.append("Forbidden global claim classes:")
     for rule in grounding.get("forbidden_global_claims", []):
         lines.append(f"- {rule}")
