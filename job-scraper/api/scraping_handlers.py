@@ -339,7 +339,15 @@ def run_scrape(payload: dict = Body(default={})):
     if not isinstance(payload, dict):
         return JSONResponse({"error": "Invalid payload"}, 400)
     spider = payload.get("spider")  # optional: run only one spider
-    ok, result = _start_scrape_run(spider=spider)
+    tiers = payload.get("tiers")
+    rotation_group = payload.get("rotation_group")
+    run_index = payload.get("run_index")
+    ok, result = _start_scrape_run(
+        spider=spider,
+        tiers=tiers,
+        rotation_group=rotation_group,
+        run_index=run_index,
+    )
     if not ok:
         return JSONResponse(result, 409)
     return result

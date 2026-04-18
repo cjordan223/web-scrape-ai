@@ -373,6 +373,21 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 from services.mlx_manager import recover_on_startup
 recover_on_startup()
 
+from services import scrape_scheduler as _scrape_scheduler
+
+
+@app.on_event("startup")
+async def _scrape_scheduler_startup():
+    if _scrape_scheduler.enabled():
+        await _scrape_scheduler.start()
+
+
+@app.on_event("shutdown")
+async def _scrape_scheduler_shutdown():
+    if _scrape_scheduler.enabled():
+        await _scrape_scheduler.stop()
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -2068,6 +2083,9 @@ def _scrape_runner_snapshot(log_lines: int = 80) -> dict:
 def _start_scrape_run(
     *,
     spider: str | None = None,
+    tiers: list[str] | None = None,
+    rotation_group: int | None = None,
+    run_index: int | None = None,
 ) -> tuple[bool, dict]:
     snap = _scrape_runner_snapshot(log_lines=0)
     if snap.get("running"):
@@ -2087,6 +2105,12 @@ def _start_scrape_run(
     cmd = [str(SCRAPER_PYTHON), "-m", "job_scraper", "scrape", "-v"]
     if spider:
         cmd.extend(["--spider", spider])
+    if tiers:
+        cmd.extend(["--tiers", ",".join(tiers)])
+    if rotation_group is not None:
+        cmd.extend(["--rotation-group", str(rotation_group)])
+    if run_index is not None:
+        cmd.extend(["--run-index", str(run_index)])
 
     try:
         log_handle = log_path.open("w", encoding="utf-8")
@@ -2111,6 +2135,9 @@ def _start_scrape_run(
             "cmd": " ".join(cmd),
             "options": {
                 "spider": spider,
+                "tiers": tiers,
+                "rotation_group": rotation_group,
+                "run_index": run_index,
             },
         }
     )
