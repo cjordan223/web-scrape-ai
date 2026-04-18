@@ -34,6 +34,7 @@ def scrape_all(
     from .spiders.ashby import AshbySpider
     from .spiders.greenhouse import GreenhouseSpider
     from .spiders.lever import LeverSpider
+    from .spiders.workable import WorkableSpider
     from .spiders.searxng import SearXNGSpider
     from .spiders.aggregator import AggregatorSpider
     from .spiders.generic import GenericSpider
@@ -45,6 +46,7 @@ def scrape_all(
         "ashby": AshbySpider,
         "greenhouse": GreenhouseSpider,
         "lever": LeverSpider,
+        "workable": WorkableSpider,
         "searxng": SearXNGSpider,
         "aggregator": AggregatorSpider,
         "generic": GenericSpider,

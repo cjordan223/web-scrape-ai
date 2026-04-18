@@ -285,6 +285,15 @@ crawl:
   - url: https://job-boards.greenhouse.io/pachama
     board: greenhouse
     company: pachama
+  - url: https://apply.workable.com/remote/
+    board: workable
+    company: remote
+  - url: https://apply.workable.com/deel/
+    board: workable
+    company: deel
+  - url: https://apply.workable.com/tryhackme/
+    board: workable
+    company: tryhackme
 watchers: []
 queries:
 - title_phrase: security engineer

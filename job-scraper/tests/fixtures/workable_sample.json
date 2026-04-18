@@ -1,0 +1,16 @@
+{
+  "results": [
+    {
+      "id": "abc123",
+      "title": "Senior Security Engineer",
+      "shortcode": "SEC-001",
+      "department": "Engineering",
+      "location": {"city": "Remote", "country": "United States"},
+      "employment_type": "Full-time",
+      "url": "https://apply.workable.com/acmeco/j/ABC123/",
+      "application_url": "https://apply.workable.com/acmeco/j/ABC123/apply",
+      "description": "<p>We're looking for a Senior Security Engineer to help us...</p>",
+      "created_at": "2026-04-10T12:00:00Z"
+    }
+  ]
+}
