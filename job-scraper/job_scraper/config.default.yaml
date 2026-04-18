@@ -94,6 +94,7 @@ filter:
   - quora.com
   - youtube.com
   - medium.com
+  - usajobs.gov
   require_remote: true
   require_explicit_remote: false
   require_us_location: true
@@ -283,23 +284,7 @@ crawl:
   - url: https://job-boards.greenhouse.io/pachama
     board: greenhouse
     company: pachama
-watchers:
-- name: usajobs
-  type: custom
-  module: job_scraper.usajobs
-  board: usajobs
-  enabled: true
-  skip_filters:
-  - url_domain
-  - source_quality
-  - remote
-  - location
-  params:
-    series: 2210;1550;0854;0861;1560;1301
-    keywords: cybersecurity;software engineer;platform engineer;cloud security;DevSecOps
-    agencies: NN;EP;NS
-    days: '14'
-    remote: 'true'
+watchers: []
 queries:
 - title_phrase: security engineer
   board_site: boards.greenhouse.io
@@ -563,3 +548,19 @@ remoteok:
 hn_hiring:
   enabled: true
   max_comments: 500
+scrape_profile:
+  cadence: "0 */6 * * *"
+  rotation_groups: 4
+  seen_ttl_days: 45
+  discovery_every_nth_run: 2
+  target_net_new_per_run: 13
+  llm_gate:
+    enabled: true
+    endpoint: "http://localhost:8080/v1/chat/completions"
+    model: "qwen3-4b-instruct-mlx"
+    fallback_endpoint: "http://localhost:11434/v1/chat/completions"
+    fallback_model: "qwen2.5:3b-instruct"
+    accept_threshold: 5
+    max_calls_per_run: 150
+    timeout_seconds: 10
+    fail_open: true
