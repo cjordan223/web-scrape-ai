@@ -20,6 +20,7 @@ class GreenhouseSpider(scrapy.Spider):
         self._boards = boards or []
         self._max_per_board = max_per_board
         self._run_id = run_id
+        self._use_json_api = True
 
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):
@@ -32,11 +33,18 @@ class GreenhouseSpider(scrapy.Spider):
         spider = super().from_crawler(crawler, *args, **kwargs)
         spider._rotation_group = crawler.settings.get("SCRAPE_ROTATION_GROUP")
         spider._rotation_total = crawler.settings.getint("SCRAPE_ROTATION_TOTAL", 4)
+        spider._use_json_api = not crawler.settings.getbool("GREENHOUSE_LEGACY_HTML", False)
         return spider
 
     def _org_slug(self, url: str) -> str:
         """Extract org slug: https://job-boards.greenhouse.io/adyen -> adyen"""
         return url.rstrip("/").split("/")[-1]
+
+    @staticmethod
+    def _slug_from_url(url: str) -> str:
+        from urllib.parse import urlparse
+        path = urlparse(url).path.strip("/")
+        return path.split("/")[0] if path else ""
 
     def start_requests(self):
         rotated = rotation_filter(
@@ -53,17 +61,46 @@ class GreenhouseSpider(scrapy.Spider):
             key=lambda board: board["url"],
         )
         logger.info(
-            "Greenhouse: scraping %d/%d boards this run (group=%s, rotated=%d)",
+            "Greenhouse: scraping %d/%d boards this run (group=%s, rotated=%d, json=%s)",
             len(boards), len(self._boards), self._rotation_group, len(rotated),
+            self._use_json_api,
         )
         for board in boards:
             org = self._org_slug(board["url"])
-            api_url = f"https://boards-api.greenhouse.io/v1/boards/{org}/jobs"
-            yield scrapy.Request(
-                url=api_url,
-                callback=self.parse_board,
-                meta={"company": board["company"], "org": org},
-                dont_filter=True,
+            if self._use_json_api:
+                yield scrapy.Request(
+                    url=f"https://boards-api.greenhouse.io/v1/boards/{org}/jobs?content=true",
+                    callback=self.parse_board_json,
+                    meta={"company": board["company"], "org": org},
+                    dont_filter=True,
+                )
+            else:
+                yield scrapy.Request(
+                    url=f"https://boards-api.greenhouse.io/v1/boards/{org}/jobs",
+                    callback=self.parse_board,
+                    meta={"company": board["company"], "org": org},
+                    dont_filter=True,
+                )
+
+    def parse_board_json(self, response):
+        try:
+            data = response.json()
+        except Exception:
+            logger.warning("Greenhouse JSON endpoint returned non-JSON: %s", response.url)
+            return
+        company = response.meta.get("company", "unknown")
+        for job in data.get("jobs", []):
+            loc = (job.get("location") or {}).get("name") or ""
+            yield JobItem(
+                url=job.get("absolute_url", ""),
+                title=job.get("title", "Unknown"),
+                company=company,
+                board="greenhouse",
+                location=loc,
+                jd_html=job.get("content") or "",
+                jd_text="",
+                source=self.name,
+                created_at=datetime.now(timezone.utc).isoformat(),
             )
 
     def parse_board(self, response):
