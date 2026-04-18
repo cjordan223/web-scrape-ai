@@ -281,9 +281,19 @@ class JobDB:
         )
         self._conn.commit()
 
-    def finish_run(self, run_id: str, *, raw_count: int = 0, dedup_count: int = 0,
-                   filtered_count: int = 0, error_count: int = 0,
-                   errors: str | None = None) -> None:
+    def finish_run(
+        self,
+        run_id: str,
+        *,
+        raw_count: int = 0,
+        dedup_count: int = 0,
+        filtered_count: int = 0,
+        error_count: int = 0,
+        errors: str | None = None,
+        net_new: int | None = None,
+        gate_mode: str | None = None,
+        rotation_group: int | None = None,
+    ) -> None:
         now = _now()
         started = self._conn.execute(
             "SELECT started_at FROM runs WHERE run_id = ?", (run_id,)
@@ -295,10 +305,13 @@ class JobDB:
         self._conn.execute(
             """UPDATE runs SET completed_at = ?, elapsed = ?, raw_count = ?,
                dedup_count = ?, filtered_count = ?, error_count = ?, errors = ?,
+               net_new = COALESCE(?, net_new),
+               gate_mode = COALESCE(?, gate_mode),
+               rotation_group = COALESCE(?, rotation_group),
                status = 'completed'
             WHERE run_id = ?""",
             (now, elapsed, raw_count, dedup_count, filtered_count, error_count,
-             errors, run_id),
+             errors, net_new, gate_mode, rotation_group, run_id),
         )
         self._conn.commit()
 
