@@ -844,6 +844,56 @@ def approve_rejected(rejected_id: int):
 # Routes — API: Source Diagnostics
 # ---------------------------------------------------------------------------
 
+def tier_stats_rollup(since: str = "7d"):
+    """Tier-aware rollups: per-run, source-health, daily net-new over a window."""
+    import re
+    from datetime import datetime, timedelta, timezone
+
+    _sync_app_state()
+    m = re.fullmatch(r"(\d+)d", since or "")
+    days = int(m.group(1)) if m else 7
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    conn = get_db()
+    try:
+        per_run = [
+            dict(r)
+            for r in conn.execute(
+                """SELECT run_id, started_at, net_new, gate_mode, rotation_group
+                   FROM runs WHERE started_at >= ? ORDER BY started_at DESC LIMIT 60""",
+                (cutoff,),
+            ).fetchall()
+        ]
+        by_source = [
+            dict(r)
+            for r in conn.execute(
+                """SELECT source, tier,
+                          SUM(raw_hits) AS raw_hits,
+                          SUM(dedup_drops) AS dedup_drops,
+                          SUM(filter_drops) AS filter_drops,
+                          SUM(llm_rejects + llm_uncertain_low) AS llm_rejects,
+                          SUM(stored_pending) AS stored_pending,
+                          SUM(stored_lead) AS stored_lead,
+                          COUNT(DISTINCT run_id) AS runs
+                   FROM run_tier_stats
+                   WHERE run_id IN (SELECT run_id FROM runs WHERE started_at >= ?)
+                   GROUP BY source, tier""",
+                (cutoff,),
+            ).fetchall()
+        ]
+        daily_net_new = [
+            dict(r)
+            for r in conn.execute(
+                """SELECT substr(started_at, 1, 10) AS day, SUM(net_new) AS net_new
+                   FROM runs WHERE started_at >= ?
+                   GROUP BY substr(started_at, 1, 10) ORDER BY day""",
+                (cutoff,),
+            ).fetchall()
+        ]
+        return {"per_run": per_run, "by_source": by_source, "daily_net_new": daily_net_new}
+    finally:
+        conn.close()
+
+
 def source_diagnostics():
     """Per-source and per-board breakdown of pipeline performance."""
     _sync_app_state()
