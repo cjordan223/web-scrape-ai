@@ -26,6 +26,7 @@ class LeverSpider(scrapy.Spider):
         super().__init__(*args, **kwargs)
         self._boards = boards or []
         self._run_id = run_id
+        self._use_json_api = True
 
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):
@@ -37,7 +38,14 @@ class LeverSpider(scrapy.Spider):
         spider = super().from_crawler(crawler, *args, **kwargs)
         spider._rotation_group = crawler.settings.get("SCRAPE_ROTATION_GROUP")
         spider._rotation_total = crawler.settings.getint("SCRAPE_ROTATION_TOTAL", 4)
+        spider._use_json_api = not crawler.settings.getbool("LEVER_LEGACY_HTML", False)
         return spider
+
+    @staticmethod
+    def _slug_from_url(url: str) -> str:
+        from urllib.parse import urlparse
+        path = urlparse(url).path.strip("/")
+        return path.split("/")[0] if path else ""
 
     def start_requests(self):
         rotated = rotation_filter(
@@ -54,11 +62,47 @@ class LeverSpider(scrapy.Spider):
             key=lambda board: board["url"],
         )
         logger.info(
-            "Lever: scraping %d/%d boards this run (group=%s, rotated=%d)",
+            "Lever: scraping %d/%d boards this run (group=%s, rotated=%d, json=%s)",
             len(boards), len(self._boards), self._rotation_group, len(rotated),
+            self._use_json_api,
         )
         for board in boards:
-            yield scrapy.Request(url=board["url"], callback=self.parse_board, meta={"company": board["company"], "playwright": True, "playwright_context": "lever", "playwright_include_page": False, "playwright_page_methods": [{"method": "wait_for_timeout", "args": [3000]}]}, dont_filter=True)
+            if self._use_json_api:
+                slug = self._slug_from_url(board["url"])
+                yield scrapy.Request(
+                    url=f"https://api.lever.co/v0/postings/{slug}?mode=json",
+                    callback=self.parse_board_json,
+                    meta={"company": board["company"]},
+                    dont_filter=True,
+                )
+            else:
+                yield scrapy.Request(url=board["url"], callback=self.parse_board, meta={"company": board["company"], "playwright": True, "playwright_context": "lever", "playwright_include_page": False, "playwright_page_methods": [{"method": "wait_for_timeout", "args": [3000]}]}, dont_filter=True)
+
+    def parse_board_json(self, response):
+        try:
+            data = response.json()
+        except Exception:
+            logger.warning("Lever JSON endpoint returned non-JSON: %s", response.url)
+            return
+        company = response.meta.get("company", "unknown")
+        for job in data:
+            categories = job.get("categories") or {}
+            salary_k = None
+            sr = job.get("salaryRange") or {}
+            if sr.get("min"):
+                salary_k = sr["min"] / 1000.0
+            yield JobItem(
+                url=job.get("hostedUrl", ""),
+                title=job.get("text", "Unknown"),
+                company=company,
+                board="lever",
+                location=categories.get("location", ""),
+                salary_k=salary_k,
+                jd_html=job.get("descriptionHtml") or "",
+                jd_text="",
+                source=self.name,
+                created_at=datetime.now(timezone.utc).isoformat(),
+            )
 
     def parse_board(self, response):
         company = response.meta.get("company", "unknown")
