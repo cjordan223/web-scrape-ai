@@ -38,6 +38,7 @@ class AshbySpider(scrapy.Spider):
         self._boards = boards or []
         self._max_per_board = max_per_board
         self._run_id = run_id
+        self._use_json_api = True
 
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):
@@ -50,6 +51,7 @@ class AshbySpider(scrapy.Spider):
         spider = super().from_crawler(crawler, *args, **kwargs)
         spider._rotation_group = crawler.settings.get("SCRAPE_ROTATION_GROUP")
         spider._rotation_total = crawler.settings.getint("SCRAPE_ROTATION_TOTAL", 4)
+        spider._use_json_api = not crawler.settings.getbool("ASHBY_LEGACY_HTML", False)
         return spider
 
     def start_requests(self):
@@ -67,25 +69,66 @@ class AshbySpider(scrapy.Spider):
             key=lambda board: board["url"],
         )
         logger.info(
-            "Ashby: scraping %d/%d boards this run (group=%s, rotated=%d)",
+            "Ashby: scraping %d/%d boards this run (group=%s, rotated=%d, json=%s)",
             len(boards), len(self._boards), self._rotation_group, len(rotated),
+            self._use_json_api,
         )
         for board in boards:
-            # Extract org slug from URL: https://jobs.ashbyhq.com/ramp -> ramp
-            org = board["url"].rstrip("/").split("/")[-1]
-            yield scrapy.Request(
-                url=ASHBY_GQL_URL,
-                method="POST",
-                headers={"Content-Type": "application/json"},
-                body=json.dumps({
-                    "operationName": "ApiJobBoardWithTeams",
-                    "variables": {"org": org},
-                    "query": LIST_QUERY,
-                }),
-                callback=self.parse_board,
-                meta={"company": board["company"], "org": org},
-                dont_filter=True,
+            org = self._slug_from_url(board["url"])
+            if self._use_json_api:
+                yield scrapy.Request(
+                    url=f"https://api.ashbyhq.com/posting-api/job-board/{org}?includeCompensation=true",
+                    callback=self.parse_board_json,
+                    meta={"company": board["company"], "org": org},
+                    dont_filter=True,
+                )
+            else:
+                yield scrapy.Request(
+                    url=ASHBY_GQL_URL,
+                    method="POST",
+                    headers={"Content-Type": "application/json"},
+                    body=json.dumps({
+                        "operationName": "ApiJobBoardWithTeams",
+                        "variables": {"org": org},
+                        "query": LIST_QUERY,
+                    }),
+                    callback=self.parse_board,
+                    meta={"company": board["company"], "org": org},
+                    dont_filter=True,
+                )
+
+    def parse_board_json(self, response):
+        try:
+            data = response.json()
+        except Exception:
+            logger.warning("Ashby JSON endpoint returned non-JSON: %s", response.url)
+            return
+        company = response.meta.get("company", "unknown")
+        for job in data.get("jobs", []):
+            salary_k = None
+            comp = (job.get("compensation") or {}).get("summaryComponents") or []
+            if comp:
+                values = [c.get("minValue") for c in comp if c.get("minValue")]
+                if values:
+                    salary_k = min(values) / 1000.0
+            yield JobItem(
+                url=job.get("jobUrl", ""),
+                title=job.get("title", "Unknown"),
+                company=company,
+                board="ashby",
+                location=job.get("locationName", ""),
+                salary_k=salary_k,
+                jd_html=job.get("descriptionHtml", ""),
+                jd_text="",
+                source=self.name,
+                created_at=datetime.now(timezone.utc).isoformat(),
             )
+
+    @staticmethod
+    def _slug_from_url(url: str) -> str:
+        from urllib.parse import urlparse
+        path = urlparse(url).path.strip("/")
+        return path.split("/")[0] if path else ""
 
     def parse_board(self, response):
         company = response.meta["company"]
