@@ -95,8 +95,9 @@ def _is_non_us_only(location: str, jd_text: str) -> str | None:
 
     return None
 class HardFilterPipeline:
-    def __init__(self, config: HardFilterConfig | None = None):
+    def __init__(self, config: HardFilterConfig | None = None, tier_stats=None):
         self._config = config or HardFilterConfig()
+        self._tier_stats = tier_stats
         self._title_patterns = [
             re.compile(rf"\b{re.escape(word)}\b", re.I)
             for word in self._config.title_blocklist
@@ -109,13 +110,17 @@ class HardFilterPipeline:
     @classmethod
     def from_crawler(cls, crawler):
         from job_scraper.config import load_config
+        from job_scraper.pipelines.dedup import _get_shared_stats
         cfg = load_config()
-        return cls(config=cfg.hard_filters)
+        return cls(config=cfg.hard_filters, tier_stats=_get_shared_stats(crawler))
 
-    def _reject(self, item, stage: str, reason: str):
+    def _reject(self, item, stage: str, reason: str, spider=None):
         item["status"] = "rejected"
         item["rejection_stage"] = stage
         item["rejection_reason"] = reason
+        if self._tier_stats is not None and spider is not None:
+            from job_scraper.tiers import spider_tier
+            self._tier_stats.bump(spider.name, spider_tier(spider.name), "filter_drops")
         return item
 
     def process_item(self, item, spider):
@@ -125,16 +130,16 @@ class HardFilterPipeline:
         host = urlparse(url).netloc.lower()
         for domain in self._config.domain_blocklist:
             if domain in host:
-                return self._reject(item, "domain_blocklist", f"Blocked domain: {domain}")
+                return self._reject(item, "domain_blocklist", f"Blocked domain: {domain}", spider=spider)
 
         for pattern in self._title_patterns:
             if pattern.search(title):
-                return self._reject(item, "title_blocklist", f"Blocked title word: {pattern.pattern}")
+                return self._reject(item, "title_blocklist", f"Blocked title word: {pattern.pattern}", spider=spider)
 
         jd_text = item.get("jd_text") or ""
         for pattern in self._content_patterns:
             if pattern.search(jd_text):
-                return self._reject(item, "content_blocklist", f"Blocked content: {pattern.pattern}")
+                return self._reject(item, "content_blocklist", f"Blocked content: {pattern.pattern}", spider=spider)
 
         salary_verdict = evaluate_salary_policy(
             min_salary_k=self._config.min_salary_k,
@@ -143,11 +148,11 @@ class HardFilterPipeline:
             salary_k=item.get("salary_k"),
         )
         if salary_verdict.hard_reject:
-            return self._reject(item, "salary_floor", salary_verdict.reason or "Salary below floor")
+            return self._reject(item, "salary_floor", salary_verdict.reason or "Salary below floor", spider=spider)
 
         location = item.get("location") or ""
         geo_reason = _is_non_us_only(location, jd_text)
         if geo_reason:
-            return self._reject(item, "geo_non_us", geo_reason)
+            return self._reject(item, "geo_non_us", geo_reason, spider=spider)
 
         return item

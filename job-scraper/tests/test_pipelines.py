@@ -16,7 +16,7 @@ from job_scraper.config import HardFilterConfig
 @pytest.fixture
 def spider():
     class FakeSpider(Spider):
-        name = "test"
+        name = "searxng"
     return FakeSpider()
 
 
