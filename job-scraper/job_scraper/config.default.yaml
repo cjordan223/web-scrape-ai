@@ -112,6 +112,7 @@ pipeline_order:
 - text_extraction
 - dedup
 - hard_filter
+- llm_relevance
 - storage
 llm_review:
   enabled: true

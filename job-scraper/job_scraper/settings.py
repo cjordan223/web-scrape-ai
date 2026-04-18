@@ -27,6 +27,7 @@ _PIPELINE_MAP = {
     "text_extraction": "job_scraper.pipelines.text_extraction.TextExtractionPipeline",
     "dedup": "job_scraper.pipelines.dedup.DeduplicationPipeline",
     "hard_filter": "job_scraper.pipelines.hard_filter.HardFilterPipeline",
+    "llm_relevance": "job_scraper.pipelines.llm_relevance.LLMRelevancePipeline",
     "storage": "job_scraper.pipelines.storage.SQLitePipeline",
 }
 try:

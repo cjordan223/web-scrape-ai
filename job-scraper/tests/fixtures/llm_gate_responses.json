@@ -1,0 +1,7 @@
+{
+  "accept": "{\"score\": 8, \"verdict\": \"accept\", \"reason\": \"Security eng remote US\", \"flags\": [\"remote_us_confirmed\"]}",
+  "reject": "{\"score\": 1, \"verdict\": \"reject\", \"reason\": \"Staff IC role\", \"flags\": [\"seniority_too_high\"]}",
+  "uncertain_low": "{\"score\": 3, \"verdict\": \"uncertain\", \"reason\": \"Unclear remote policy\", \"flags\": []}",
+  "uncertain_high": "{\"score\": 6, \"verdict\": \"uncertain\", \"reason\": \"Possibly fits\", \"flags\": []}",
+  "malformed": "not even JSON"
+}
