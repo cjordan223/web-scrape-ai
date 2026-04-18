@@ -19,6 +19,7 @@ def scrape_all(
     spiders: list[str] | None = None,
     tiers: list[str] | None = None,
     rotation_group: int | None = None,
+    run_index: int | None = None,
 ) -> dict:
     """Run spiders via Scrapy CrawlerProcess.
 
@@ -27,6 +28,8 @@ def scrape_all(
         spiders: Explicit spider names (overrides tiers).
         tiers: Tier names to include; unspecified spiders in each tier all run.
         rotation_group: Passed to spiders via settings for workhorse rotation.
+        run_index: Scheduler run counter; gates SearXNG discovery firing per
+            `scrape_profile.discovery_every_nth_run`. When None, discovery fires.
     """
     from .spiders.ashby import AshbySpider
     from .spiders.greenhouse import GreenhouseSpider
@@ -56,7 +59,11 @@ def scrape_all(
     settings["SCRAPE_RUN_ID"] = run_id
     if rotation_group is not None:
         settings["SCRAPE_ROTATION_GROUP"] = rotation_group
-    settings["SCRAPE_ROTATION_TOTAL"] = load_config().scrape_profile.rotation_groups
+    cfg = load_config()
+    settings["SCRAPE_ROTATION_TOTAL"] = cfg.scrape_profile.rotation_groups
+    if run_index is not None:
+        every_n = cfg.scrape_profile.discovery_every_nth_run
+        settings["SCRAPE_DISCOVERY_FIRE"] = (run_index % every_n) == 0
 
     db = JobDB()
     db.start_run(run_id, trigger="manual" if spiders else "scheduled")
