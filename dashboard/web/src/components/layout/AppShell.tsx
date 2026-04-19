@@ -14,6 +14,7 @@ import {
   Cpu,
   BarChart3,
   Gauge,
+  Activity,
 } from 'lucide-react';
 
 type NavItem = {
@@ -69,6 +70,7 @@ const domains: Domain[] = [
       { label: 'Traces', to: '/ops/traces', icon: GitBranch, desc: 'Tailoring LLM traces' },
       { label: 'LLM', to: '/ops/llm', icon: Cpu, desc: 'Provider keys & models' },
       { label: 'Metrics', to: '/ops/metrics', icon: BarChart3, desc: 'Tailoring performance' },
+      { label: 'Scraper', to: '/ops/scraper', icon: Activity, desc: 'Tier-aware scrape metrics' },
       { label: 'System', to: '/ops/system', icon: Gauge, desc: 'Scheduler & config snapshot' },
       { label: 'Admin', to: '/ops/admin', icon: Terminal, desc: 'SQL console & bulk ops' },
     ],
