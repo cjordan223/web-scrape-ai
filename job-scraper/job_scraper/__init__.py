@@ -13,31 +13,40 @@ from .config import load_config
 logger = logging.getLogger(__name__)
 
 
-def scrape_all(*, verbose: bool = False, spiders: list[str] | None = None) -> dict:
-    """Run all enabled spiders via Scrapy CrawlerProcess.
+def scrape_all(
+    *,
+    verbose: bool = False,
+    spiders: list[str] | None = None,
+    tiers: list[str] | None = None,
+    rotation_group: int | None = None,
+    run_index: int | None = None,
+) -> dict:
+    """Run spiders via Scrapy CrawlerProcess.
 
     Args:
-        verbose: Enable debug logging
-        spiders: List of spider names to run (None = all enabled)
-
-    Returns:
-        dict with run_id, stats
+        verbose: Enable debug logging.
+        spiders: Explicit spider names (overrides tiers).
+        tiers: Tier names to include; unspecified spiders in each tier all run.
+        rotation_group: Passed to spiders via settings for workhorse rotation.
+        run_index: Scheduler run counter; gates SearXNG discovery firing per
+            `scrape_profile.discovery_every_nth_run`. When None, discovery fires.
     """
     from .spiders.ashby import AshbySpider
     from .spiders.greenhouse import GreenhouseSpider
     from .spiders.lever import LeverSpider
-    from .spiders.usajobs import USAJobsSpider
+    from .spiders.workable import WorkableSpider
     from .spiders.searxng import SearXNGSpider
     from .spiders.aggregator import AggregatorSpider
     from .spiders.generic import GenericSpider
     from .spiders.remoteok import RemoteOKSpider
     from .spiders.hn_hiring import HNHiringSpider
+    from .tiers import SPIDER_TIERS, Tier
 
     ALL_SPIDERS = {
         "ashby": AshbySpider,
         "greenhouse": GreenhouseSpider,
         "lever": LeverSpider,
-        "usajobs": USAJobsSpider,
+        "workable": WorkableSpider,
         "searxng": SearXNGSpider,
         "aggregator": AggregatorSpider,
         "generic": GenericSpider,
@@ -48,31 +57,80 @@ def scrape_all(*, verbose: bool = False, spiders: list[str] | None = None) -> di
     run_id = uuid.uuid4().hex[:12]
 
     settings = get_project_settings()
-    if verbose:
-        settings["LOG_LEVEL"] = "DEBUG"
-    else:
-        settings["LOG_LEVEL"] = "INFO"
-
-    # Pass run_id to pipelines via settings
+    settings["LOG_LEVEL"] = "DEBUG" if verbose else "INFO"
     settings["SCRAPE_RUN_ID"] = run_id
+    if rotation_group is not None:
+        settings["SCRAPE_ROTATION_GROUP"] = rotation_group
+    cfg = load_config()
+    settings["SCRAPE_ROTATION_TOTAL"] = cfg.scrape_profile.rotation_groups
+    if run_index is not None:
+        every_n = cfg.scrape_profile.discovery_every_nth_run
+        settings["SCRAPE_DISCOVERY_FIRE"] = (run_index % every_n) == 0
+
+    db = JobDB()
+    db.start_run(run_id, trigger="manual" if spiders else "scheduled")
+
+    if spiders is None and tiers is not None:
+        wanted_tiers = {Tier(t) for t in tiers}
+        spiders = [name for name, tier in SPIDER_TIERS.items()
+                   if tier in wanted_tiers and name in ALL_SPIDERS]
 
     process = CrawlerProcess(settings)
-
+    crawler_refs = []
     enabled = spiders or list(ALL_SPIDERS.keys())
     for name in enabled:
         spider_cls = ALL_SPIDERS.get(name)
         if spider_cls:
-            process.crawl(spider_cls)
+            crawler = process.create_crawler(spider_cls)
+            crawler_refs.append(crawler)
+            process.crawl(crawler)
 
     process.start()  # blocks until all spiders finish
 
-    # Gather stats from DB
-    db = JobDB()
-    stats = {
+    raw_count = 0
+    error_count = 0
+    for crawler in crawler_refs:
+        stats = crawler.stats.get_stats()
+        raw_count += stats.get("item_scraped_count", 0) + stats.get("item_dropped_count", 0)
+        error_count += stats.get("log_count/ERROR", 0)
+
+    rows = db._conn.execute(
+        "SELECT status, COUNT(*) AS n FROM jobs WHERE run_id = ? GROUP BY status",
+        (run_id,),
+    ).fetchall()
+    by_status = {row["status"]: row["n"] for row in rows}
+    stored_count = sum(by_status.values())
+    filtered_count = by_status.get("rejected", 0)
+    net_new = by_status.get("pending", 0) + by_status.get("qa_pending", 0) + by_status.get("lead", 0)
+
+    # gate_mode is set by the LLM gate pipeline via crawler settings side-channel.
+    gate_mode = None
+    for crawler in crawler_refs:
+        mode = crawler.settings.get("LLM_GATE_MODE_OBSERVED")
+        if mode and mode != "normal":
+            gate_mode = mode  # fail_open wins if any crawler reports it
+            if mode == "fail_open":
+                break
+
+    db.finish_run(
+        run_id,
+        raw_count=raw_count,
+        dedup_count=stored_count,
+        filtered_count=filtered_count,
+        error_count=error_count,
+        net_new=net_new,
+        gate_mode=gate_mode,
+        rotation_group=rotation_group,
+    )
+
+    stats_out = {
         "run_id": run_id,
         "total_jobs": db.job_count(),
         "pending": db.job_count(status="pending"),
         "rejected": db.job_count(status="rejected"),
+        "net_new": net_new,
+        "rotation_group": rotation_group,
+        "gate_mode": gate_mode or "normal",
     }
     db.close()
-    return stats
+    return stats_out

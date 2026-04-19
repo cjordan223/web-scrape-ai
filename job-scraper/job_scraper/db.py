@@ -56,9 +56,29 @@ CREATE TABLE IF NOT EXISTS runs (
     error_count INTEGER DEFAULT 0,
     errors TEXT,
     status TEXT NOT NULL DEFAULT 'running',
-    trigger_source TEXT NOT NULL DEFAULT 'scheduled'
+    trigger_source TEXT NOT NULL DEFAULT 'scheduled',
+    net_new INTEGER,
+    gate_mode TEXT,
+    rotation_group INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs(started_at);
+
+CREATE TABLE IF NOT EXISTS run_tier_stats (
+    run_id TEXT NOT NULL,
+    tier TEXT NOT NULL,
+    source TEXT NOT NULL,
+    raw_hits INTEGER DEFAULT 0,
+    dedup_drops INTEGER DEFAULT 0,
+    filter_drops INTEGER DEFAULT 0,
+    llm_rejects INTEGER DEFAULT 0,
+    llm_uncertain_low INTEGER DEFAULT 0,
+    llm_overflow INTEGER DEFAULT 0,
+    stored_pending INTEGER DEFAULT 0,
+    stored_lead INTEGER DEFAULT 0,
+    duration_ms INTEGER,
+    PRIMARY KEY (run_id, tier, source)
+);
+CREATE INDEX IF NOT EXISTS idx_run_tier_stats_run ON run_tier_stats(run_id);
 
 CREATE VIEW IF NOT EXISTS results AS
     SELECT *, status AS decision FROM jobs;
@@ -138,6 +158,15 @@ class JobDB:
                         self._conn.execute(f"ALTER TABLE runs RENAME COLUMN {old} TO {new}")
                 # Add missing runs columns
                 for col, defn in [("error_count", "INTEGER DEFAULT 0"), ("errors", "TEXT")]:
+                    if col not in cols:
+                        self._conn.execute(f"ALTER TABLE runs ADD COLUMN {col} {defn}")
+                # Refresh the column set before adding freshness/rotation columns.
+                cols = {r[1] for r in self._conn.execute("PRAGMA table_info(runs)")}
+                for col, defn in [
+                    ("net_new", "INTEGER"),
+                    ("gate_mode", "TEXT"),
+                    ("rotation_group", "INTEGER"),
+                ]:
                     if col not in cols:
                         self._conn.execute(f"ALTER TABLE runs ADD COLUMN {col} {defn}")
                 self._conn.commit()
@@ -252,9 +281,19 @@ class JobDB:
         )
         self._conn.commit()
 
-    def finish_run(self, run_id: str, *, raw_count: int = 0, dedup_count: int = 0,
-                   filtered_count: int = 0, error_count: int = 0,
-                   errors: str | None = None) -> None:
+    def finish_run(
+        self,
+        run_id: str,
+        *,
+        raw_count: int = 0,
+        dedup_count: int = 0,
+        filtered_count: int = 0,
+        error_count: int = 0,
+        errors: str | None = None,
+        net_new: int | None = None,
+        gate_mode: str | None = None,
+        rotation_group: int | None = None,
+    ) -> None:
         now = _now()
         started = self._conn.execute(
             "SELECT started_at FROM runs WHERE run_id = ?", (run_id,)
@@ -266,10 +305,13 @@ class JobDB:
         self._conn.execute(
             """UPDATE runs SET completed_at = ?, elapsed = ?, raw_count = ?,
                dedup_count = ?, filtered_count = ?, error_count = ?, errors = ?,
+               net_new = COALESCE(?, net_new),
+               gate_mode = COALESCE(?, gate_mode),
+               rotation_group = COALESCE(?, rotation_group),
                status = 'completed'
             WHERE run_id = ?""",
             (now, elapsed, raw_count, dedup_count, filtered_count, error_count,
-             errors, run_id),
+             errors, net_new, gate_mode, rotation_group, run_id),
         )
         self._conn.commit()
 

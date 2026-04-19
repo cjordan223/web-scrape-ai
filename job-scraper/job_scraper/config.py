@@ -9,6 +9,8 @@ from typing import Optional
 import yaml
 from pydantic import BaseModel, Field
 
+from job_scraper.scrape_profile import ScrapeProfile
+
 _DEFAULT_CONFIG = Path(__file__).parent / "config.default.yaml"
 
 DB_PATH = Path(
@@ -33,7 +35,7 @@ class SearXNGConfig(BaseModel):
 
 
 class USAJobsConfig(BaseModel):
-    enabled: bool = True
+    enabled: bool = False
     series: list[str] = Field(default_factory=list)
     keywords: list[str] = Field(default_factory=list)
     agencies: list[str] = Field(default_factory=list)
@@ -88,6 +90,7 @@ class ScraperConfig(BaseModel):
     pipeline_order: list[str] = Field(default_factory=lambda: [
         "text_extraction", "dedup", "hard_filter", "storage",
     ])
+    scrape_profile: ScrapeProfile = Field(default_factory=ScrapeProfile)
 
 
 def _company_from_board_url(url: str, board_type: str) -> str:
@@ -172,11 +175,14 @@ def load_config(path: str | Path | None = None) -> ScraperConfig:
     )
 
     usajobs_raw = {}
+    usajobs_enabled = False
     for w in raw.get("watchers", []):
         if w.get("name") == "usajobs":
             usajobs_raw = w.get("params", {})
+            usajobs_enabled = w.get("enabled", True)
             break
     usajobs = USAJobsConfig(
+        enabled=usajobs_enabled,
         series=usajobs_raw.get("series", "").split(";") if usajobs_raw.get("series") else [],
         keywords=usajobs_raw.get("keywords", "").split(";") if usajobs_raw.get("keywords") else [],
         agencies=usajobs_raw.get("agencies", "").split(";") if usajobs_raw.get("agencies") else [],
@@ -210,6 +216,9 @@ def load_config(path: str | Path | None = None) -> ScraperConfig:
         "text_extraction", "dedup", "hard_filter", "storage",
     ])
 
+    profile_raw = raw.get("scrape_profile") or {}
+    scrape_profile = ScrapeProfile(**profile_raw) if profile_raw else ScrapeProfile()
+
     return ScraperConfig(
         boards=boards,
         searxng=searxng,
@@ -221,4 +230,5 @@ def load_config(path: str | Path | None = None) -> ScraperConfig:
         seen_ttl_days=filter_raw.get("seen_ttl_days", 14),
         target_max_results=filter_raw.get("target_max_results", 50),
         pipeline_order=pipeline_order,
+        scrape_profile=scrape_profile,
     )

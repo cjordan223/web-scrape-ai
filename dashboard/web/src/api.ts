@@ -435,4 +435,9 @@ export const api = {
         const { data } = await apiClient.get('/ops/tailoring/metrics');
         return data;
     },
+
+    getTierStatsRollup: async (since = '7d') => {
+        const { data } = await apiClient.get(`/scraper/metrics/tier-stats?since=${encodeURIComponent(since)}`);
+        return data;
+    },
 };

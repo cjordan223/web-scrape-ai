@@ -30,4 +30,5 @@ list_rejected = _MOD.list_rejected
 get_rejected = _MOD.get_rejected
 approve_rejected = _MOD.approve_rejected
 source_diagnostics = _MOD.source_diagnostics
+tier_stats_rollup = _MOD.tier_stats_rollup
 

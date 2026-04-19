@@ -1,0 +1,21 @@
+{
+  "apiVersion": "2",
+  "jobs": [
+    {
+      "id": "11111111-aaaa-bbbb-cccc-222222222222",
+      "title": "Security Engineer",
+      "departmentName": "Engineering",
+      "teamName": "Security",
+      "locationName": "Remote - United States",
+      "employmentType": "FullTime",
+      "publishedDate": "2026-04-10T00:00:00.000Z",
+      "jobUrl": "https://jobs.ashbyhq.com/acmeco/job-posting/11111111-aaaa-bbbb-cccc-222222222222",
+      "descriptionHtml": "<p>About the role…</p>",
+      "compensation": {
+        "summaryComponents": [
+          {"label": "Base Salary", "currencyCode": "USD", "minValue": 160000, "maxValue": 200000}
+        ]
+      }
+    }
+  ]
+}

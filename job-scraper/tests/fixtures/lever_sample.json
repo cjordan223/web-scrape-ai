@@ -1,0 +1,15 @@
+[
+  {
+    "id": "aaaa-bbbb-cccc",
+    "text": "DevSecOps Engineer",
+    "categories": {
+      "location": "Remote (United States)",
+      "team": "Security",
+      "commitment": "Full-time"
+    },
+    "hostedUrl": "https://jobs.lever.co/acmeco/aaaa-bbbb-cccc",
+    "descriptionHtml": "<p>You'll own our build-time security pipeline.</p>",
+    "salaryRange": {"currency": "USD", "interval": "per-year-salary", "min": 150000, "max": 180000},
+    "createdAt": 1712764800000
+  }
+]

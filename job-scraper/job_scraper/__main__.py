@@ -18,6 +18,9 @@ console = Console()
 def scrape(
     spider: Optional[str] = typer.Option(None, "--spider", "-s", help="Run only this spider (e.g. ashby, greenhouse)"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable debug logging"),
+    tiers: Optional[str] = typer.Option(None, "--tiers", help="Comma-separated tiers (workhorse,discovery,lead)"),
+    rotation_group: Optional[int] = typer.Option(None, "--rotation-group", help="Which rotation bucket to run this tick"),
+    run_index: Optional[int] = typer.Option(None, "--run-index", help="Monotonic run counter (scheduler-supplied)"),
 ):
     """Run a full scrape cycle using Scrapy spiders."""
     logging.basicConfig(
@@ -29,7 +32,14 @@ def scrape(
     from . import scrape_all
 
     spiders = [spider] if spider else None
-    result = scrape_all(verbose=verbose, spiders=spiders)
+    tier_list = [t.strip() for t in tiers.split(",")] if tiers else None
+    result = scrape_all(
+        verbose=verbose,
+        spiders=spiders,
+        tiers=tier_list,
+        rotation_group=rotation_group,
+        run_index=run_index,
+    )
 
     table = Table(title=f"Scrape Run {result['run_id']}")
     table.add_column("Metric", style="bold")

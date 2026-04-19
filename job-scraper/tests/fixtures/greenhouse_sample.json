@@ -1,0 +1,14 @@
+{
+  "jobs": [
+    {
+      "id": 4000000001,
+      "title": "Platform Engineer",
+      "absolute_url": "https://job-boards.greenhouse.io/acmeco/jobs/4000000001",
+      "location": {"name": "Remote - US"},
+      "departments": [{"id": 1, "name": "Engineering"}],
+      "offices": [{"name": "Remote"}],
+      "content": "\u003Cp\u003EJoin our platform team...\u003C/p\u003E",
+      "updated_at": "2026-04-10T12:00:00-04:00"
+    }
+  ]
+}
