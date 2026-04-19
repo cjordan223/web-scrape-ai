@@ -26,6 +26,7 @@ const PipelineView = lazy(() => import('./views/domains/ops/diagnostics/Pipeline
 const PipelineEditorView = lazy(() => import('./views/domains/ops/diagnostics/PipelineEditorView'));
 const LlmProvidersView = lazy(() => import('./views/domains/ops/LlmProvidersView'));
 const MetricsView = lazy(() => import('./views/domains/ops/MetricsView'));
+const SystemStatusView = lazy(() => import('./views/domains/ops/SystemStatusView'));
 const MobileShell = lazy(() => import('./components/layout/MobileShell'));
 const MobileQAView = lazy(() => import('./views/mobile/MobileQAView'));
 const MobileDocsView = lazy(() => import('./views/mobile/MobileDocsView'));
@@ -163,6 +164,7 @@ function App() {
           <Route path="/ops/traces" element={<LazyRoute><PipelineView /></LazyRoute>} />
           <Route path="/ops/llm" element={<LazyRoute><LlmProvidersView /></LazyRoute>} />
           <Route path="/ops/metrics" element={<LazyRoute><MetricsView /></LazyRoute>} />
+          <Route path="/ops/system" element={<LazyRoute><SystemStatusView /></LazyRoute>} />
           <Route path="/ops/admin" element={<LazyRoute><SqlConsoleView /></LazyRoute>} />
 
           {/* Redirects — removed views → pipeline editor */}

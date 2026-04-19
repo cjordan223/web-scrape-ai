@@ -13,6 +13,7 @@ import {
   Lightbulb,
   Cpu,
   BarChart3,
+  Gauge,
 } from 'lucide-react';
 
 type NavItem = {
@@ -68,6 +69,7 @@ const domains: Domain[] = [
       { label: 'Traces', to: '/ops/traces', icon: GitBranch, desc: 'Tailoring LLM traces' },
       { label: 'LLM', to: '/ops/llm', icon: Cpu, desc: 'Provider keys & models' },
       { label: 'Metrics', to: '/ops/metrics', icon: BarChart3, desc: 'Tailoring performance' },
+      { label: 'System', to: '/ops/system', icon: Gauge, desc: 'Scheduler & config snapshot' },
       { label: 'Admin', to: '/ops/admin', icon: Terminal, desc: 'SQL console & bulk ops' },
     ],
   },
@@ -88,6 +90,7 @@ const labelBySegment: Record<string, string> = {
   traces: 'Traces',
   llm: 'LLM',
   metrics: 'Metrics',
+  system: 'System',
   admin: 'Admin',
 };
 
@@ -117,100 +120,99 @@ export default function AppShell({ dbSizeLabel }: { dbSizeLabel: string }) {
 
   return (
     <>
-      <aside className="sidebar">
-        <div className="sidebar-brand">
+      <header className="top-nav">
+        <div className="top-nav-brand">
           <span>Job</span>Forge
         </div>
 
-        <nav className="sidebar-nav">
+        <div className="top-nav-center">
           {domains.map((domain) => {
             const Icon = domain.icon;
             const isActiveDomain = activeDomain.key === domain.key;
-
             return (
-              <div key={domain.key} className="nav-domain-container">
-                <NavLink
-                  to={domain.basePath}
-                  className={({ isActive }) => `nav-item ${isActive || isActiveDomain ? 'active' : ''}`}
-                >
-                  <Icon size={18} />
-                  <span>{domain.label}</span>
-                </NavLink>
+              <NavLink
+                key={domain.key}
+                to={domain.basePath}
+                className={({ isActive }) => `top-nav-item ${isActive || isActiveDomain ? 'active' : ''}`}
+              >
+                <Icon size={16} />
+                {domain.label}
+              </NavLink>
+            );
+          })}
+        </div>
 
-                {isActiveDomain && domain.items.length > 0 && (
-                  <div className="nav-nested-groups">
-                    <div className="nav-group">
-                      {domain.items.map((item) => {
-                        const ItemIcon = item.icon;
-                        const hasChildren = !!item.items?.length;
-                        const isParentActive = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+        <div className="top-nav-right">
+          v5.0 &middot; Pipeline
+        </div>
+      </header>
+
+      <div className="layout-container">
+        <aside className="context-sidebar">
+          <nav className="sidebar-nav">
+            {activeDomain.items.map((item) => {
+              const ItemIcon = item.icon;
+              const hasChildren = !!item.items?.length;
+              const isParentActive = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+              return (
+                <div key={item.to}>
+                  <NavLink
+                    to={item.to}
+                    end={item.end}
+                    className={({ isActive }) => `nav-item ${(isActive || isParentActive) ? 'active' : ''}`}
+                  >
+                    <ItemIcon size={18} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
+                      <span>{item.label}</span>
+                      {item.desc && <span className="nav-desc">{item.desc}</span>}
+                    </div>
+                  </NavLink>
+
+                  {hasChildren && isParentActive && (
+                    <div className="nav-nested-groups">
+                      {item.items!.map((child) => {
+                        const ChildIcon = child.icon;
                         return (
-                          <div key={item.to}>
-                            <NavLink
-                              to={item.to}
-                              end={item.end}
-                              className={({ isActive }) => `nav-item nav-item-nested ${(isActive || isParentActive) ? 'active' : ''}`}
-                            >
-                              <ItemIcon size={18} />
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
-                                <span>{item.label}</span>
-                                {item.desc && <span className="nav-desc">{item.desc}</span>}
-                              </div>
-                            </NavLink>
-
-                            {hasChildren && isParentActive && (
-                              <div className="nav-nested-groups nav-nested-groups-deep">
-                                <div className="nav-group">
-                                  {item.items!.map((child) => {
-                                    const ChildIcon = child.icon;
-                                    return (
-                                      <NavLink
-                                        key={child.to}
-                                        to={child.to}
-                                        end={child.end}
-                                        className={({ isActive }) => `nav-item nav-item-nested nav-item-nested-deep ${isActive ? 'active' : ''}`}
-                                      >
-                                        <ChildIcon size={18} />
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
-                                          <span>{child.label}</span>
-                                          {child.desc && <span className="nav-desc">{child.desc}</span>}
-                                        </div>
-                                      </NavLink>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                          <NavLink
+                            key={child.to}
+                            to={child.to}
+                            end={child.end}
+                            className={({ isActive }) => `nav-item nav-item-nested ${isActive ? 'active' : ''}`}
+                          >
+                            <ChildIcon size={16} />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
+                              <span>{child.label}</span>
+                            </div>
+                          </NavLink>
                         );
                       })}
                     </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </nav>
-
-        <div className="sidebar-footer">
-          <div className="db-size">{dbSizeLabel}</div>
-          v5.0 · Pipeline
-        </div>
-      </aside>
-
-      <div className="main">
-        <div className="page-chrome">
-          <div className="breadcrumbs">
-            {breadcrumbs.map((crumb, idx) => (
-              <span key={`${crumb}-${idx}`} className="crumb">
-                {crumb}
-                {idx < breadcrumbs.length - 1 && <span className="crumb-sep">/</span>}
-              </span>
-            ))}
+                  )}
+                </div>
+              );
+            })}
+          </nav>
+          
+          <div style={{ flex: 1 }} />
+          <div className="sidebar-footer">
+            <div className="db-size">{dbSizeLabel}</div>
           </div>
-        </div>
+        </aside>
 
-        <Outlet />
+        <main className="main-content">
+          <div className="page-chrome">
+            <div className="breadcrumbs">
+              {breadcrumbs.map((crumb, idx) => (
+                <span key={`${crumb}-${idx}`} className="crumb">
+                  {crumb}
+                  {idx < breadcrumbs.length - 1 && <span className="crumb-sep">/</span>}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <Outlet />
+        </main>
       </div>
     </>
   );

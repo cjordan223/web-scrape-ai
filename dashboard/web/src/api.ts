@@ -440,4 +440,9 @@ export const api = {
         const { data } = await apiClient.get(`/scraper/metrics/tier-stats?since=${encodeURIComponent(since)}`);
         return data;
     },
+
+    getSystemStatus: async () => {
+        const { data } = await apiClient.get('/scraper/system/status');
+        return data;
+    },
 };
