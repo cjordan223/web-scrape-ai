@@ -70,6 +70,63 @@ const TIER_META: Record<string, { label: string; desc: string; accent: string }>
   },
 };
 
+type FlagMode = 'opt-in' | 'rollback';
+type FlagMeta = {
+  mode: FlagMode;
+  on: string;
+  off: string;
+};
+
+const FLAG_META: Record<string, FlagMeta> = {
+  TEXTAILOR_SCRAPE_SCHEDULER: {
+    mode: 'opt-in',
+    on: 'Scheduler active — cron ticks firing',
+    off: 'Scheduler off — no autonomous scrapes',
+  },
+  TEXTAILOR_MANAGE_MLX: {
+    mode: 'opt-in',
+    on: 'Dashboard controls MLX lifecycle',
+    off: 'MLX endpoints read-only',
+  },
+  DASHBOARD_RELOAD: {
+    mode: 'opt-in',
+    on: 'Uvicorn hot-reload on (dev)',
+    off: 'Stable mode — no hot-reload',
+  },
+  ASHBY_LEGACY_HTML: {
+    mode: 'rollback',
+    on: 'Rolled back to HTML/GraphQL path',
+    off: 'JSON API path active',
+  },
+  GREENHOUSE_LEGACY_HTML: {
+    mode: 'rollback',
+    on: 'Rolled back to 2-call HTML path',
+    off: 'JSON API path active',
+  },
+  LEVER_LEGACY_HTML: {
+    mode: 'rollback',
+    on: 'Rolled back to Playwright HTML path',
+    off: 'JSON API path active',
+  },
+};
+
+function flagTone(mode: FlagMode, on: boolean): 'good' | 'warn' | 'muted' {
+  if (mode === 'opt-in') return on ? 'good' : 'muted';
+  return on ? 'warn' : 'good';
+}
+
+function relativeTime(iso: string | null): string | null {
+  if (!iso) return null;
+  const diffMs = new Date(iso).getTime() - Date.now();
+  if (Number.isNaN(diffMs)) return null;
+  const past = diffMs < 0;
+  const abs = Math.abs(diffMs);
+  const h = Math.floor(abs / 3600000);
+  const m = Math.floor((abs % 3600000) / 60000);
+  const str = h > 0 ? `${h}h ${m}m` : `${m}m`;
+  return past ? `${str} ago` : `in ${str}`;
+}
+
 export default function SystemStatusView() {
   const [data, setData] = useState<SystemStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -124,7 +181,10 @@ export default function SystemStatusView() {
       </header>
 
       <section style={card}>
-        <SectionHeader title="Scheduler" />
+        <SectionHeader
+          title="Scheduler"
+          subtitle="APScheduler fires a tick on the cron below. Each tick picks a rotation group and tier mix."
+        />
         <div style={grid2}>
           <StatusPill
             label="Enabled"
@@ -142,12 +202,27 @@ export default function SystemStatusView() {
             label="Every"
             value={scheduler.cadence_hours != null ? `${scheduler.cadence_hours} hours` : '—'}
           />
-          <KV label="Next tick" value={scheduler.next_run_at ? fmtDate(scheduler.next_run_at) : '—'} mono />
+          <KV
+            label="Next tick"
+            value={
+              scheduler.next_run_at
+                ? `${fmtDate(scheduler.next_run_at)} (${relativeTime(scheduler.next_run_at) ?? '—'})`
+                : '—'
+            }
+            mono
+          />
         </div>
       </section>
 
       <section style={card}>
-        <SectionHeader title="Scrape Profile" />
+        <SectionHeader
+          title="Scrape Profile"
+          subtitle={
+            profile.error
+              ? undefined
+              : `Each tick hits 1/${profile.rotation_groups} of the ATS boards; full coverage every ${profile.rotation_cycle_hours}h. Dedup keeps URLs out for ${profile.seen_ttl_days} days (≥ 2× cycle).`
+          }
+        />
         {profile.error ? (
           <div style={{ color: 'rgb(239, 68, 68)' }}>Failed to load profile: {profile.error}</div>
         ) : (
@@ -155,14 +230,20 @@ export default function SystemStatusView() {
             <KV label="Rotation groups" value={String(profile.rotation_groups)} />
             <KV label="Full cycle" value={`${profile.rotation_cycle_hours} hrs`} />
             <KV label="Dedup TTL" value={`${profile.seen_ttl_days} days`} />
-            <KV label="Discovery every Nth" value={String(profile.discovery_every_nth_run)} />
+            <KV
+              label="Discovery cadence"
+              value={`every ${profile.discovery_every_nth_run}${profile.discovery_every_nth_run === 1 ? 'st' : profile.discovery_every_nth_run === 2 ? 'nd' : 'th'} tick`}
+            />
             <KV label="Target net-new / run" value={String(profile.target_net_new_per_run)} />
           </div>
         )}
       </section>
 
       <section style={card}>
-        <SectionHeader title="LLM Relevance Gate (discovery tier)" />
+        <SectionHeader
+          title="LLM Relevance Gate (discovery tier)"
+          subtitle="Scores each SearXNG result 0–10. Items below threshold drop before storage. Fails open after 3 consecutive timeouts so a stuck LLM doesn't block scrapes."
+        />
         {Object.keys(llm_gate).length === 0 ? (
           <div style={{ color: 'var(--text-muted)' }}>Not configured</div>
         ) : (
@@ -185,7 +266,10 @@ export default function SystemStatusView() {
       </section>
 
       <section style={card}>
-        <SectionHeader title="Tier Roster" />
+        <SectionHeader
+          title="Tier Roster"
+          subtitle="Workhorse + Lead fire every tick; Discovery fires on the cadence above. Each spider is pinned to exactly one tier."
+        />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
           {tiers.map((t) => {
             const meta = TIER_META[t.tier] || { label: t.tier, desc: '', accent: 'rgba(255,255,255,0.2)' };
@@ -225,32 +309,51 @@ export default function SystemStatusView() {
       </section>
 
       <section style={card}>
-        <SectionHeader title="Feature Flags" />
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <tbody>
-            {Object.entries(feature_flags).map(([k, v]) => (
-              <tr key={k} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                <td style={{ padding: '8px 0', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{k}</td>
-                <td style={{ padding: '8px 0', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
-                  <span
-                    style={{
-                      padding: '2px 8px',
-                      borderRadius: 4,
-                      background: v === '1' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.04)',
-                      color: v === '1' ? 'rgb(134, 239, 172)' : 'var(--text-muted)',
-                    }}
-                  >
-                    {v || '(unset)'}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <SectionHeader
+          title="Feature Flags"
+          subtitle="Opt-in flags are off by default; rollback flags stay off unless a new path needs to be reverted. Green means the system is in its intended state either way."
+        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {Object.entries(feature_flags).map(([k, v]) => {
+            const meta = FLAG_META[k];
+            const on = v === '1';
+            const tone = meta ? flagTone(meta.mode, on) : on ? 'good' : 'muted';
+            const stateLabel = on ? 'on' : 'off';
+            const stateDesc = meta ? (on ? meta.on : meta.off) : v || '(unset)';
+            const modeTag = meta ? (meta.mode === 'opt-in' ? 'opt-in' : 'rollback') : null;
+            return (
+              <div
+                key={k}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(220px, 1fr) auto 1.8fr',
+                  gap: 16,
+                  alignItems: 'center',
+                  padding: '10px 0',
+                  borderBottom: '1px solid rgba(255,255,255,0.04)',
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{k}</span>
+                  {modeTag && (
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      {modeTag}
+                    </span>
+                  )}
+                </div>
+                <StatePill tone={tone} label={stateLabel} />
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{stateDesc}</span>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       <section style={card}>
-        <SectionHeader title="Last Run" />
+        <SectionHeader
+          title="Last Run"
+          subtitle="Gate mode: normal = LLM relevance gate ran; overflow = discovery tier exceeded max_calls_per_run and some items bypassed the gate."
+        />
         {!last_run ? (
           <div style={{ color: 'var(--text-muted)' }}>No runs yet.</div>
         ) : (
@@ -291,8 +394,44 @@ const grid3: React.CSSProperties = {
   gap: 16,
 };
 
-function SectionHeader({ title }: { title: string }) {
-  return <h2 style={{ fontSize: 16, margin: '0 0 16px 0', fontWeight: 600 }}>{title}</h2>;
+function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <h2 style={{ fontSize: 16, margin: 0, fontWeight: 600 }}>{title}</h2>
+      {subtitle && (
+        <p style={{ margin: '4px 0 0 0', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{subtitle}</p>
+      )}
+    </div>
+  );
+}
+
+function StatePill({ tone, label }: { tone: 'good' | 'warn' | 'info' | 'muted'; label: string }) {
+  const toneStyle: Record<string, { bg: string; fg: string }> = {
+    good: { bg: 'rgba(34,197,94,0.15)', fg: 'rgb(134, 239, 172)' },
+    warn: { bg: 'rgba(245,158,11,0.15)', fg: 'rgb(252, 211, 77)' },
+    info: { bg: 'rgba(59,130,246,0.15)', fg: 'rgb(147, 197, 253)' },
+    muted: { bg: 'rgba(255,255,255,0.04)', fg: 'var(--text-muted)' },
+  };
+  const { bg, fg } = toneStyle[tone];
+  return (
+    <span
+      style={{
+        padding: '3px 10px',
+        borderRadius: 6,
+        background: bg,
+        color: fg,
+        fontSize: 11,
+        fontWeight: 600,
+        fontFamily: 'var(--font-mono)',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        textAlign: 'center',
+        minWidth: 42,
+      }}
+    >
+      {label}
+    </span>
+  );
 }
 
 function KV({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
