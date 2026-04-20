@@ -46,15 +46,15 @@ class DeduplicationPipeline:
 
     def process_item(self, item, spider):
         url = item["url"]
+        if self._tier_stats is not None:
+            from job_scraper.tiers import spider_tier
+            self._tier_stats.bump(spider.name, spider_tier(spider.name), "raw_hits")
         if self._db.is_seen(url, ttl_days=self._ttl_days):
             if self._tier_stats is not None:
                 from job_scraper.tiers import spider_tier
                 self._tier_stats.bump(spider.name, spider_tier(spider.name), "dedup_drops")
             raise DropItem(f"Already seen: {url}")
         self._db.mark_seen(url)
-        if self._tier_stats is not None:
-            from job_scraper.tiers import spider_tier
-            self._tier_stats.bump(spider.name, spider_tier(spider.name), "raw_hits")
         return item
 
     def close_spider(self, spider):

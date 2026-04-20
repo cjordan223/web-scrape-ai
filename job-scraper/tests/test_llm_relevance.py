@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from job_scraper.items import JobItem
 from job_scraper.pipelines.llm_relevance import LLMRelevancePipeline, GateOutcome
 from job_scraper.scrape_profile import LLMGateConfig
 
@@ -103,6 +104,37 @@ def test_batch_cap_falls_back_to_rules_only():
     pipe.process_item(item1, _FakeSpider())
     out = pipe.process_item(item2, _FakeSpider())
     assert "gate_overflow" in (out.get("flags") or [])
+
+
+def test_jobitem_with_flags_survives_gate():
+    """Regression: the LLM gate must not crash when the model returns non-empty flags.
+
+    Prior to the fix, `_apply_verdict` called `item["flags"] = flags` on a JobItem
+    that didn't declare a `flags` field, which raised KeyError. Scrapy silently
+    dropped the item, so counters never bumped and the item vanished between the
+    filter stage and storage (observed as raw=107, filter=10, llm=0, stored=0 for
+    searxng on 2026-04-19).
+    """
+    pipe = _make_pipe(_StubClient([FIXTURES["accept"]]))
+    item = JobItem(
+        url="https://x", title="Security Eng", company="acme",
+        snippet="remote us", source="searxng", status="pending",
+    )
+    out = pipe.process_item(item, _FakeSpider())
+    assert out["score"] == 8
+    assert out["flags"] == ["remote_us_confirmed"]
+    assert out["status"] == "pending"
+
+
+def test_jobitem_reject_with_flags_survives_gate():
+    pipe = _make_pipe(_StubClient([FIXTURES["reject"]]))
+    item = JobItem(
+        url="https://x", title="Staff Eng", company="acme",
+        snippet="", source="searxng", status="pending",
+    )
+    out = pipe.process_item(item, _FakeSpider())
+    assert out["status"] == "rejected"
+    assert out["flags"] == ["seniority_too_high"]
 
 
 def test_fail_open_on_circuit_break():

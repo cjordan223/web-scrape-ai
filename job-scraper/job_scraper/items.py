@@ -27,3 +27,4 @@ class JobItem(scrapy.Item):
     salary_k = scrapy.Field()
     score = scrapy.Field()
     filter_verdicts = scrapy.Field()
+    flags = scrapy.Field()
