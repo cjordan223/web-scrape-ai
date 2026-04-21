@@ -3,6 +3,7 @@ import { api } from '../../../../api';
 
 interface Props {
     onSentToQa: () => void;
+    onSentToReady: () => void;
 }
 
 const EMPTY_FIELDS = {
@@ -10,15 +11,31 @@ const EMPTY_FIELDS = {
     salary_k: '', experience_years: '', jd_text: '',
 };
 
-export default function IngestTab({ onSentToQa }: Props) {
+type CommitResult = {
+    job_id: number;
+    url: string;
+    destination: 'qa' | 'ready';
+    decision?: string | null;
+};
+
+export default function IngestTab({ onSentToQa, onSentToReady }: Props) {
     const [rawJd, setRawJd] = useState('');
     const [fields, setFields] = useState({ ...EMPTY_FIELDS });
     const [parsing, setParsing] = useState(false);
     const [parseError, setParseError] = useState('');
     const [parseWarning, setParseWarning] = useState('');
     const [committing, setCommitting] = useState(false);
-    const [commitResult, setCommitResult] = useState<{ job_id: number; url: string } | null>(null);
+    const [commitResult, setCommitResult] = useState<CommitResult | null>(null);
     const [commitError, setCommitError] = useState('');
+
+    const buildPayload = () => {
+        const payload: Record<string, any> = { ...fields };
+        if (payload.salary_k === '') payload.salary_k = null;
+        else payload.salary_k = Number(payload.salary_k);
+        if (payload.experience_years === '') payload.experience_years = null;
+        else payload.experience_years = Number(payload.experience_years);
+        return payload;
+    };
 
     const handleParse = async () => {
         if (!rawJd.trim()) return;
@@ -54,16 +71,31 @@ export default function IngestTab({ onSentToQa }: Props) {
         setCommitting(true);
         setCommitError('');
         try {
-            const payload: Record<string, any> = { ...fields };
-            if (payload.salary_k === '') payload.salary_k = null;
-            else payload.salary_k = Number(payload.salary_k);
-            if (payload.experience_years === '') payload.experience_years = null;
-            else payload.experience_years = Number(payload.experience_years);
-            const res = await api.ingestCommit(payload);
+            const res = await api.ingestCommit(buildPayload());
             if (!res.ok) { setCommitError(res.error || 'Commit failed'); return; }
-            setCommitResult({ job_id: res.job_id, url: res.url });
+            setCommitResult({ job_id: res.job_id, url: res.url, destination: 'qa', decision: 'qa_pending' });
         } catch (e: any) {
             setCommitError(e?.response?.data?.error || 'Commit request failed');
+        } finally {
+            setCommitting(false);
+        }
+    };
+
+    const handlePrepare = async () => {
+        if (!fields.title.trim()) { setCommitError('Title is required'); return; }
+        setCommitting(true);
+        setCommitError('');
+        try {
+            const res = await api.ingestPrepare(buildPayload());
+            if (!res.ok) { setCommitError(res.error || 'Prepare failed'); return; }
+            setCommitResult({
+                job_id: res.job_id,
+                url: res.url,
+                destination: res.decision === 'qa_approved' ? 'ready' : 'qa',
+                decision: res.decision,
+            });
+        } catch (e: any) {
+            setCommitError(e?.response?.data?.error || 'Prepare request failed');
         } finally {
             setCommitting(false);
         }
@@ -181,25 +213,37 @@ export default function IngestTab({ onSentToQa }: Props) {
 
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                     {!commitResult ? (
-                        <button
-                            className="btn btn-primary btn-sm"
-                            onClick={handleCommit}
-                            disabled={committing || !fields.title.trim()}
-                        >
-                            {committing ? 'Committing...' : 'Commit to DB'}
-                        </button>
+                        <>
+                            <button
+                                className="btn btn-primary btn-sm"
+                                onClick={handleCommit}
+                                disabled={committing || !fields.title.trim()}
+                            >
+                                {committing ? 'Working...' : 'Commit to DB'}
+                            </button>
+                            <button
+                                className="btn btn-ghost btn-sm"
+                                onClick={handlePrepare}
+                                disabled={committing || !fields.title.trim()}
+                                title="Commit this job and run the prep/refine step so it lands in Ready when approved"
+                            >
+                                {committing ? 'Working...' : 'Prep for Tailoring'}
+                            </button>
+                        </>
                     ) : (
                         <>
                             <span style={{
                                 fontFamily: 'var(--font-mono)', fontSize: '.75rem', color: 'var(--green)',
                             }}>
-                                Sent to QA — Job #{commitResult.job_id}
+                                {commitResult.destination === 'ready'
+                                    ? `Prepared for tailoring — Job #${commitResult.job_id}`
+                                    : `Sent to QA — Job #${commitResult.job_id}`}
                             </span>
                             <button
                                 className="btn btn-primary btn-sm"
-                                onClick={onSentToQa}
+                                onClick={commitResult.destination === 'ready' ? onSentToReady : onSentToQa}
                             >
-                                Open QA
+                                {commitResult.destination === 'ready' ? 'Open Ready' : 'Open QA'}
                             </button>
                             <button className="btn btn-ghost btn-sm" onClick={handleReset}>Ingest Another</button>
                         </>

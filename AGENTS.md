@@ -27,7 +27,7 @@ python -m job_scraper stats
 python -m job_scraper recent -n 20
 
 # Dashboard backend
-cd /Users/conner/Documents/JobForge
+cd /Users/conner/Documents/TexTailor
 source venv/bin/activate
 python dashboard/backend/server.py
 

@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scraper Freshness — Change Summary</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --panel: #131720;
+    --panel-2: #1a1f2b;
+    --border: rgba(255,255,255,0.08);
+    --text: #e4e8f0;
+    --muted: #8a93a6;
+    --accent: #60a5fa;
+    --green: #10b981;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 48px 32px 96px;
+  }
+  h1 {
+    font-size: 36px;
+    margin: 0 0 8px;
+    letter-spacing: -0.02em;
+  }
+  h2 {
+    font-size: 24px;
+    margin: 48px 0 16px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    letter-spacing: -0.01em;
+  }
+  h3 { font-size: 18px; margin: 24px 0 8px; }
+  p { color: var(--text); }
+  .subtitle {
+    color: var(--muted);
+    font-size: 16px;
+    margin: 0 0 32px;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 32px;
+    font-size: 13px;
+  }
+  .badge {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 999px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+  .badge.green { color: var(--green); border-color: rgba(16,185,129,0.3); background: rgba(16,185,129,0.08); }
+  code {
+    background: var(--panel-2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 0.9em;
+    color: #c4d2e6;
+  }
+  pre {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  pre code { background: transparent; padding: 0; color: #d6dff0; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .task-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin: 12px 0;
+  }
+  .task-card h3 {
+    margin: 0 0 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+  }
+  .task-card .sha {
+    font-family: var(--mono);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 400;
+  }
+  .task-card p { margin: 8px 0 0; font-size: 14px; color: #bcc6d8; }
+  .task-card ul { margin: 8px 0 0 0; padding-left: 20px; font-size: 14px; color: #bcc6d8; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .callout {
+    background: var(--panel-2);
+    border-left: 3px solid var(--accent);
+    padding: 12px 16px;
+    border-radius: 4px;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .callout.amber { border-left-color: var(--amber); }
+  .callout.green { border-left-color: var(--green); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.03em; }
+  td.mono { font-family: var(--mono); font-size: 13px; }
+  .tier-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .tier-pill.workhorse { background: rgba(96,165,250,0.12); color: #93c5fd; border: 1px solid rgba(96,165,250,0.3); }
+  .tier-pill.discovery { background: rgba(168,85,247,0.12); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); }
+  .tier-pill.lead { background: rgba(16,185,129,0.12); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
+  kbd {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .toc {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 32px;
+  }
+  .toc ul { margin: 0; padding-left: 20px; }
+  .toc li { margin: 4px 0; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Scraper Freshness</h1>
+  <p class="subtitle">Implementation summary for branch <code>feat/scraper-freshness</code> — issue #23 (duplicate churn vs over-filtering).</p>
+
+  <div class="meta">
+    <span class="badge">branch: feat/scraper-freshness</span>
+    <span class="badge green">14/14 tasks complete</span>
+    <span class="badge">17 commits</span>
+    <span class="badge">93 scraper tests pass</span>
+    <span class="badge">42 backend tests pass</span>
+  </div>
+
+  <div class="toc">
+    <strong>On this page</strong>
+    <ul>
+      <li><a href="#why">Why this change</a></li>
+      <li><a href="#model">The new tier model</a></li>
+      <li><a href="#tasks">What shipped (task by task)</a></li>
+      <li><a href="#ops">How to operate it</a></li>
+      <li><a href="#expect">What to expect moving forward</a></li>
+      <li><a href="#caveats">Caveats &amp; follow-ups</a></li>
+    </ul>
+  </div>
+
+  <h2 id="why">Why this change</h2>
+  <p>
+    The scraper was simultaneously churning duplicates on static ATS boards
+    (Ashby, Greenhouse, Lever) and over-filtering SearXNG discovery results —
+    starving volume while burning cache. Two failure modes, same root cause:
+    every source ran on the same cadence with the same filters regardless of
+    freshness characteristics.
+  </p>
+  <p>
+    This branch reframes sources as first-class <strong>tiers</strong> with
+    cadence-derived rotation, LLM relevance gating on discovery, and JSON API
+    migrations for the workhorses. A feature-flagged APScheduler drives the
+    whole thing; a new metrics surface shows per-tier health at a glance.
+  </p>
+
+  <h2 id="model">The new tier model</h2>
+  <div class="grid">
+    <div class="task-card">
+      <h3><span class="tier-pill workhorse">workhorse</span></h3>
+      <p>Static ATS boards (Ashby, Greenhouse, Lever, Workable). High duplicate rate, stable slugs. Ran full-fleet every tick before — now hash-partitioned into 4 rotation groups. Each board visited once per 24h cycle.</p>
+    </div>
+    <div class="task-card">
+      <h3><span class="tier-pill discovery">discovery</span></h3>
+      <p>SearXNG web search. High noise, high variance. Now fires on alternating runs (every Nth tick) and runs through an LLM relevance gate that accepts, rejects, or keeps-uncertain-high-score before persistence.</p>
+    </div>
+    <div class="task-card">
+      <h3><span class="tier-pill lead">lead</span></h3>
+      <p>HN Hiring, RemoteOK. Already well-behaved — fires every tick, no rotation needed.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Cadence math:</strong> 6h cadence × 4 rotation groups = 24h full-cycle.
+    Dedup TTL enforced ≥ 2× cycle (45 days) by a Pydantic validator so rotation
+    can never outrun the dedup window.
+  </div>
+
+  <h2 id="tasks">What shipped (task by task)</h2>
+
+  <div class="task-card">
+    <h3>1 · ScrapeProfile foundation <span class="sha">fb3ba28</span></h3>
+    <p>Pydantic-v2 <code>ScrapeProfile</code> model with locked 6h cadence, rotation groups, discovery alternation, and TTL≥2×cycle guardrail. Loaded from <code>config.default.yaml</code>.</p>
+  </div>
+
+  <div class="task-card">
+    <h3>2 · Tier registry <span class="sha">84d6880</span></h3>
+    <p>New <code>job_scraper/tiers.py</code>: <code>spider_tier(name)</code> (strict — raises on unknown), <code>rotation_filter()</code> helper using stable SHA-256 partitioning.</p>
+  </div>
+
+  <div class="task-card">
+    <h3>3 · Metrics schema + TierStatsWriter <span class="sha">e81f75b</span></h3>
+    <p>New <code>run_tier_stats</code> table (raw_hits / dedup_drops / filter_drops / llm_rejects / stored_*), plus <code>net_new / gate_mode / rotation_group</code> columns on <code>runs</code>. Additive migration for existing DBs; also patched base <code>_SCHEMA</code> so fresh DBs ship with the columns.</p>
+  </div>
+
+  <div class="task-card">
+    <h3>4 · Wire stats writer into pipelines <span class="sha">eed59cf</span></h3>
+    <p>Dedup, hard-filter, and storage pipelines now emit per-tier counters. Strict tier lookup caught two tests using fake spider names (<code>test_pipelines.py</code>, <code>test_storage_pipeline.py</code>) — updated to real names.</p>
+  </div>
+
+  <div class="task-card">
+    <h3>5 · Extend finish_run &amp; scrape_all <span class="sha">6cad248</span></h3>
+    <p><code>scrape_all</code> accepts <code>tiers</code>, <code>rotation_group</code>, <code>run_index</code>. <code>SCRAPE_ROTATION_TOTAL</code> wired unconditionally so spiders always see a group count.</p>
+  </div>
+
+  <div class="task-card">
+    <h3>6 · Workhorse rotation <span class="sha">21f91b4</span></h3>
+    <p><code>rotation_filter</code> wired into ashby/greenhouse/lever ahead of <code>diversified_subset</code>. Real 53-board config splits as <code>[11,12,15,15]</code>.</p>
+  </div>
+
+  <div class="task-card">
+    <h3>7 · LLM relevance gate pipeline <span class="sha">835a3e4</span></h3>
+    <p>New <code>pipelines/llm_relevance.py</code>: no-ops for non-discovery tiers; accept / reject / uncertain-score verdicts; batch cap → rules-only fallback; 3-consecutive-timeout circuit-breaker fails open. Persona card loaded from <code>tailoring/persona/*.md</code>.</p>
+  </div>
+
+  <div class="task-card">
+    <h3>8 · Discovery tier alternation <span class="sha">c3397e8</span></h3>
+    <p>SearXNG spider reads <code>SCRAPE_DISCOVERY_FIRE</code> and short-circuits when the scheduler says "not this tick." Computed as <code>(run_index % discovery_every_nth_run) == 0</code>.</p>
+  </div>
+
+  <div class="task-card">
+    <h3>9 · Workable spider <span class="sha">dc5e123</span></h3>
+    <p>New spider hitting <code>apply.workable.com/api/v3/accounts/{slug}/jobs</code>. Roster seeded with <code>remote</code>, <code>deel</code>, <code>tryhackme</code>.</p>
+  </div>
+
+  <div class="task-card">
+    <h3>10 · Ashby → posting-api JSON <span class="sha">a3c2a0f</span></h3>
+    <p>Kills GraphQL-via-HTML path. JSON default; <code>ASHBY_LEGACY_HTML=1</code> falls back. Extracts salary from <code>compensation.summaryComponents[].minValue</code>.</p>
+  </div>
+
+  <div class="task-card">
+    <h3>11 · Greenhouse → boards-api JSON <span class="sha">59f7363</span></h3>
+    <p>Single-call <code>?content=true</code> replaces the 2-step list+detail pattern. <code>GREENHOUSE_LEGACY_HTML=1</code> restores the old path.</p>
+  </div>
+
+  <div class="task-card">
+    <h3>12 · Lever → postings-api JSON <span class="sha">97bbc2e</span></h3>
+    <p>Kills Playwright dependency for Lever boards — big stability win. <code>LEVER_LEGACY_HTML=1</code> keeps the HTML path available.</p>
+  </div>
+
+  <div class="task-card">
+    <h3>13 · Tier-aware scheduler (feature-flagged) <span class="sha">a787df7</span></h3>
+    <p>New <code>services/scrape_scheduler.py</code>: APScheduler <code>AsyncIOScheduler</code> + <code>CronTrigger</code>. <code>compute_tick_plan()</code> turns a run index into <code>{group, tiers}</code>. Startup/shutdown hooks attached to FastAPI <code>app</code>. Typer CLI gained <code>--tiers</code>, <code>--rotation-group</code>, <code>--run-index</code>.</p>
+  </div>
+
+  <div class="task-card">
+    <h3>14 · Metrics dashboard surfaces <span class="sha">05091cf</span></h3>
+    <p>New endpoint <code>GET /api/scraper/metrics/tier-stats?since=7d</code>. Frontend <code>TierStatsPanel</code> (on <code>/ops/metrics</code>) renders: gate-overflow banner (last 3 runs all overflow), daily net-new tiles (red if below 70% of 50/day target), source-health table by tier×source.</p>
+  </div>
+
+  <h2 id="ops">How to operate it</h2>
+
+  <h3>Feature flags</h3>
+  <table>
+    <thead>
+      <tr><th>Env var</th><th>Default</th><th>Effect</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="mono">TEXTAILOR_SCRAPE_SCHEDULER</td><td class="mono">0</td><td>Set to <code>1</code> to enable APScheduler on dashboard startup.</td></tr>
+      <tr><td class="mono">ASHBY_LEGACY_HTML</td><td class="mono">0</td><td>Set to <code>1</code> to fall back to the old GraphQL path.</td></tr>
+      <tr><td class="mono">GREENHOUSE_LEGACY_HTML</td><td class="mono">0</td><td>Set to <code>1</code> to fall back to the 2-step HTML path.</td></tr>
+      <tr><td class="mono">LEVER_LEGACY_HTML</td><td class="mono">0</td><td>Set to <code>1</code> to restore the Playwright HTML path.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Enable the scheduler</h3>
+  <pre><code>export TEXTAILOR_SCRAPE_SCHEDULER=1
+./scripts/restart-dashboard.sh</code></pre>
+
+  <h3>Manual tier-aware scrape</h3>
+  <pre><code>cd job-scraper
+source ../venv/bin/activate
+python -m job_scraper scrape -v \
+    --tiers workhorse,lead \
+    --rotation-group 2 \
+    --run-index 14</code></pre>
+  <p>Omit any flag to get the previous behavior (all spiders, no rotation filter).</p>
+
+  <h3>Where to look</h3>
+  <ul>
+    <li><strong>UI:</strong> <code>http://localhost:8899/ops/metrics</code> — new Scraper tier stats panel under the tailoring metrics.</li>
+    <li><strong>API:</strong> <code>GET /api/scraper/metrics/tier-stats?since=7d</code></li>
+    <li><strong>DB:</strong> <code>run_tier_stats</code> table + <code>net_new/gate_mode/rotation_group</code> on <code>runs</code>.</li>
+    <li><strong>Config:</strong> <code>scrape_profile</code> block in <code>job-scraper/job_scraper/config.default.yaml</code>.</li>
+  </ul>
+
+  <h2 id="expect">What to expect moving forward</h2>
+
+  <div class="callout green">
+    <strong>Less duplicate churn on ATS.</strong> Each static board now only
+    runs every 24 hours (rotation group × 6h cadence). Dedup TTL at 45 days
+    means you'll still catch anything that reappears.
+  </div>
+
+  <div class="callout green">
+    <strong>More-targeted discovery volume.</strong> SearXNG only fires every
+    other tick, and an LLM gate rejects obvious non-matches before they hit the
+    dedup+filter pipeline. Rejection reasons land in <code>rejected</code>
+    table with <code>rejection_stage = 'llm_relevance'</code>.
+  </div>
+
+  <div class="callout">
+    <strong>Playwright no longer required for Lever.</strong> Lever boards
+    now use the public JSON API. One fewer moving part in the scrape path.
+  </div>
+
+  <div class="callout">
+    <strong>Visibility on gate health.</strong> The Ops → Metrics page shows a
+    7-day rollup of per-tier-per-source counters. Look for: daily net-new
+    trending near 50/day, dedup-drop ratio dropping on workhorses, gate-overflow
+    banner staying absent.
+  </div>
+
+  <div class="callout amber">
+    <strong>Scheduler is off by default.</strong> Nothing changes in production
+    until you set <code>TEXTAILOR_SCRAPE_SCHEDULER=1</code> and restart.
+    Manual <code>python -m job_scraper scrape</code> runs still work unchanged.
+  </div>
+
+  <h2 id="caveats">Caveats &amp; follow-ups</h2>
+  <ul>
+    <li>
+      <strong>Pre-existing test failures carried on:</strong> 4 in the scraper
+      suite (<code>test_ashby_spider</code>, <code>test_greenhouse_spider</code>,
+      <code>test_db::test_insert_job</code>) and 8 in the backend suite
+      (<code>test_mlx_*</code>, <code>test_package_chat</code>). Confirmed via
+      <code>git stash</code> that these are unrelated to this branch.
+    </li>
+    <li>
+      <strong>FastAPI <code>on_event</code> is deprecated</strong> — the hooks
+      still work but should migrate to lifespan handlers when the broader
+      dashboard upgrade happens.
+    </li>
+    <li>
+      <strong>The progress doc</strong> at
+      <code>job-scraper/docs/2026-04-18-scraper-freshness-progress.md</code>
+      tracks every task's commit SHA and deviations from the original plan. Keep
+      it around for post-merge auditing; delete after the branch lands on main.
+    </li>
+    <li>
+      <strong>Legacy HTML spider paths</strong> are retained behind env flags
+      for one cycle. Once the JSON paths prove stable in production, those
+      branches can be deleted (net ~150 LOC removal).
+    </li>
+    <li>
+      <strong>Workable roster is seed-only</strong> (3 companies). Expand via
+      <code>config.default.yaml</code> <code>boards:</code> block as new
+      Workable-hosted targets come up.
+    </li>
+  </ul>
+
+</div>
+</body>
+</html>

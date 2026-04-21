@@ -59,6 +59,7 @@ class HardFilterConfig(BaseModel):
     title_keywords: list[str] = Field(default_factory=list)
     min_salary_k: int = 100
     target_salary_k: int = 150
+    require_us_location: bool = True
 
 
 class RemoteOKConfig(BaseModel):
@@ -198,6 +199,7 @@ def load_config(path: str | Path | None = None) -> ScraperConfig:
         title_keywords=filter_raw.get("title_keywords", []),
         min_salary_k=filter_raw.get("min_salary_k", 100),
         target_salary_k=filter_raw.get("target_salary_k", 150),
+        require_us_location=bool(filter_raw.get("require_us_location", True)),
     )
 
     remoteok_raw = raw.get("remoteok", {})

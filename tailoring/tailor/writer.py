@@ -395,6 +395,13 @@ Output requirements:
   - Connect it to the company's situation: why this experience matters for their specific needs
   - If a paragraph reads like resume bullets expanded into prose, rewrite it. Ask: "what does this paragraph say that the resume doesn't?"
   - TONE: Frame stories as collaborative problem-solving, not adversarial. Avoid "pushed back", "stepped in because others couldn't", "bridged a gap no one else could", or similar phrasing that positions the candidate against colleagues. Show teamwork and initiative, not conflict.
+- AVOID COVER-LETTER CLICHÉS (these patterns mark the letter as AI-generated when stacked):
+  - "not just X, Y" / "not X, but Y" — use at most ONCE per letter
+  - "I don't just X — I Y" — use at most ONCE per letter
+  - "That same mindset / pattern / insight shaped Y" — use at most ONCE
+  - "That taught me that…" / "I learned that…" at the END of a body paragraph — NEVER in body paragraphs; save for the closing if at all
+  - Stacked aphoristic maxims ("reliable first, clever second") — at most ONE such maxim in the whole letter
+  Do not end body paragraphs with a distilled moral. End on what shipped or what the candidate decided.
 - Use the strategy's narrative_angle to drive each paragraph. The reasoning and tradeoffs from vignettes are the content, not decoration.
 - The closing MUST tie back to the company-specific hook. Never end with generic "thank you for your consideration" or "I would welcome the opportunity to discuss."
 - Keep tone grounded, direct, and technically credible. This is a mid-career engineer who builds above their experience level, not a senior architect.
@@ -560,6 +567,34 @@ so the connection is obvious, or use "and", "also".
 - Vary paragraph length: not every paragraph should be the same size.
 - Compulsive rule of three: vary groupings. Two items or four, not always three.
 - If a sentence works after deleting an inflation clause, delete it.
+
+─── COVER-LETTER TIC CAPS (audit 2026-04 — fix if exceeded) ───
+Recent audit found the same rhetorical devices repeated across every \
+letter, which reads as AI-generated when compared side-by-side. Enforce \
+these caps across the whole letter (opening + body + closing combined):
+
+- "not just X, Y" / "not X, but Y" construction: at most ONE occurrence.
+- "I don't just X — I Y" / "I don't just X, I Y" construction: at most ONE.
+- "That same mindset / instinct / pattern / insight / approach shaped Y": \
+  at most ONE occurrence.
+- "That taught me that…" / "I learned that…" paragraph-ender: at most ONE \
+  in the entire letter. Body paragraphs should end on what happened or \
+  shipped, NOT on a distilled lesson. Save the single lesson for the \
+  closing paragraph only.
+- Triplet lists ("X, Y, and Z"): at most TWO per letter. Vary to pairs \
+  or quads when a third item isn't earned.
+- Aphoristic maxims ("reliable first, clever second"; "I'd rather be \
+  slow than wrong"; "the right action is also the easiest"; etc.): at \
+  most ONE per letter. Stacking multiple reads as performance, not voice.
+
+MORAL-AT-END RULE (HARD): body paragraphs 2 and 3 must NOT end with a \
+sentence that abstracts the story into a lesson or principle. End on what \
+the candidate did, shipped, or decided. The closing paragraph is the only \
+place a lesson may land.
+
+When a cap is exceeded, rewrite the offending sentence to say the same \
+thing in plain language, or cut it. Do not merely swap one tic for \
+another from the list.
 
 TONE TARGET:
 1. Vary sentence length — mix short with long. Fragments are fine.
@@ -967,13 +1002,89 @@ def _coerce_resume_chunks(
     }
 
 
+# Aggregators and job boards must never be rendered as the hiring company.
+# If the analyzer or scraper propagates one of these as company_name, fail
+# fast so the user sees it before a letter ships addressed to "dice" or "jobs".
+_BOARD_NAME_BLOCKLIST = frozenset({
+    "linkedin", "indeed", "glassdoor", "dice", "workingnomads",
+    "working nomads", "jobs", "remoteok", "remote ok", "usajobs",
+    "hn_hiring", "hn hiring", "hackernews", "hacker news",
+    "greenhouse", "lever", "ashby", "ashbyhq", "workday",
+    "aggregator", "searxng", "unknown",
+})
+
+# Narrow override map for names we've seen rendered compressed/lowercase.
+# Keep this short — extend only when a real case appears in audit.
+_COMPANY_CASE_OVERRIDES = {
+    "apexsystems": "Apex Systems",
+    "apex systems": "Apex Systems",
+}
+
+
+def _resolve_company_name(analysis: dict[str, Any], job: "SelectedJob") -> str:
+    """Resolve the hiring company display name for cover letter rendering.
+
+    Prefers `analysis.company_name` (LLM-extracted from JD), falls back to
+    `job.company` (scraper heuristic). Raises RuntimeError if the resolved
+    value is a known job-board/aggregator, because that means the body
+    letter would end up addressed to the wrong entity.
+    """
+    raw = str(analysis.get("company_name") or job.company or "").strip()
+    if not raw:
+        raise RuntimeError(
+            f"Cover letter generation blocked: no company name resolved "
+            f"(job {job.id}). Analyzer returned empty company_name and "
+            f"job.company is blank. Fix the JD extraction before re-running."
+        )
+    lowered = raw.lower()
+    if lowered in _BOARD_NAME_BLOCKLIST:
+        raise RuntimeError(
+            f"Cover letter generation blocked: company_name resolved to "
+            f"job-board/aggregator '{raw}' (job {job.id}). The JD must name "
+            f"the real hiring employer. Fix analysis.json `company_name` or "
+            f"the scraper's company field before re-running."
+        )
+    if lowered in _COMPANY_CASE_OVERRIDES:
+        return _COMPANY_CASE_OVERRIDES[lowered]
+    # Title-case a lowercase single-token name so headers render as
+    # "Arcadia" instead of "arcadia".
+    if raw.islower():
+        return raw.title()
+    return raw
+
+
+def _dedupe_adjacent_paragraphs(paragraphs: list[str]) -> list[str]:
+    """Collapse adjacent identical or near-identical paragraphs.
+
+    Observed in the 4514 humanize output, which shipped the closing
+    paragraph twice back-to-back. Compares on a whitespace-collapsed key
+    so trailing punctuation/spacing differences still dedupe.
+    """
+    deduped: list[str] = []
+    last_key: str | None = None
+    for paragraph in paragraphs:
+        key = re.sub(r"\s+", " ", paragraph).strip().lower()
+        if key and key == last_key:
+            continue
+        deduped.append(paragraph)
+        last_key = key
+    return deduped
+
+
 def _coerce_cover_chunks(payload: dict[str, Any]) -> dict[str, Any]:
     """Normalize cover letter chunk JSON into safe assembly fields."""
     paragraphs = payload.get("paragraphs") or []
     if isinstance(paragraphs, str):
         paragraphs = [paragraphs]
     normalized_paragraphs = [_normalize_plain_text(str(p)) for p in paragraphs if _normalize_plain_text(str(p))]
+    normalized_paragraphs = _dedupe_adjacent_paragraphs(normalized_paragraphs)
     closing = _normalize_plain_text(str(payload.get("closing") or ""))
+    # Also guard against the final paragraph being duplicated as the closing.
+    if normalized_paragraphs and closing:
+        last_key = re.sub(r"\s+", " ", normalized_paragraphs[-1]).strip().lower()
+        closing_key = re.sub(r"\s+", " ", closing).strip().lower()
+        if last_key == closing_key:
+            normalized_paragraphs = normalized_paragraphs[:-1]
     if len(normalized_paragraphs) < 2:
         raise ValueError(
             f"Cover chunk payload missing body paragraphs: expected at least 2, found {len(normalized_paragraphs)}"
@@ -1836,6 +1947,14 @@ def write_cover_letter(
     skills_data = cfg.read_json_cached(cfg.SKILLS_JSON)
     grounding = build_grounding_context(skills_data=skills_data)
 
+    # Resolve the hiring company once, BEFORE any LLM stage, so a job-board
+    # or aggregator name never reaches the strategy/draft/QA prompts or the
+    # final \companyname render. Raises RuntimeError on known boards.
+    company_name = _resolve_company_name(analysis, job)
+    # Canonicalize inside the analysis dict so downstream prompts that read
+    # analysis.company_name see the rendered form (e.g. "Arcadia" not "arcadia").
+    analysis["company_name"] = company_name
+
     # Load resume strategy for cross-document consistency
     resume_strat_path = output_dir / "resume_strategy.json"
     resume_strategy = None
@@ -1932,7 +2051,7 @@ def write_cover_letter(
     draft_payload = _coerce_cover_chunks(draft_chunks)
     draft_tex = _assemble_cover_tex(
         baseline,
-        company_name=analysis.get("company_name", job.company),
+        company_name=company_name,
         date_text=today,
         paragraphs=draft_payload["paragraphs"],
         closing=draft_payload["closing"],
@@ -1992,7 +2111,7 @@ def write_cover_letter(
     qa_payload = _coerce_cover_chunks(qa_chunks)
     tex = _assemble_cover_tex(
         baseline,
-        company_name=analysis.get("company_name", job.company),
+        company_name=company_name,
         date_text=today,
         paragraphs=qa_payload["paragraphs"],
         closing=qa_payload["closing"],
@@ -2031,12 +2150,12 @@ def write_cover_letter(
         humanized_payload["closing"],
         target_hi=target_hi,
         baseline=baseline,
-        company_name=analysis.get("company_name", job.company),
+        company_name=company_name,
         date_text=today,
     )
     tex = _assemble_cover_tex(
         baseline,
-        company_name=analysis.get("company_name", job.company),
+        company_name=company_name,
         date_text=today,
         paragraphs=humanized_payload["paragraphs"],
         closing=humanized_payload["closing"],

@@ -16,11 +16,11 @@ Each experience should be split into three layers:
 
 Use this routing rule:
 
-- Add to [`skills.json`](/Users/conner/Documents/JobForge/tailoring/skills.json) when the experience establishes a repeatable capability, tool, or domain claim.
-- Add to [`persona/vignettes/`](/Users/conner/Documents/JobForge/tailoring/persona/vignettes) when the experience is a specific story with constraints, judgment, or outcomes.
-- Add to [`persona/contributions.md`](/Users/conner/Documents/JobForge/tailoring/persona/contributions.md) when the experience changes the candidate's recurring contribution pattern.
-- Add to [`persona/evidence.md`](/Users/conner/Documents/JobForge/tailoring/persona/evidence.md) when the experience yields a compact proof point useful across many cover letters.
-- Mirror only major changes into [`soul.md`](/Users/conner/Documents/JobForge/tailoring/soul.md) so fresh clones still have a usable fallback.
+- Add to [`skills.json`](/Users/conner/Documents/TexTailor/tailoring/skills.json) when the experience establishes a repeatable capability, tool, or domain claim.
+- Add to [`persona/vignettes/`](/Users/conner/Documents/TexTailor/tailoring/persona/vignettes) when the experience is a specific story with constraints, judgment, or outcomes.
+- Add to [`persona/contributions.md`](/Users/conner/Documents/TexTailor/tailoring/persona/contributions.md) when the experience changes the candidate's recurring contribution pattern.
+- Add to [`persona/evidence.md`](/Users/conner/Documents/TexTailor/tailoring/persona/evidence.md) when the experience yields a compact proof point useful across many cover letters.
+- Mirror only major changes into [`soul.md`](/Users/conner/Documents/TexTailor/tailoring/soul.md) so fresh clones still have a usable fallback.
 
 ## Example: zero-day threat hunting
 

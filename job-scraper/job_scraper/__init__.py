@@ -76,23 +76,37 @@ def scrape_all(
                    if tier in wanted_tiers and name in ALL_SPIDERS]
 
     process = CrawlerProcess(settings)
-    crawler_refs = []
+    crawler_refs: list = []
+    crawler_names: dict = {}  # crawler -> spider name
     enabled = spiders or list(ALL_SPIDERS.keys())
     for name in enabled:
         spider_cls = ALL_SPIDERS.get(name)
         if spider_cls:
             crawler = process.create_crawler(spider_cls)
             crawler_refs.append(crawler)
+            crawler_names[crawler] = name
             process.crawl(crawler)
+
+    rotation_members = list(crawler_names.values())
+    # Seed zero rows so scheduled-but-silent spiders are visible in run_tier_stats.
+    db.seed_tier_stats(
+        run_id,
+        [(name, SPIDER_TIERS[name].value) for name in rotation_members if name in SPIDER_TIERS],
+    )
 
     process.start()  # blocks until all spiders finish
 
     raw_count = 0
     error_count = 0
+    discovery_raw_hits = 0
     for crawler in crawler_refs:
         stats = crawler.stats.get_stats()
-        raw_count += stats.get("item_scraped_count", 0) + stats.get("item_dropped_count", 0)
+        hits = stats.get("item_scraped_count", 0) + stats.get("item_dropped_count", 0)
+        raw_count += hits
         error_count += stats.get("log_count/ERROR", 0)
+        name = crawler_names.get(crawler)
+        if name and SPIDER_TIERS.get(name) is Tier.DISCOVERY:
+            discovery_raw_hits += hits
 
     rows = db._conn.execute(
         "SELECT status, COUNT(*) AS n FROM jobs WHERE run_id = ? GROUP BY status",
@@ -103,14 +117,23 @@ def scrape_all(
     filtered_count = by_status.get("rejected", 0)
     net_new = by_status.get("pending", 0) + by_status.get("qa_pending", 0) + by_status.get("lead", 0)
 
-    # gate_mode is set by the LLM gate pipeline via crawler settings side-channel.
-    gate_mode = None
-    for crawler in crawler_refs:
-        mode = crawler.settings.get("LLM_GATE_MODE_OBSERVED")
-        if mode and mode != "normal":
-            gate_mode = mode  # fail_open wins if any crawler reports it
+    # Semantic gate_mode — never null for a completed run.
+    discovery_members = [n for n in rotation_members if SPIDER_TIERS.get(n) is Tier.DISCOVERY]
+    if not discovery_members:
+        gate_mode = "skipped_by_cadence"
+    elif discovery_raw_hits == 0:
+        gate_mode = "no_discovery_items"
+    else:
+        gate_mode = "normal"
+        for crawler in crawler_refs:
+            if SPIDER_TIERS.get(crawler_names.get(crawler, "")) is not Tier.DISCOVERY:
+                continue
+            mode = crawler.settings.get("LLM_GATE_MODE_OBSERVED")
             if mode == "fail_open":
+                gate_mode = "fail_open"
                 break
+            if mode == "overflow":
+                gate_mode = "overflow"
 
     db.finish_run(
         run_id,
@@ -121,6 +144,7 @@ def scrape_all(
         net_new=net_new,
         gate_mode=gate_mode,
         rotation_group=rotation_group,
+        rotation_members=rotation_members,
     )
 
     stats_out = {
@@ -130,7 +154,8 @@ def scrape_all(
         "rejected": db.job_count(status="rejected"),
         "net_new": net_new,
         "rotation_group": rotation_group,
-        "gate_mode": gate_mode or "normal",
+        "rotation_members": rotation_members,
+        "gate_mode": gate_mode,
     }
     db.close()
     return stats_out

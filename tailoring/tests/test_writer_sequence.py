@@ -41,7 +41,7 @@ class TestWriterSequence(unittest.TestCase):
             "Databases": ["PostgreSQL"],
         }
         self.baseline_resume = Path(
-            "/Users/conner/Documents/JobForge/tailoring/Baseline-Dox/Conner_Jordan_Software_Engineer/Conner_Jordan_Resume.tex"
+            "/Users/conner/Documents/TexTailor/tailoring/Baseline-Dox/Conner_Jordan_Software_Engineer/Conner_Jordan_Resume.tex"
         ).read_text(encoding="utf-8")
 
     def test_resume_chunk_coercion_accepts_dict_shaped_experience(self):

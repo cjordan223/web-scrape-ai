@@ -60,20 +60,7 @@ def _yaml_to_json(raw: dict) -> dict:
             "suffix": q.get("suffix", ""),
         })
 
-    # USAJobs watcher
     usajobs = {"enabled": False, "keywords": [], "series": [], "agencies": [], "days": 14, "remote": True}
-    for w in raw.get("watchers", []):
-        if w.get("name") == "usajobs":
-            params = w.get("params", {})
-            usajobs = {
-                "enabled": w.get("enabled", True),
-                "keywords": [k for k in (params.get("keywords", "") or "").split(";") if k],
-                "series": [s for s in (params.get("series", "") or "").split(";") if s],
-                "agencies": [a for a in (params.get("agencies", "") or "").split(";") if a],
-                "days": int(params.get("days", "14")),
-                "remote": params.get("remote", "true") == "true",
-            }
-            break
 
     search = raw.get("search", {})
     filt = raw.get("filter", {})
@@ -149,39 +136,9 @@ def _json_to_yaml(config_json: dict, existing: dict) -> dict:
             "request_delay": s.get("request_delay", 1.0),
         })
 
-    if "usajobs" in config_json:
-        u = config_json["usajobs"]
-        watchers = raw.get("watchers", [])
-        found = False
-        for w in watchers:
-            if w.get("name") == "usajobs":
-                w["enabled"] = u.get("enabled", True)
-                w.setdefault("params", {}).update({
-                    "keywords": ";".join(u.get("keywords", [])),
-                    "series": ";".join(u.get("series", [])),
-                    "agencies": ";".join(u.get("agencies", [])),
-                    "days": str(u.get("days", 14)),
-                    "remote": "true" if u.get("remote", True) else "false",
-                })
-                found = True
-                break
-        if not found and u.get("enabled"):
-            watchers.append({
-                "name": "usajobs",
-                "type": "custom",
-                "module": "job_scraper.usajobs",
-                "board": "usajobs",
-                "enabled": True,
-                "skip_filters": ["url_domain", "source_quality", "remote", "location"],
-                "params": {
-                    "keywords": ";".join(u.get("keywords", [])),
-                    "series": ";".join(u.get("series", [])),
-                    "agencies": ";".join(u.get("agencies", [])),
-                    "days": str(u.get("days", 14)),
-                    "remote": "true" if u.get("remote", True) else "false",
-                },
-            })
-        raw["watchers"] = watchers
+    # USAJobs has been retired from the pipeline. Strip any stale watcher config
+    # so saved edits cannot re-enable it.
+    raw["watchers"] = [w for w in raw.get("watchers", []) if w.get("name") != "usajobs"]
 
     if "hard_filters" in config_json:
         hf = config_json["hard_filters"]

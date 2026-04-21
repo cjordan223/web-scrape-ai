@@ -11,9 +11,11 @@ from job_scraper.salary_policy import evaluate_salary_policy
 
 logger = logging.getLogger(__name__)
 
-# Non-US location signals (cities, countries, regions)
+# Non-US location signals (cities, countries, regions). Comprehensive country
+# coverage — if a location explicitly names any non-US country, reject.
 _NON_US_PATTERN = re.compile(
     r"\b("
+    # Cities commonly appearing without country suffix
     r"london|manchester|bristol|edinburgh|cambridge|oxford|"
     r"berlin|munich|hamburg|frankfurt|"
     r"paris|lyon|toulouse|"
@@ -26,12 +28,45 @@ _NON_US_PATTERN = re.compile(
     r"tel aviv|jerusalem|"
     r"singapore|tokyo|osaka|seoul|bangalore|bengaluru|hyderabad|mumbai|pune|"
     r"sydney|melbourne|brisbane|auckland|"
+    r"toronto|vancouver|montreal|ottawa|calgary|"
+    r"dubai|abu dhabi|riyadh|doha|kuwait city|manama|muscat|"
+    r"mexico city|sao paulo|rio de janeiro|buenos aires|lima|bogota|santiago|caracas|"
+    r"cairo|lagos|nairobi|johannesburg|cape town|accra|"
+    r"kyiv|kiev|lviv|moscow|st petersburg|minsk|"
+    r"istanbul|ankara|"
+    r"bangkok|jakarta|manila|kuala lumpur|ho chi minh|hanoi|"
+    r"karachi|lahore|dhaka|colombo|"
+    r"shanghai|beijing|shenzhen|guangzhou|hong kong|taipei|"
+    # Countries / regions
     r"united kingdom|great britain|"
     r"germany|france|netherlands|ireland|spain|italy|sweden|"
     r"denmark|norway|finland|switzerland|austria|poland|czech|romania|greece|portugal|"
-    r"ukraine|latvia|lithuania|estonia|croatia|serbia|bulgaria|"
+    r"ukraine|latvia|lithuania|estonia|croatia|serbia|bulgaria|slovakia|slovenia|hungary|"
+    r"belarus|moldova|albania|north macedonia|bosnia|montenegro|kosovo|"
     r"israel|japan|south korea|india|australia|new zealand|"
-    r"europe|eu only|emea only|apac only|uk only"
+    # LATAM
+    r"argentina|brazil|peru|chile|colombia|mexico|uruguay|venezuela|ecuador|"
+    r"bolivia|paraguay|guatemala|costa rica|panama|honduras|nicaragua|"
+    r"el salvador|dominican republic|cuba|haiti|jamaica|"
+    # Canada
+    r"canada|"
+    # Africa
+    r"nigeria|kenya|egypt|south africa|morocco|tunisia|ghana|ethiopia|"
+    r"tanzania|uganda|rwanda|algeria|senegal|cameroon|ivory coast|zimbabwe|"
+    # Middle East
+    r"saudi arabia|united arab emirates|uae|qatar|kuwait|bahrain|oman|"
+    r"jordan|lebanon|iraq|iran|syria|yemen|"
+    # Asia
+    r"china|taiwan|thailand|vietnam|malaysia|indonesia|philippines|"
+    r"pakistan|bangladesh|sri lanka|nepal|myanmar|cambodia|laos|"
+    r"mongolia|kazakhstan|uzbekistan|azerbaijan|armenia|georgia|"
+    # Europe catch-alls
+    r"russia|turkey|cyprus|malta|iceland|luxembourg|liechtenstein|monaco|andorra|"
+    # Oceania / other
+    r"fiji|papua new guinea|"
+    # Region labels
+    r"europe|eu only|emea|emea only|apac|apac only|uk only|latam|lat[\-\s]?am|"
+    r"ukraine only|india only|canada only"
     r")\b", re.I
 )
 
@@ -53,8 +88,14 @@ _US_LOCATION_PATTERN = re.compile(
 )
 
 
-def _is_non_us_only(location: str, jd_text: str) -> str | None:
-    """Return rejection reason if job is clearly non-US, or None if OK."""
+def _is_non_us_only(location: str, jd_text: str, require_us: bool = True) -> str | None:
+    """Return rejection reason if job is clearly non-US, or None if OK.
+
+    When `require_us=True` (strict mode) we additionally reject postings whose
+    location field is set but contains no US signal and no bare "remote". This
+    plugs the denylist-coverage gap: any new country not enumerated in
+    `_NON_US_PATTERN` still gets caught.
+    """
     normalized_location = location.strip()
     if normalized_location:
         # Explicit "international/worldwide/global" location labels are not US-only.
@@ -77,6 +118,17 @@ def _is_non_us_only(location: str, jd_text: str) -> str | None:
         ):
             return None
         return f"Non-US location: {', '.join(set(loc_matches[:3]))}"
+
+    # Strict mode: require a positive US signal when the location field is set
+    # but no denylist entry matched. Bare "remote" still counts as US-eligible.
+    if require_us and normalized_location:
+        if _US_LOCATION_PATTERN.search(normalized_location):
+            return None
+        if re.search(r"\bremote\b", normalized_location, re.I) and not re.search(
+            r"\b(europe|emea|eu\b|apac|uk\b|only)", normalized_location, re.I
+        ):
+            return None
+        return f"Non-US location (no US signal): {normalized_location}"
 
     # Secondary: if no location field, scan the full JD for strong
     # location-constraint phrases. Offshore restrictions often appear deep in
@@ -151,7 +203,9 @@ class HardFilterPipeline:
             return self._reject(item, "salary_floor", salary_verdict.reason or "Salary below floor", spider=spider)
 
         location = item.get("location") or ""
-        geo_reason = _is_non_us_only(location, jd_text)
+        geo_reason = _is_non_us_only(
+            location, jd_text, require_us=self._config.require_us_location
+        )
         if geo_reason:
             return self._reject(item, "geo_non_us", geo_reason, spider=spider)
 

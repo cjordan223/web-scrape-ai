@@ -68,8 +68,12 @@ export default function MobileQAView() {
     const [reviewError, setReviewError] = useState('');
     const [undoToast, setUndoToast] = useState<{ ids: number[]; action: 'approve' | 'reject'; timer: ReturnType<typeof setTimeout> } | null>(null);
     const reviewSignatureRef = useRef('');
+    const jobsRequestInFlightRef = useRef(false);
+    const reviewRequestInFlightRef = useRef(false);
 
     const fetchJobs = useCallback(async () => {
+        if (jobsRequestInFlightRef.current) return;
+        jobsRequestInFlightRef.current = true;
         try {
             const res = await api.getQAPending(500);
             setJobs(res.items || []);
@@ -77,17 +81,22 @@ export default function MobileQAView() {
         } catch {
             // ignore
         } finally {
+            jobsRequestInFlightRef.current = false;
             setLoading(false);
         }
     }, []);
 
     const fetchReviewStatus = useCallback(async () => {
+        if (reviewRequestInFlightRef.current) return;
+        reviewRequestInFlightRef.current = true;
         try {
             const res = await api.getQALlmReviewStatus();
             setReviewStatus(res);
             setReviewError('');
         } catch (err: any) {
             setReviewError(err?.response?.data?.error || err?.message || 'Failed to fetch QA review status');
+        } finally {
+            reviewRequestInFlightRef.current = false;
         }
     }, []);
 

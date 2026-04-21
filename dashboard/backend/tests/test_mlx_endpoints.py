@@ -12,11 +12,11 @@ import services.mlx_manager as mgr
 class TestMLXEndpoints(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        os.environ["JOBFORGE_MANAGE_MLX"] = "1"
+        os.environ["TEXTAILOR_MANAGE_MLX"] = "1"
 
     @classmethod
     def tearDownClass(cls):
-        os.environ.pop("JOBFORGE_MANAGE_MLX", None)
+        os.environ.pop("TEXTAILOR_MANAGE_MLX", None)
 
     def setUp(self):
         mgr._proc = None
@@ -83,25 +83,25 @@ class TestMLXEndpoints(unittest.TestCase):
         self.assertFalse(data["pulling"])
 
     def test_start_blocked_without_flag(self):
-        os.environ.pop("JOBFORGE_MANAGE_MLX", None)
+        os.environ.pop("TEXTAILOR_MANAGE_MLX", None)
         client = self._get_client()
         resp = client.post("/api/llm/mlx/start", json={"model": "test"})
         self.assertEqual(resp.status_code, 403)
-        os.environ["JOBFORGE_MANAGE_MLX"] = "1"
+        os.environ["TEXTAILOR_MANAGE_MLX"] = "1"
 
     def test_stop_blocked_without_flag(self):
-        os.environ.pop("JOBFORGE_MANAGE_MLX", None)
+        os.environ.pop("TEXTAILOR_MANAGE_MLX", None)
         client = self._get_client()
         resp = client.post("/api/llm/mlx/stop")
         self.assertEqual(resp.status_code, 403)
-        os.environ["JOBFORGE_MANAGE_MLX"] = "1"
+        os.environ["TEXTAILOR_MANAGE_MLX"] = "1"
 
     def test_pull_blocked_without_flag(self):
-        os.environ.pop("JOBFORGE_MANAGE_MLX", None)
+        os.environ.pop("TEXTAILOR_MANAGE_MLX", None)
         client = self._get_client()
         resp = client.post("/api/llm/mlx/pull", json={"model_id": "test"})
         self.assertEqual(resp.status_code, 403)
-        os.environ["JOBFORGE_MANAGE_MLX"] = "1"
+        os.environ["TEXTAILOR_MANAGE_MLX"] = "1"
 
 
 if __name__ == "__main__":

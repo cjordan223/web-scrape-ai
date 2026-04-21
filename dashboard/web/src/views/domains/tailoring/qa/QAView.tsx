@@ -323,8 +323,13 @@ export default function QAView() {
     const jobsIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
     const reviewIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
     const reviewSignatureRef = useRef<string>('');
+    const jobsRequestInFlightRef = useRef(false);
+    const reviewRequestInFlightRef = useRef(false);
+    const scrapeEnabledRequestInFlightRef = useRef(false);
 
     const fetchJobs = useCallback(async () => {
+        if (jobsRequestInFlightRef.current) return;
+        jobsRequestInFlightRef.current = true;
         try {
             const res = await api.getQAPending(2000, {
                 board: boardFilter || undefined,
@@ -339,11 +344,14 @@ export default function QAView() {
         } catch (err) {
             console.error(err);
         } finally {
+            jobsRequestInFlightRef.current = false;
             setLoading(false);
         }
     }, [boardFilter, searchFilter, sourceFilter]);
 
     const fetchReviewStatus = useCallback(async () => {
+        if (reviewRequestInFlightRef.current) return;
+        reviewRequestInFlightRef.current = true;
         try {
             const res = await api.getQALlmReviewStatus();
             setReviewStatus(res);
@@ -351,15 +359,21 @@ export default function QAView() {
         } catch (err: any) {
             console.error(err);
             setReviewError(err?.response?.data?.error || err?.message || 'Failed to fetch QA review status');
+        } finally {
+            reviewRequestInFlightRef.current = false;
         }
     }, []);
 
     const fetchScrapeEnabled = useCallback(async () => {
+        if (scrapeEnabledRequestInFlightRef.current) return;
+        scrapeEnabledRequestInFlightRef.current = true;
         try {
             const res = await api.getRunsControls();
             setScrapeEnabled(res.scrape_enabled ?? null);
         } catch {
             // ignore
+        } finally {
+            scrapeEnabledRequestInFlightRef.current = false;
         }
     }, []);
 

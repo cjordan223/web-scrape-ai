@@ -785,7 +785,25 @@ def tailoring_metrics_get():
                 baselines[field] = round(avg, 2) if field in numeric_fields else round(avg, 1)
         baselines["run_count"] = len(metrics)
 
-        return {"metrics": metrics, "baselines": baselines}
+        # Compute Queue Stats (Failure rate)
+        try:
+            queue_rows = conn.execute("SELECT status, count(*) as count FROM tailoring_queue_items GROUP BY status").fetchall()
+            queue_stats = {r["status"]: r["count"] for r in queue_rows}
+        except Exception:
+            queue_stats = {}
+
+        # Compute Model Usage Stats
+        model_stats = {}
+        for m in metrics:
+            mod = m.get("model") or "unknown"
+            model_stats[mod] = model_stats.get(mod, 0) + 1
+
+        return {
+            "metrics": metrics,
+            "baselines": baselines,
+            "queue_stats": queue_stats,
+            "model_stats": model_stats,
+        }
     finally:
         conn.close()
 

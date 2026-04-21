@@ -875,7 +875,7 @@ export default function LlmProvidersView() {
                 {/* MLX management disabled hint */}
                 {isMlx && !mlxSwitching && !mlxStatus.running && testResults[p.id]?.error?.includes('lifecycle management is disabled') && (
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.75rem', fontStyle: 'italic' }}>
-                    MLX management disabled. Set JOBFORGE_MANAGE_MLX=1 to enable start/stop/pull.
+                    MLX management disabled. Set TEXTAILOR_MANAGE_MLX=1 to enable start/stop/pull.
                   </div>
                 )}
 

@@ -578,7 +578,10 @@ def tailoring_artifact(slug: str, name: str):
     artifact = d / name
     if not artifact.exists():
         return JSONResponse({"error": "Artifact not found"}, 404)
-    return FileResponse(artifact)
+    return FileResponse(
+        artifact,
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -632,6 +635,23 @@ def _package_detail_payload(d: Path, summary: dict | None = None) -> dict:
     }
 
 
+def _enrich_summary_company_from_analysis(d: Path, summary: dict) -> dict:
+    meta = summary.get("meta")
+    if not isinstance(meta, dict):
+        return summary
+    current = str(meta.get("company_name") or meta.get("company") or "").strip().lower()
+    if current not in {"", "ingest", "manual", "mobile", "unknown", "--"}:
+        return summary
+    analysis = _load_json_file(d / "analysis.json")
+    company_name = str((analysis or {}).get("company_name") or "").strip()
+    if not company_name:
+        return summary
+    meta["company_name"] = company_name
+    if current in {"", "ingest", "manual", "mobile", "unknown", "--"}:
+        meta["company"] = company_name
+    return summary
+
+
 def package_runs(status: str = Query("complete")):
     _sync_app_state()
     if not TAILORING_OUTPUT_DIR.exists():
@@ -642,6 +662,7 @@ def package_runs(status: str = Query("complete")):
         if not d.is_dir():
             continue
         s = _tailoring_summary(d)
+        s = _enrich_summary_company_from_analysis(d, s)
         if status != "all" and s.get("status") != status:
             continue
         rows.append(s)
@@ -1106,7 +1127,10 @@ def package_diff_preview(slug: str, doc_type: str):
     ok, error = _build_diff_pdf(baseline_tex, generated_tex, out_pdf)
     if not ok:
         return JSONResponse({"error": error or "Failed to build diff preview"}, 500)
-    return FileResponse(out_pdf)
+    return FileResponse(
+        out_pdf,
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 def _read_optional_text(path: Path) -> str | None:
@@ -1458,52 +1482,154 @@ def tailoring_ingest_fetch_url(payload: dict = Body(...)):
     return {"ok": True, "text": text[:15000], "url": url}
 
 
-def tailoring_ingest_commit(payload: dict = Body(...)):
-    _sync_app_state()
+def _coerce_ingest_numeric(value: object) -> int | None:
+    try:
+        return int(value) if value not in (None, "", "null") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _prepare_manual_ingest_fields(payload: dict) -> tuple[str, str, str, str, str | None, str | None, str | None, int | None, int | None, str]:
     title = (payload.get("title") or "").strip()
     if not title:
-        return JSONResponse({"ok": False, "error": "title is required"}, 400)
+        raise ValueError("title is required")
 
     url = (payload.get("url") or "").strip()
     if not url:
         import time as _time, random as _random
         url = f"manual://ingest/{int(_time.time() * 1000)}-{_random.randint(1000, 9999)}"
 
+    company = (payload.get("company") or "").strip()
     board = (payload.get("board") or payload.get("company") or "manual").strip()
     seniority = (payload.get("seniority") or "").strip() or None
     snippet = (payload.get("snippet") or "").strip() or None
     jd_text = (payload.get("jd_text") or "").strip() or None
-    salary_k = payload.get("salary_k")
-    experience_years = payload.get("experience_years")
-
-    # Coerce to int or None
-    try:
-        salary_k = int(salary_k) if salary_k not in (None, "", "null") else None
-    except (TypeError, ValueError):
-        salary_k = None
-    try:
-        experience_years = int(experience_years) if experience_years not in (None, "", "null") else None
-    except (TypeError, ValueError):
-        experience_years = None
+    salary_k = _coerce_ingest_numeric(payload.get("salary_k"))
+    experience_years = _coerce_ingest_numeric(payload.get("experience_years"))
 
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return title, url, company, board, seniority, snippet, jd_text, salary_k, experience_years, now
+
+
+def _insert_manual_ingest_job(
+    conn: sqlite3.Connection,
+    *,
+    title: str,
+    url: str,
+    company: str,
+    board: str,
+    seniority: str | None,
+    snippet: str | None,
+    jd_text: str | None,
+    salary_k: int | None,
+    experience_years: int | None,
+    now: str,
+) -> int | None:
+    cur = conn.execute(
+        """INSERT INTO jobs
+           (url, title, company, board, seniority, experience_years, salary_k, score, status,
+            snippet, query, source, jd_text, filter_verdicts, run_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 'qa_pending', ?, 'manual-ingest', 'manual', ?, NULL, 'manual-ingest', ?, ?)
+           ON CONFLICT(url) DO NOTHING""",
+        (url, title, company, board, seniority, experience_years, salary_k, snippet, jd_text, now, now),
+    )
+    return cur.lastrowid if cur.rowcount > 0 else None
+
+
+def _approve_job_row(
+    conn: sqlite3.Connection,
+    *,
+    row: sqlite3.Row,
+    llm_available: bool,
+    llm_runtime: dict | None,
+    model_id: str | None,
+) -> dict:
+    jid = int(row["id"])
+    old_decision = _normalize_decision(row["decision"])
+    source_text = row["jd_text"] or row["snippet"] or ""
+    if len(source_text.strip()) < 50:
+        return {"job_id": jid, "skipped": True, "reason": "No JD text (too short to tailor)"}
+
+    salary_verdict = _salary_policy_for_job(
+        salary_text=row["salary_text"] or "",
+        salary_k=row["salary_k"],
+    )
+    if salary_verdict.hard_reject:
+        conn.execute("UPDATE jobs SET status='qa_rejected' WHERE id=?", (jid,))
+        from services.audit import log_state_change
+        log_state_change(
+            conn,
+            job_id=jid,
+            job_url=row["url"],
+            old_state=old_decision,
+            new_state="qa_rejected",
+            action="qa_reject",
+        )
+        return {
+            "job_id": jid,
+            "rejected": True,
+            "reason": salary_verdict.reason,
+        }
+
+    req_summary, approved_jd_text, polished_with_llm = _polish_job_description(
+        source_text,
+        row["title"],
+        row["url"],
+        llm_runtime if llm_available else None,
+        model_id if llm_available else None,
+    )
+    conn.execute(
+        "UPDATE jobs SET status='qa_approved', snippet=?, approved_jd_text=? WHERE id=?",
+        (
+            (req_summary or row["snippet"] or "").strip() or None,
+            (approved_jd_text or source_text or "").strip() or None,
+            jid,
+        ),
+    )
+    from services.audit import log_state_change
+    log_state_change(
+        conn,
+        job_id=jid,
+        job_url=row["url"],
+        old_state=old_decision,
+        new_state="qa_approved",
+        action="qa_approve",
+    )
+    return {
+        "job_id": jid,
+        "summarized": bool(req_summary),
+        "polished": bool(approved_jd_text),
+        "polished_with_llm": polished_with_llm,
+    }
+
+
+def tailoring_ingest_commit(payload: dict = Body(...)):
+    _sync_app_state()
+    try:
+        title, url, company, board, seniority, snippet, jd_text, salary_k, experience_years, now = _prepare_manual_ingest_fields(payload)
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 400)
 
     try:
         conn = get_db_write()
-        cur = conn.execute(
-            """INSERT INTO jobs
-               (url, title, company, board, seniority, experience_years, salary_k, score, status,
-                snippet, query, source, jd_text, filter_verdicts, run_id, created_at, updated_at)
-               VALUES (?, ?, '', ?, ?, ?, ?, NULL, 'qa_pending', ?, 'manual-ingest', 'manual', ?, NULL, 'manual-ingest', ?, ?)
-               ON CONFLICT(url) DO NOTHING""",
-            (url, title, board, seniority, experience_years, salary_k, snippet, jd_text, now, now),
+        job_id = _insert_manual_ingest_job(
+            conn,
+            title=title,
+            url=url,
+            company=company,
+            board=board,
+            seniority=seniority,
+            snippet=snippet,
+            jd_text=jd_text,
+            salary_k=salary_k,
+            experience_years=experience_years,
+            now=now,
         )
         conn.commit()
-        if cur.rowcount == 0:
+        if job_id is None:
             conn.close()
             return JSONResponse({"ok": False, "error": "Duplicate — this URL already exists for manual-ingest"}, 409)
-        job_id = cur.lastrowid
         from services.audit import log_state_change
         log_state_change(
             conn,
@@ -1517,6 +1643,81 @@ def tailoring_ingest_commit(payload: dict = Body(...)):
         conn.commit()
         conn.close()
         return {"ok": True, "job_id": job_id, "url": url}
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 500)
+
+
+def tailoring_ingest_prepare(payload: dict = Body(...)):
+    _sync_app_state()
+    try:
+        title, url, company, board, seniority, snippet, jd_text, salary_k, experience_years, now = _prepare_manual_ingest_fields(payload)
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 400)
+
+    llm_available = False
+    llm_runtime = None
+    model_id = None
+    try:
+        llm_runtime, model_id = _resolve_active_llm_runtime()
+        if model_id:
+            llm_available = True
+    except Exception:
+        pass
+
+    try:
+        conn = get_db_write()
+        _ensure_results_approved_jd_column(conn)
+        job_id = _insert_manual_ingest_job(
+            conn,
+            title=title,
+            url=url,
+            company=company,
+            board=board,
+            seniority=seniority,
+            snippet=snippet,
+            jd_text=jd_text,
+            salary_k=salary_k,
+            experience_years=experience_years,
+            now=now,
+        )
+        if job_id is None:
+            conn.close()
+            return JSONResponse({"ok": False, "error": "Duplicate — this URL already exists for manual-ingest"}, 409)
+
+        from services.audit import log_state_change
+        log_state_change(
+            conn,
+            job_id=job_id,
+            job_url=url,
+            old_state=None,
+            new_state="qa_pending",
+            action="ingest_manual",
+            detail={"query": "manual-ingest", "prepare_for_tailoring": True},
+        )
+        row = conn.execute(
+            "SELECT id, title, url, snippet, jd_text, salary_text, salary_k, decision FROM results WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        approval = _approve_job_row(
+            conn,
+            row=row,
+            llm_available=llm_available,
+            llm_runtime=llm_runtime,
+            model_id=model_id,
+        )
+        conn.commit()
+        final_decision = conn.execute(
+            "SELECT decision FROM results WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        conn.close()
+        return {
+            "ok": True,
+            "job_id": job_id,
+            "url": url,
+            "decision": final_decision["decision"] if final_decision else None,
+            "approval": approval,
+        }
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, 500)
 
@@ -1935,52 +2136,15 @@ def tailoring_qa_approve(payload: dict = Body(...)):
             old_decision = _normalize_decision(row["decision"])
             if not _job_is_qa_pending(old_decision):
                 continue
-
-            source_text = row["jd_text"] or row["snippet"] or ""
-            if len(source_text.strip()) < 50:
-                results.append({"job_id": jid, "skipped": True, "reason": "No JD text (too short to tailor)"})
-                continue
-            salary_verdict = _salary_policy_for_job(
-                salary_text=row["salary_text"] or "",
-                salary_k=row["salary_k"],
+            results.append(
+                _approve_job_row(
+                    conn,
+                    row=row,
+                    llm_available=llm_available,
+                    llm_runtime=llm_runtime,
+                    model_id=model_id,
+                )
             )
-            if salary_verdict.hard_reject:
-                conn.execute("UPDATE jobs SET status='qa_rejected' WHERE id=?", (jid,))
-                from services.audit import log_state_change
-                log_state_change(conn, job_id=jid, job_url=row["url"],
-                                 old_state=old_decision, new_state="qa_rejected",
-                                 action="qa_reject")
-                results.append({
-                    "job_id": jid,
-                    "rejected": True,
-                    "reason": salary_verdict.reason,
-                })
-                continue
-            req_summary, approved_jd_text, polished_with_llm = _polish_job_description(
-                source_text,
-                row["title"],
-                row["url"],
-                llm_runtime if llm_available else None,
-                model_id if llm_available else None,
-            )
-            conn.execute(
-                "UPDATE jobs SET status='qa_approved', snippet=?, approved_jd_text=? WHERE id=?",
-                (
-                    (req_summary or row["snippet"] or "").strip() or None,
-                    (approved_jd_text or source_text or "").strip() or None,
-                    jid,
-                ),
-            )
-            from services.audit import log_state_change
-            log_state_change(conn, job_id=jid, job_url=row["url"],
-                             old_state=old_decision, new_state="qa_approved",
-                             action="qa_approve")
-            results.append({
-                "job_id": jid,
-                "summarized": bool(req_summary),
-                "polished": bool(approved_jd_text),
-                "polished_with_llm": polished_with_llm,
-            })
 
         conn.commit()
         return {"ok": True, "approved": results}
@@ -2254,12 +2418,18 @@ def _qa_llm_review_reconcile_stale_items(conn: sqlite3.Connection) -> int:
 def _qa_llm_review_get_batch(conn: sqlite3.Connection, batch_id: int | None = None) -> sqlite3.Row | None:
     if batch_id is not None:
         return conn.execute(
-            "SELECT id, started_at, ended_at, resolved_model FROM qa_llm_review_batches WHERE id = ?",
+            """
+            SELECT id, started_at, ended_at, resolved_model, trigger_source,
+                   queued_count, report_json, report_generated_at
+            FROM qa_llm_review_batches
+            WHERE id = ?
+            """,
             (int(batch_id),),
         ).fetchone()
     row = conn.execute(
         """
-        SELECT id, started_at, ended_at, resolved_model
+        SELECT id, started_at, ended_at, resolved_model, trigger_source,
+               queued_count, report_json, report_generated_at
         FROM qa_llm_review_batches
         WHERE ended_at IS NULL
         ORDER BY id DESC
@@ -2270,7 +2440,8 @@ def _qa_llm_review_get_batch(conn: sqlite3.Connection, batch_id: int | None = No
         return row
     return conn.execute(
         """
-        SELECT id, started_at, ended_at, resolved_model
+        SELECT id, started_at, ended_at, resolved_model, trigger_source,
+               queued_count, report_json, report_generated_at
         FROM qa_llm_review_batches
         ORDER BY id DESC
         LIMIT 1
@@ -2321,6 +2492,7 @@ def _qa_llm_review_counts(items: list[dict]) -> dict:
         "failed": 0,
         "skipped": 0,
         "errors": 0,
+        "cancelled": 0,
     }
     for item in items:
         status = item.get("status")
@@ -2340,7 +2512,110 @@ def _qa_llm_review_counts(items: list[dict]) -> dict:
         elif status == "error":
             counts["completed"] += 1
             counts["errors"] += 1
+        elif status == "cancelled":
+            counts["completed"] += 1
+            counts["cancelled"] += 1
     return counts
+
+
+def _parse_json_list(value: object) -> list:
+    if not value:
+        return []
+    try:
+        parsed = json.loads(str(value))
+        return parsed if isinstance(parsed, list) else []
+    except Exception:
+        return []
+
+
+def _qa_llm_review_build_report(conn: sqlite3.Connection, batch_id: int) -> dict:
+    batch = _qa_llm_review_get_batch(conn, batch_id=batch_id)
+    if not batch:
+        return {}
+    rows = conn.execute(
+        """
+        SELECT i.id, i.job_id, i.title, i.status, i.queued_at, i.started_at, i.completed_at,
+               i.reason, i.confidence, i.top_matches, i.gaps, i.polished, i.polished_with_llm,
+               r.url, r.company, r.board, r.source, r.run_id, r.decision, r.created_at
+        FROM qa_llm_review_items i
+        LEFT JOIN results r ON r.id = i.job_id
+        WHERE i.batch_id = ?
+        ORDER BY i.id ASC
+        """,
+        (int(batch_id),),
+    ).fetchall()
+    items: list[dict] = []
+    scrape_run_ids: set[str] = set()
+    for row in rows:
+        run_id = str(row["run_id"] or "").strip()
+        if run_id:
+            scrape_run_ids.add(run_id)
+        items.append(
+            {
+                "review_item_id": int(row["id"]),
+                "job_id": int(row["job_id"]),
+                "title": row["title"] or "",
+                "company": row["company"] or "",
+                "url": row["url"] or "",
+                "board": row["board"] or "",
+                "source": row["source"] or "",
+                "scrape_run_id": run_id,
+                "job_created_at": row["created_at"],
+                "queued_at": row["queued_at"],
+                "started_at": row["started_at"],
+                "completed_at": row["completed_at"],
+                "status": row["status"],
+                "review_status": row["status"],
+                "final_decision": row["decision"],
+                "reason": row["reason"] or "",
+                "confidence": row["confidence"],
+                "top_matches": _parse_json_list(row["top_matches"]),
+                "gaps": _parse_json_list(row["gaps"]),
+                "polished": bool(row["polished"]),
+                "polished_with_llm": bool(row["polished_with_llm"]),
+            }
+        )
+    summary = _qa_llm_review_counts(items)
+    generated_at = datetime.now(timezone.utc).isoformat()
+    return {
+        "batch_id": int(batch["id"]),
+        "started_at": batch["started_at"],
+        "ended_at": batch["ended_at"],
+        "generated_at": generated_at,
+        "resolved_model": batch["resolved_model"],
+        "trigger_source": batch["trigger_source"],
+        "queued_count": int(batch["queued_count"] or len(items)),
+        "summary": summary,
+        "scrape_run_ids": sorted(scrape_run_ids),
+        "items": items,
+    }
+
+
+def _qa_llm_review_save_report(conn: sqlite3.Connection, batch_id: int) -> dict:
+    report = _qa_llm_review_build_report(conn, batch_id)
+    if not report:
+        return {}
+    conn.execute(
+        """
+        UPDATE qa_llm_review_batches
+        SET report_json = ?,
+            report_generated_at = ?
+        WHERE id = ?
+        """,
+        (json.dumps(report, sort_keys=True), report["generated_at"], int(batch_id)),
+    )
+    return report
+
+
+def _qa_llm_review_report_from_batch(batch: sqlite3.Row) -> dict | None:
+    raw = batch["report_json"] if "report_json" in batch.keys() else None
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        return None
 
 
 def _qa_llm_review_snapshot() -> dict:
@@ -2375,6 +2650,8 @@ def _qa_llm_review_snapshot() -> dict:
             "started_at": batch["started_at"],
             "ended_at": batch["ended_at"],
             "resolved_model": batch["resolved_model"],
+            "trigger_source": batch["trigger_source"],
+            "report_generated_at": batch["report_generated_at"],
             "active_job": active_job,
             "items": items,
             "summary": counts,
@@ -2406,6 +2683,7 @@ def _qa_llm_review_mark_pending_as_error(reason: str, *, batch_id: int | None = 
             "UPDATE qa_llm_review_batches SET ended_at = COALESCE(ended_at, ?) WHERE id = ?",
             (completed_at, int(batch["id"])),
         )
+        _qa_llm_review_save_report(conn, int(batch["id"]))
         conn.commit()
     finally:
         conn.close()
@@ -2579,6 +2857,7 @@ def _qa_llm_review_worker(*, batch_id: int) -> None:
                     "UPDATE qa_llm_review_batches SET ended_at = COALESCE(ended_at, ?) WHERE id = ?",
                     (datetime.now(timezone.utc).isoformat(), int(batch_id)),
                 )
+                _qa_llm_review_save_report(conn, int(batch_id))
                 conn.commit()
                 break
             started_at = datetime.now(timezone.utc).isoformat()
@@ -2654,6 +2933,17 @@ def tailoring_qa_llm_review_cancel():
         )
         conn.commit()
         cancelled = max(int(cur.rowcount or 0), 0)
+        open_count = conn.execute(
+            "SELECT COUNT(*) FROM qa_llm_review_items WHERE batch_id = ? AND status IN ('queued', 'reviewing')",
+            (int(batch["id"]),),
+        ).fetchone()[0]
+        if not open_count:
+            conn.execute(
+                "UPDATE qa_llm_review_batches SET ended_at = COALESCE(ended_at, ?) WHERE id = ?",
+                (datetime.now(timezone.utc).isoformat(), int(batch["id"])),
+            )
+            _qa_llm_review_save_report(conn, int(batch["id"]))
+            conn.commit()
     finally:
         conn.close()
     return {"ok": True, "cancelled": cancelled}
@@ -2665,11 +2955,70 @@ def tailoring_qa_llm_review_status():
     return _qa_llm_review_snapshot()
 
 
+def tailoring_qa_llm_review_reports(limit: int = Query(20, ge=1, le=200)):
+    _sync_app_state()
+    conn = get_db_write()
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, started_at, ended_at, resolved_model, trigger_source,
+                   queued_count, report_json, report_generated_at
+            FROM qa_llm_review_batches
+            WHERE ended_at IS NOT NULL
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        ).fetchall()
+        items = []
+        for row in rows:
+            report = _qa_llm_review_report_from_batch(row)
+            if report is None:
+                report = _qa_llm_review_save_report(conn, int(row["id"]))
+            summary = (report or {}).get("summary") or {}
+            items.append(
+                {
+                    "batch_id": int(row["id"]),
+                    "started_at": row["started_at"],
+                    "ended_at": row["ended_at"],
+                    "resolved_model": row["resolved_model"],
+                    "trigger_source": row["trigger_source"],
+                    "queued_count": int(row["queued_count"] or summary.get("total") or 0),
+                    "report_generated_at": (report or {}).get("generated_at") or row["report_generated_at"],
+                    "summary": summary,
+                    "scrape_run_ids": (report or {}).get("scrape_run_ids") or [],
+                }
+            )
+        conn.commit()
+        return {"items": items}
+    finally:
+        conn.close()
+
+
+def tailoring_qa_llm_review_report(batch_id: int):
+    _sync_app_state()
+    conn = get_db_write()
+    try:
+        batch = _qa_llm_review_get_batch(conn, batch_id=batch_id)
+        if not batch:
+            return JSONResponse({"error": "Report not found"}, 404)
+        report = _qa_llm_review_report_from_batch(batch)
+        if report is None and batch["ended_at"] is not None:
+            report = _qa_llm_review_save_report(conn, int(batch_id))
+            conn.commit()
+        if report is None:
+            report = _qa_llm_review_build_report(conn, int(batch_id))
+        return {"report": report}
+    finally:
+        conn.close()
+
+
 def tailoring_qa_llm_review(payload: dict = Body(...)):
     _sync_app_state()
     job_ids = payload.get("job_ids") or []
     if not job_ids:
         return JSONResponse({"ok": False, "error": "job_ids required"}, 400)
+    trigger_source = str(payload.get("trigger_source") or "manual").strip()[:80] or "manual"
     unique_ids: list[int] = []
     for raw_job_id in job_ids:
         if not isinstance(raw_job_id, int):
@@ -2709,7 +3058,15 @@ def tailoring_qa_llm_review(payload: dict = Body(...)):
             """
         ).fetchone()
         if batch is None:
-            cur = conn.execute("INSERT INTO qa_llm_review_batches (started_at, ended_at, resolved_model) VALUES (?, NULL, NULL)", (now,))
+            cur = conn.execute(
+                """
+                INSERT INTO qa_llm_review_batches (
+                    started_at, ended_at, resolved_model, trigger_source, queued_count,
+                    report_json, report_generated_at
+                ) VALUES (?, NULL, NULL, ?, 0, NULL, NULL)
+                """,
+                (now, trigger_source),
+            )
             batch_id = int(cur.lastrowid)
         else:
             batch_id = int(batch["id"])
@@ -2737,6 +3094,16 @@ def tailoring_qa_llm_review(payload: dict = Body(...)):
             )
             existing_ids.add(job_id)
             added += 1
+        conn.execute(
+            """
+            UPDATE qa_llm_review_batches
+            SET queued_count = (
+                SELECT COUNT(*) FROM qa_llm_review_items WHERE batch_id = ?
+            )
+            WHERE id = ?
+            """,
+            (batch_id, batch_id),
+        )
         conn.commit()
     finally:
         conn.close()

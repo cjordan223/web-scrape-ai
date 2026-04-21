@@ -1,0 +1,73 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: Job
+      - text: Forge
+    - generic [ref=e6]:
+      - link "Pipeline" [ref=e7] [cursor=pointer]:
+        - /url: /pipeline
+        - img [ref=e8]
+        - text: Pipeline
+      - link "Ops" [ref=e12] [cursor=pointer]:
+        - /url: /ops
+        - img [ref=e13]
+        - text: Ops
+    - generic [ref=e15]: v5.0 · Pipeline
+  - generic [ref=e16]:
+    - complementary [ref=e17]:
+      - navigation [ref=e18]:
+        - link "Inventory All stored results" [ref=e20] [cursor=pointer]:
+          - /url: /ops/inventory
+          - img [ref=e21]
+          - generic [ref=e24]:
+            - generic [ref=e25]: Inventory
+            - generic [ref=e26]: All stored results
+        - link "Rejected Rejected buckets" [ref=e28] [cursor=pointer]:
+          - /url: /ops/rejected
+          - img [ref=e29]
+          - generic [ref=e33]:
+            - generic [ref=e34]: Rejected
+            - generic [ref=e35]: Rejected buckets
+        - link "Traces Tailoring LLM traces" [ref=e37] [cursor=pointer]:
+          - /url: /ops/traces
+          - img [ref=e38]
+          - generic [ref=e42]:
+            - generic [ref=e43]: Traces
+            - generic [ref=e44]: Tailoring LLM traces
+        - link "LLM Provider keys & models" [ref=e46] [cursor=pointer]:
+          - /url: /ops/llm
+          - img [ref=e47]
+          - generic [ref=e50]:
+            - generic [ref=e51]: LLM
+            - generic [ref=e52]: Provider keys & models
+        - link "Metrics Tailoring performance" [ref=e54] [cursor=pointer]:
+          - /url: /ops/metrics
+          - img [ref=e55]
+          - generic [ref=e57]:
+            - generic [ref=e58]: Metrics
+            - generic [ref=e59]: Tailoring performance
+        - link "Scraper Tier-aware scrape metrics" [ref=e61] [cursor=pointer]:
+          - /url: /ops/scraper
+          - img [ref=e62]
+          - generic [ref=e64]:
+            - generic [ref=e65]: Scraper
+            - generic [ref=e66]: Tier-aware scrape metrics
+        - link "System Scheduler & config snapshot" [ref=e68] [cursor=pointer]:
+          - /url: /ops/system
+          - img [ref=e69]
+          - generic [ref=e72]:
+            - generic [ref=e73]: System
+            - generic [ref=e74]: Scheduler & config snapshot
+        - link "Admin SQL console & bulk ops" [ref=e76] [cursor=pointer]:
+          - /url: /ops/admin
+          - img [ref=e77]
+          - generic [ref=e79]:
+            - generic [ref=e80]: Admin
+            - generic [ref=e81]: SQL console & bulk ops
+      - generic [ref=e84]: ...
+    - main [ref=e85]:
+      - generic [ref=e87]:
+        - generic [ref=e88]:
+          - text: Ops
+          - generic [ref=e89]: /
+        - generic [ref=e90]: Scraper

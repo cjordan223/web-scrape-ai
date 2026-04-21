@@ -27,7 +27,7 @@ python -m job_scraper stats
 python -m job_scraper recent -n 20
 
 # Dashboard backend
-cd /Users/conner/Documents/JobForge
+cd /Users/conner/Documents/TexTailor
 source venv/bin/activate
 python dashboard/backend/server.py
 
@@ -39,9 +39,14 @@ npm run dev
 cd dashboard/web
 npm run build
 
+# Restart full stack (SearXNG + build frontend + backend)
+./scripts/restart-dashboard.sh
+
 # Tests
 source venv/bin/activate
 python -m pytest dashboard/backend/tests/test_tailoring_api.py
+python -m pytest dashboard/backend/tests/test_package_chat.py
+python -m pytest dashboard/backend/tests/test_mlx_endpoints.py
 PYTHONPATH=tailoring python -m pytest tailoring/tests/test_ollama_tracing.py
 ```
 
@@ -53,7 +58,7 @@ PYTHONPATH=tailoring python -m pytest tailoring/tests/test_ollama_tracing.py
 
 Desktop routes (two domains — Pipeline and Ops):
 
-- `/pipeline/editor` — pipeline editor (default landing page)
+- `/pipeline/editor` — visual pipeline editor (default landing page, React Flow)
 - `/pipeline/ingest` — manual job ingest
 - `/pipeline/qa` — QA triage (approve/reject/LLM-review)
 - `/pipeline/leads` — HN Hiring leads browser
@@ -66,9 +71,12 @@ Desktop routes (two domains — Pipeline and Ops):
 - `/ops/rejected/qa` — QA rejections
 - `/ops/traces` — tailoring LLM trace inspector
 - `/ops/llm` — LLM provider management (keys, models)
-- `/ops/admin` — admin operations + DB explorer
+- `/ops/metrics` — tailoring performance metrics
+- `/ops/scraper` — scraper metrics (freshness visuals, tier stats)
+- `/ops/system` — system status
+- `/ops/admin` — SQL console + bulk ops
 
-Mobile routes (auto-redirect on `width < 768`), tab bar order: Ingest, QA, Jobs, Docs:
+Mobile routes (auto-redirect on `width < 768`, defaults to `/m/qa`), tab bar order: Ingest, QA, Jobs, Docs:
 
 - `/m/ingest` — two input modes: **Paste Text** (raw JD → LLM parse) or **URL** (fetch + LLM parse). Both flow into editable fields → commit to DB → queue for tailoring
 - `/m/qa` — QA triage: approve/reject/LLM-review pending jobs, scan mobile-jd folder for OCR ingest
@@ -79,11 +87,11 @@ Mobile routes (auto-redirect on `width < 768`), tab bar order: Ingest, QA, Jobs,
 
 - DB explorer filtering is server-side and column-aware (`/api/db/table/{name}`).
 - SQL query endpoint (`/api/db/query`) is SELECT-only.
-- Admin ops page (`/ops/admin`) fires destructive actions directly — no feature flag, no confirmation phrase.
+- Admin page (`/ops/admin`) is a SQL console + bulk ops — fires destructive actions directly, no confirmation phrase.
 - Production DB: `jobs` table is the source of truth; `results` is a VIEW (`SELECT *, status AS decision FROM jobs`).
 - LLM provider registry in `providers.py`: ollama, mlx, gemini, groq, mistral, openrouter, together, custom. Legacy `"lmstudio"`/`"openai"` auto-migrate to `"ollama"` on load.
 - Applied applications snapshot artifacts into `applied_snapshots` table — survives package deletion.
-- LLM model selection is explicit — JobForge never auto-picks the first model from a shared endpoint. Tailoring will fail with a clear error if no model is configured.
+- LLM model selection is explicit — TexTailor never auto-picks the first model from a shared endpoint. Tailoring will fail with a clear error if no model is configured.
 
 ### API endpoints by domain
 
@@ -134,34 +142,65 @@ Mobile routes (auto-redirect on `width < 768`), tab bar order: Ingest, QA, Jobs,
 
 ## Scraper Package Layout (high-level)
 
-Scrapy-style layout: discovery via spiders, processing via item pipelines.
+Scrapy + Typer CLI: discovery via spiders, processing via item pipelines.
 
-- `job_scraper/config.py` — config models + YAML loader
+- `job_scraper/config.py` — config models + YAML loader (Pydantic)
 - `job_scraper/db.py` — SQLite persistence (seen_urls, jobs, rejected, runs)
 - `job_scraper/fetcher.py` — page/JD retrieval
 - `job_scraper/items.py` — Scrapy item definitions
+- `job_scraper/salary_policy.py` — salary validation logic
 - `job_scraper/settings.py` — Scrapy settings
-- `job_scraper/spiders/` — discovery sources: `searxng`, `ashby`, `greenhouse`, `lever`, `hn_hiring`, `remoteok`, `usajobs`, `generic`, `aggregator`
-- `job_scraper/pipelines/` — processing stages: `dedup`, `text_extraction`, `hard_filter`, `storage`
+- `job_scraper/spiders/` — 10 spiders: `searxng`, `ashby`, `greenhouse`, `lever`, `hn_hiring`, `remoteok`, `usajobs`, `workable`, `generic`, `aggregator`
+- `job_scraper/pipelines/` — processing stages: `text_extraction` → `dedup` → `hard_filter` → `llm_relevance` → `storage` (plus `tier_stats` helper)
 
 ## Tailoring Package Layout (high-level)
 
-- `tailor/analyzer.py` — JD requirement extraction
-- `tailor/writer.py` — strategy/draft/QA prompt pipeline
-- `tailor/validator.py` — hard gates
+- `tailor/analyzer.py` — JD requirement extraction (with hash-based caching)
+- `tailor/writer.py` — strategy/draft/QA prompt pipeline (largest module, ~2.2K LOC)
+- `tailor/validator.py` — hard gates (section order, bullet counts, grounding claims, PDF fit)
+- `tailor/semantic_validator.py` — semantic validation of analysis against skill inventory
 - `tailor/compiler.py` — pdflatex wrapper
 - `tailor/tracing.py` — per-call trace logging
-- `tailor/ollama.py` — LLM client with file-lock mutex; requires explicit model via `TAILOR_LLM_MODEL` (no auto-discovery)
-- `tailor/grounding.py` — structured grounding contract for tailoring
-- `tailor/persona.py` — persona memory hierarchy (load, score, inject per stage)
-- `tailor/selector.py` — interactive job selection for CLI
+- `tailor/ollama.py` — multi-provider LLM client with file-lock mutex; requires explicit model via `TAILOR_LLM_MODEL` (no auto-discovery). Supports thinking models (Qwen3 4x token multiplier).
+- `tailor/grounding.py` — structured grounding contract (baseline resume > persona > skills inventory)
+- `tailor/persona.py` — persona memory hierarchy (load, score, inject per stage). Reads from `persona/` dir, falls back to `soul.md`.
+- `tailor/selector.py` — job selection from DB for CLI
+- `tailor/metrics.py` — run metrics computation
 - `tailor/config.py` — paths, model config, constants
+
+## Dashboard Backend Services
+
+- `services/tailoring.py` — main business logic (3.4K LOC): job processing, QA, LLM review, packages, applied tracking
+- `services/ops.py` — DB admin, runtime controls, metrics
+- `services/package_chat.py` — LLM-powered package refinement chat (history in `{slug}/.chat_history.json`)
+- `services/model_catalog.py` — model discovery & catalog (Ollama, MLX), benchmarking
+- `services/archive.py` — tailoring run archival
+- `services/scraper_config.py` — scraper YAML config persistence
+- `services/mlx_manager.py` — MLX server lifecycle (start/stop/pull)
+- `services/mobile_jd.py` — mobile JD scanning/OCR via Tesseract
+- `services/jd_fetch.py` — domain-specific JD fetchers (LinkedIn, Ashby, generic)
+- `services/llm_keys.py` — secure API key storage (`~/.local/share/textailor/llm_keys.json`)
+- `services/audit.py` — state change audit trail (`state_log` table)
+- `services/scraping.py` — shim loader for `job-scraper/api/scraping_handlers.py`
+- `services/scrape_scheduler.py` — background scraper scheduling
+- `services/run_reviewer.py` — post-run review helpers
+
+## Frontend Stack
+
+React 19 + TypeScript 5.9 + Vite 8 + React Router v7. Pipeline editor uses @xyflow/react. Icons via lucide-react. All routes lazy-loaded with code splitting. No state management library (local component state only). API client in `src/api.ts` (90+ methods). Shared layout primitives in `src/components/workflow/`.
 
 ## Environment
 
 - Host: macOS machine (LAN-accessed dashboard)
 - Ports:
   - SearXNG `8888`
-  - Dashboard `8899`
+  - Dashboard `8899` (`DASHBOARD_PORT`)
   - LLM endpoint `11434` (Ollama)
-- `JOBFORGE_MANAGE_MLX=1` — opt-in to MLX server lifecycle management (start/stop/pull) from the dashboard. Without this, MLX endpoints are read-only.
+  - MLX default `8080`
+  - Frontend dev `5173`
+- `TEXTAILOR_MANAGE_MLX=1` — opt-in to MLX server lifecycle management (start/stop/pull) from the dashboard. Without this, MLX endpoints are read-only.
+- `DASHBOARD_RELOAD=1` — enable uvicorn hot-reload (disabled by default for stable LAN serving)
+- `TAILOR_LLM_MODEL` — explicit model ID for tailoring (required, no auto-pick). Fallback: `TAILOR_OLLAMA_MODEL`.
+- `TAILOR_LLM_URL` — chat endpoint (default: `http://localhost:11434/v1/chat/completions`). Fallback: `TAILOR_OLLAMA_URL`.
+- `TAILOR_LLM_PROVIDER` — provider type: `ollama` (default), or cloud provider name.
+- `TAILOR_LLM_API_KEY` — auth token for cloud providers.

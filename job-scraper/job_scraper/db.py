@@ -59,7 +59,10 @@ CREATE TABLE IF NOT EXISTS runs (
     trigger_source TEXT NOT NULL DEFAULT 'scheduled',
     net_new INTEGER,
     gate_mode TEXT,
-    rotation_group INTEGER
+    rotation_group INTEGER,
+    rotation_members TEXT,
+    llm_review TEXT,
+    llm_review_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs(started_at);
 
@@ -166,6 +169,9 @@ class JobDB:
                     ("net_new", "INTEGER"),
                     ("gate_mode", "TEXT"),
                     ("rotation_group", "INTEGER"),
+                    ("rotation_members", "TEXT"),
+                    ("llm_review", "TEXT"),
+                    ("llm_review_at", "TEXT"),
                 ]:
                     if col not in cols:
                         self._conn.execute(f"ALTER TABLE runs ADD COLUMN {col} {defn}")
@@ -293,7 +299,9 @@ class JobDB:
         net_new: int | None = None,
         gate_mode: str | None = None,
         rotation_group: int | None = None,
+        rotation_members: list[str] | None = None,
     ) -> None:
+        import json as _json
         now = _now()
         started = self._conn.execute(
             "SELECT started_at FROM runs WHERE run_id = ?", (run_id,)
@@ -302,16 +310,38 @@ class JobDB:
         if started:
             start_dt = datetime.fromisoformat(started["started_at"])
             elapsed = (datetime.now(timezone.utc) - start_dt).total_seconds()
+        members_json = _json.dumps(rotation_members) if rotation_members is not None else None
         self._conn.execute(
             """UPDATE runs SET completed_at = ?, elapsed = ?, raw_count = ?,
                dedup_count = ?, filtered_count = ?, error_count = ?, errors = ?,
                net_new = COALESCE(?, net_new),
                gate_mode = COALESCE(?, gate_mode),
                rotation_group = COALESCE(?, rotation_group),
+               rotation_members = COALESCE(?, rotation_members),
                status = 'completed'
             WHERE run_id = ?""",
             (now, elapsed, raw_count, dedup_count, filtered_count, error_count,
-             errors, net_new, gate_mode, rotation_group, run_id),
+             errors, net_new, gate_mode, rotation_group, members_json, run_id),
+        )
+        self._conn.commit()
+
+    def seed_tier_stats(self, run_id: str, members: list[tuple[str, str]]) -> None:
+        """Insert a zero row for every (spider, tier) in the rotation.
+
+        Call at run start so spiders that yield 0 items are still visible in
+        run_tier_stats (distinguishes 'scheduled-but-silent' from 'not-scheduled').
+        """
+        for source, tier in members:
+            self._conn.execute(
+                "INSERT OR IGNORE INTO run_tier_stats (run_id, tier, source) VALUES (?, ?, ?)",
+                (run_id, tier, source),
+            )
+        self._conn.commit()
+
+    def save_run_review(self, run_id: str, review_json: str) -> None:
+        self._conn.execute(
+            "UPDATE runs SET llm_review = ?, llm_review_at = ? WHERE run_id = ?",
+            (review_json, _now(), run_id),
         )
         self._conn.commit()
 

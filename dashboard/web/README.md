@@ -15,7 +15,7 @@ React + TypeScript frontend for the shared dashboard. Built with Vite and served
 ## Run
 
 ```bash
-cd /Users/conner/Documents/JobForge/dashboard/web
+cd /Users/conner/Documents/TexTailor/dashboard/web
 npm install
 npm run dev
 ```

@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { api } from '../../../../api';
-import { FileDiff, Pencil, MessageSquare, ChevronDown, ChevronUp, FileText, Layers, BookOpen, Copy, Scissors } from 'lucide-react';
+import { MessageSquare, ChevronDown, ChevronUp, Copy, Scissors, SlidersHorizontal, X, RotateCcw, Skull } from 'lucide-react';
 import { copyText, toLocalInputValue } from '../../../../utils';
 import PackageChatPanel from './PackageChatTab';
-import { DetailContextSection, BriefingPanel, DocumentsSideBySide, StrategyCard, JdDisplay, timeAgo, safePdfName } from './shared';
+import { DetailContextSection, BriefingPanel, DocumentsSideBySide, StrategyCard, JdDisplay, safePdfName } from './shared';
+import PackageDossierCarousel from './PackageDossierCarousel';
 
 type MainTab = 'briefing' | 'strategy' | 'documents' | 'jd' | 'diff' | 'editor';
 type RunFilter = 'all' | 'recent_reruns' | 'latest_only' | 'previous_only' | 'with_history' | 'returned';
@@ -17,32 +18,6 @@ type PackageGroup = {
     company: string;
     items: any[];
 };
-
-function ActionHelp({ text }: { text: string }) {
-    return (
-        <span
-            title={text}
-            aria-label={text}
-            style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '14px',
-                height: '14px',
-                borderRadius: '999px',
-                border: '1px solid var(--border)',
-                color: 'var(--text-secondary)',
-                fontSize: '.62rem',
-                fontWeight: 700,
-                lineHeight: 1,
-                cursor: 'help',
-                flexShrink: 0,
-            }}
-        >
-            ?
-        </span>
-    );
-}
 
 function packageUpdatedAt(item: any) {
     const raw = item?.updated_at || item?.created_at || 0;
@@ -432,6 +407,10 @@ export default function PackagesView() {
     const [resumeChunksOpen, setResumeChunksOpen] = useState(false);
     const [copiedChunkIndex, setCopiedChunkIndex] = useState<number | null>(null);
     const [copiedAllChunks, setCopiedAllChunks] = useState(false);
+    const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
+    const [carouselIndex, setCarouselIndex] = useState(0);
+    const [activeRunBySlug, setActiveRunBySlug] = useState<Record<string, number>>({});
+    const [filtersOpen, setFiltersOpen] = useState(false);
     const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
@@ -439,9 +418,6 @@ export default function PackagesView() {
         try {
             const res = await api.getPackages();
             setData(res);
-            if (res.length > 0) {
-                setActiveSlug((current) => current || res[0].slug);
-            }
         } catch (err) {
             console.error(err);
         } finally {
@@ -696,10 +672,20 @@ export default function PackagesView() {
 
 
     useEffect(() => {
-        if (!visibleData.some((item) => item.slug === activeSlug)) {
-            setActiveSlug(visibleData[0]?.slug || null);
+        if (activeSlug !== null && !visibleData.some((item) => item.slug === activeSlug)) {
+            setActiveSlug(null);
         }
     }, [visibleData, activeSlug]);
+
+    useEffect(() => {
+        if (groupedFilteredData.length === 0) {
+            if (carouselIndex !== 0) setCarouselIndex(0);
+            return;
+        }
+        if (carouselIndex >= groupedFilteredData.length) {
+            setCarouselIndex(Math.max(0, groupedFilteredData.length - 1));
+        }
+    }, [groupedFilteredData.length, carouselIndex]);
 
     const activePkg = visibleData.find(p => p.slug === activeSlug) || data.find(p => p.slug === activeSlug);
     const resumePdfKey = Object.keys(activePkg?.artifacts || {}).find(k => k.endsWith('Resume.pdf'));
@@ -711,10 +697,10 @@ export default function PackagesView() {
         ? `/api/tailoring/runs/${encodeURIComponent(activeSlug)}/artifact/${encodeURIComponent(pdfKey)}?v=${previewBuster[packageDoc]}`
         : '';
     const resumePdfUrl = activeSlug && resumePdfKey
-        ? `/api/tailoring/runs/${encodeURIComponent(activeSlug)}/artifact/${encodeURIComponent(resumePdfKey)}`
+        ? `/api/tailoring/runs/${encodeURIComponent(activeSlug)}/artifact/${encodeURIComponent(resumePdfKey)}?v=${previewBuster.resume}`
         : '';
     const coverPdfUrl = activeSlug && coverPdfKey
-        ? `/api/tailoring/runs/${encodeURIComponent(activeSlug)}/artifact/${encodeURIComponent(coverPdfKey)}`
+        ? `/api/tailoring/runs/${encodeURIComponent(activeSlug)}/artifact/${encodeURIComponent(coverPdfKey)}?v=${previewBuster.cover}`
         : '';
     const zipDownloadUrl = activeSlug && (resumePdfUrl || coverPdfUrl)
         ? `/api/packages/${encodeURIComponent(activeSlug)}/download.zip`
@@ -745,97 +731,33 @@ export default function PackagesView() {
         );
     }
 
-    if (visibleData.length === 0) {
-        return (
-            <div style={{ display: 'flex', height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
-                <div style={{
-                    width: '280px', flexShrink: 0, display: 'flex', flexDirection: 'column',
-                    borderRight: '1px solid var(--border)', background: 'var(--surface)', overflow: 'hidden',
-                }}>
-                    <div style={{
-                        padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)',
-                    }}>
-                        <div style={{
-                            fontFamily: 'var(--font-mono)', fontSize: '.62rem', fontWeight: 600,
-                            color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.1em',
-                            marginBottom: '8px',
-                        }}>
-                            Packages (0)
-                        </div>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                            {([
-                                ['all', 'All'],
-                                ['unapplied', 'Unapplied'],
-                                ['applied', 'Applied'],
-                            ] as const).map(([value, label]) => (
-                                <button
-                                    key={value}
-                                    className={`btn btn-sm ${applyFilter === value ? 'btn-primary' : 'btn-ghost'}`}
-                                    style={{ fontSize: '.66rem', flex: 1 }}
-                                    onClick={() => setApplyFilter(value)}
-                                >
-                                    {label}
-                                </button>
-                            ))}
-                        </div>
-                        <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
-                            {runFilterOptions.map(({ value, label }) => (
-                                <button
-                                    key={value}
-                                    className={`btn btn-sm ${runFilter === value ? 'btn-primary' : 'btn-ghost'}`}
-                                    style={{ fontSize: '.62rem' }}
-                                    onClick={() => setRunFilter(value)}
-                                >
-                                    {label}
-                                </button>
-                            ))}
-                        </div>
-                        <TimelineControls
-                            mode={timelineMode} setMode={setTimelineMode}
-                            unit={timelineUnit} setUnit={setTimelineUnit}
-                            newerThanValue={timelineNewerThanValue} setNewerThanValue={setTimelineNewerThanValue}
-                            betweenMinValue={timelineBetweenMinValue} setBetweenMinValue={setTimelineBetweenMinValue}
-                            betweenMaxValue={timelineBetweenMaxValue} setBetweenMaxValue={setTimelineBetweenMaxValue}
-                            summary={timelineSummary}
-                        />
-                    </div>
-                </div>
-                <div style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexDirection: 'column',
-                    gap: '12px',
-                }}>
-                    <span style={{ fontSize: '1.6rem', opacity: 0.2 }}>&#9998;</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.82rem', color: 'var(--text-secondary)' }}>
-                        No packages match the current filters.
-                    </span>
-                </div>
-            </div>
-        );
-    }
+    // Empty state is rendered inside the carousel itself; no separate early return needed.
 
     return (
-        <div style={{ display: 'flex', height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', height: 'calc(100vh - 56px)', overflow: 'hidden', width: '100%' }}>
 
-            {/* ══════════ LEFT SIDEBAR — Package List ══════════ */}
-            <div style={{
-                width: '280px', flexShrink: 0, display: 'flex', flexDirection: 'column',
-                borderRight: '1px solid var(--border)', background: 'var(--surface)', overflow: 'hidden',
-            }}>
-                <div style={{
-                    padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)',
-                }}>
-                    <div style={{
-                        fontFamily: 'var(--font-mono)', fontSize: '.62rem', fontWeight: 600,
-                        color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.1em',
-                        marginBottom: '8px',
-                    }}>
-                        Packages ({visibleData.length}) {groupedFilteredData.length > 0 ? `• Jobs (${groupedFilteredData.length})` : ''}
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px' }}>
+            {!activeSlug ? (
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', position: 'relative', overflow: 'hidden' }}>
+            <PackageDossierCarousel
+                groups={groupedFilteredData}
+                activeIndex={carouselIndex}
+                setActiveIndex={setCarouselIndex}
+                activeRunBySlug={activeRunBySlug}
+                setActiveRunBySlug={setActiveRunBySlug}
+                selectedSlugs={selectedSlugs}
+                onToggleSelect={(slug) => {
+                    setSelectedSlugs((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(slug)) next.delete(slug); else next.add(slug);
+                        return next;
+                    });
+                }}
+                onOpen={(slug) => setActiveSlug(slug)}
+                onRequeue={handleRequeuePackage}
+                onDead={handleDeadPackage}
+                eyebrow={`Tailored Packages · ${visibleData.length} run${visibleData.length === 1 ? '' : 's'} across ${groupedFilteredData.length} job${groupedFilteredData.length === 1 ? '' : 's'}`}
+                headerRight={
+                    <>
                         {([
                             ['all', 'All'],
                             ['unapplied', 'Unapplied'],
@@ -843,26 +765,134 @@ export default function PackagesView() {
                         ] as const).map(([value, label]) => (
                             <button
                                 key={value}
-                                className={`btn btn-sm ${applyFilter === value ? 'btn-primary' : 'btn-ghost'}`}
-                                style={{ fontSize: '.66rem', flex: 1 }}
+                                type="button"
+                                className={`dossier-pill ${applyFilter === value ? 'is-on' : ''}`}
                                 onClick={() => setApplyFilter(value)}
                             >
                                 {label}
                             </button>
+                        ))}
+                        <button
+                            type="button"
+                            className={`dossier-pill ${filtersOpen ? 'is-on' : ''}`}
+                            onClick={() => setFiltersOpen((v) => !v)}
+                            title="Advanced filters"
+                        >
+                            <SlidersHorizontal size={12} /> Filters
+                        </button>
+                    </>
+                }
+                bulkBar={selectedVisibleCount > 0 ? (
+                    <div className="dossier-bulk-bar">
+                        <span className="count"><b>{selectedVisibleCount}</b>selected</span>
+                        <button
+                            type="button"
+                            className="dossier-btn ghost"
+                            disabled={deleteBusy}
+                            onClick={handleBulkRequeue}
+                        >
+                            <RotateCcw size={14} /> {deleteBusy ? 'Re-queuing…' : 'Re-queue'}
+                        </button>
+                        <button
+                            type="button"
+                            className="dossier-btn ghost"
+                            disabled={bulkBusy}
+                            onClick={async () => {
+                                const selected = visibleData.filter(d => selectedSlugs.has(d.slug) && d.meta?.job_id && !d.applied);
+                                const jobIds = selected.map(d => d.meta.job_id);
+                                if (!jobIds.length) return;
+                                if (!confirm(`Return ${jobIds.length} job(s) to QA? Output files are preserved.`)) return;
+                                setBulkBusy(true);
+                                try {
+                                    await api.rollbackToQA(jobIds);
+                                    setSelectedSlugs(new Set());
+                                    await fetchPackages();
+                                } catch { /* noop */ }
+                                finally { setBulkBusy(false); }
+                            }}
+                        >
+                            Send Back to QA
+                        </button>
+                        <button
+                            type="button"
+                            className="dossier-btn danger"
+                            disabled={deleteBusy}
+                            onClick={handleBulkDead}
+                        >
+                            <Skull size={14} /> {deleteBusy ? 'Deleting…' : 'Dead'}
+                        </button>
+                        <button
+                            type="button"
+                            className="dossier-iconbtn"
+                            title="Clear selection"
+                            onClick={() => setSelectedSlugs(new Set())}
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                ) : null}
+            />
+            {filtersOpen && (
+                <div
+                    onClick={() => setFiltersOpen(false)}
+                    style={{
+                        position: 'absolute', inset: 0, zIndex: 30,
+                        background: 'rgba(6,8,13,0.4)', backdropFilter: 'blur(4px)',
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            position: 'absolute', top: 92, right: 40,
+                            width: 380, maxWidth: 'calc(100vw - 80px)',
+                            background: 'rgba(15,19,27,0.96)',
+                            border: '1px solid rgba(255,255,255,0.14)',
+                            borderRadius: 14,
+                            padding: '18px 18px 16px',
+                            boxShadow: '0 30px 60px -10px rgba(0,0,0,.6)',
+                            fontFamily: 'Manrope, system-ui, sans-serif',
+                            color: '#ecf1f8',
+                        }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                            <div style={{
+                                fontFamily: "'IBM Plex Mono', monospace",
+                                fontSize: '.62rem', letterSpacing: '.28em',
+                                textTransform: 'uppercase', color: '#aab4c4',
+                            }}>
+                                Run Filters
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setFiltersOpen(false)}
+                                style={{
+                                    background: 'transparent', border: 'none', color: '#aab4c4', cursor: 'pointer',
+                                    padding: 4, display: 'inline-flex', alignItems: 'center',
+                                }}
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+                            {runFilterOptions.map(({ value, label }) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => setRunFilter(value)}
+                                    style={{
+                                        padding: '6px 12px', borderRadius: 999,
+                                        fontFamily: "'IBM Plex Mono', monospace",
+                                        fontSize: '.62rem', letterSpacing: '.12em', textTransform: 'uppercase',
+                                        border: '1px solid rgba(255,255,255,.14)',
+                                        background: runFilter === value ? 'linear-gradient(180deg, #f0e3c8 0%, #d8c79b 100%)' : 'rgba(255,255,255,.02)',
+                                        color: runFilter === value ? '#0b0f17' : '#aab4c4',
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    {label}
+                                </button>
                             ))}
                         </div>
-                    <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
-                        {runFilterOptions.map(({ value, label }) => (
-                            <button
-                                key={value}
-                                className={`btn btn-sm ${runFilter === value ? 'btn-primary' : 'btn-ghost'}`}
-                                style={{ fontSize: '.62rem' }}
-                                onClick={() => setRunFilter(value)}
-                            >
-                                {label}
-                            </button>
-                        ))}
-                    </div>
                         <TimelineControls
                             mode={timelineMode} setMode={setTimelineMode}
                             unit={timelineUnit} setUnit={setTimelineUnit}
@@ -871,242 +901,17 @@ export default function PackagesView() {
                             betweenMaxValue={timelineBetweenMaxValue} setBetweenMaxValue={setTimelineBetweenMaxValue}
                             summary={timelineSummary}
                         />
-                    <div style={{ display: 'flex', gap: '6px', marginTop: '8px', alignItems: 'stretch', flexWrap: 'wrap' }}>
-                        <button
-                            className="btn btn-ghost btn-sm"
-                            style={{ fontSize: '.62rem', flex: '1 1 100%', minWidth: 0, whiteSpace: 'normal', lineHeight: 1.2 }}
-                            disabled={visibleData.length === 0}
-                            onClick={() => {
-                                const selectable = visibleData.filter(d => !d.applied);
-                                const selectableSlugs = selectable.map(d => d.slug);
-                                if (selectableSlugs.every(s => selectedSlugs.has(s)) && selectableSlugs.length > 0) setSelectedSlugs(new Set());
-                                else setSelectedSlugs(new Set(selectableSlugs));
-                            }}
-                        >
-                            {selectedVisibleCount === visibleData.filter((job) => !job.applied).length && visibleData.length > 0 && selectedVisibleCount > 0 ? 'Deselect All' : 'Select All'}
-                        </button>
-                        {selectedVisibleCount > 0 && (<>
-                            <button
-                                className="btn btn-ghost btn-sm"
-                                style={{ fontSize: '.62rem', color: 'var(--blue, #5b9fd4)', flex: '1 1 calc(50% - 3px)', minWidth: 0, whiteSpace: 'normal', lineHeight: 1.2 }}
-                                disabled={deleteBusy}
-                                onClick={handleBulkRequeue}
-                            >
-                                {deleteBusy ? 'Re-queuing...' : (
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                        Re-queue for Tailoring ({selectedVisibleCount})
-                                        <ActionHelp text="Deletes the package files and keeps the job in Ready (qa_approved) so you can tailor it again." />
-                                    </span>
-                                )}
-                            </button>
-                            <button
-                                className="btn btn-ghost btn-sm"
-                                style={{ fontSize: '.62rem', color: 'var(--amber, #d1a23b)', flex: '1 1 calc(50% - 3px)', minWidth: 0, whiteSpace: 'normal', lineHeight: 1.2 }}
-                                disabled={bulkBusy}
-                                onClick={async () => {
-                                    const selected = visibleData.filter(d => selectedSlugs.has(d.slug) && d.meta?.job_id && !d.applied);
-                                    const jobIds = selected.map(d => d.meta.job_id);
-                                    if (!jobIds.length) return;
-                                    if (!confirm(`Return ${jobIds.length} job(s) to QA? Output files are preserved.`)) return;
-                                    setBulkBusy(true);
-                                    try {
-                                        await api.rollbackToQA(jobIds);
-                                        setSelectedSlugs(new Set());
-                                        await fetchPackages();
-                                    } catch { }
-                                    finally { setBulkBusy(false); }
-                                }}
-                            >
-                                {bulkBusy ? 'Sending...' : (
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                        Send Back to QA ({selectedVisibleCount})
-                                        <ActionHelp text="Keeps the package files, but moves the job back to QA Pending (qa_pending) for review." />
-                                    </span>
-                                )}
-                            </button>
-                            <button
-                                className="btn btn-ghost btn-sm"
-                                style={{ fontSize: '.62rem', color: 'var(--red)', fontWeight: 600, flex: '1 1 calc(50% - 3px)', minWidth: 0, whiteSpace: 'normal', lineHeight: 1.2 }}
-                                disabled={deleteBusy}
-                                onClick={handleBulkDead}
-                            >
-                                {deleteBusy ? 'Deleting...' : (
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                        Dead ({selectedVisibleCount})
-                                        <ActionHelp text="Deletes the package files and permanently rejects the job so it never resurfaces." />
-                                    </span>
-                                )}
-                            </button>
-                        </>)}
                     </div>
                 </div>
-
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {groupedFilteredData.map((group) => (
-                        <div key={group.key} style={{ borderBottom: '1px solid var(--border)' }}>
-                            <div style={{
-                                padding: '9px 14px 8px',
-                                background: 'var(--surface-2)',
-                                borderBottom: '1px solid var(--border)',
-                            }}>
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
-                                    marginBottom: '4px',
-                                }}>
-                                    <div style={{
-                                        fontWeight: 700, fontSize: '.76rem', lineHeight: 1.3,
-                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                    }}>
-                                        {group.title}
-                                    </div>
-                                    <span style={{
-                                        fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 700,
-                                        color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.08em',
-                                        whiteSpace: 'nowrap',
-                                    }}>
-                                        {group.items.length} run{group.items.length === 1 ? '' : 's'}
-                                    </span>
-                                </div>
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap',
-                                    fontFamily: 'var(--font-mono)', fontSize: '.62rem', color: 'var(--text-secondary)',
-                                }}>
-                                    {group.jobId != null && <span style={{ color: 'var(--accent)' }}>#{group.jobId}</span>}
-                                    {group.jobId != null && <span style={{ opacity: 0.4 }}>&middot;</span>}
-                                    <span>{group.company}</span>
-                                    {group.items.length > 1 && (
-                                        <>
-                                            <span style={{ opacity: 0.4 }}>&middot;</span>
-                                            <span style={{ color: 'var(--amber, #d1a23b)' }}>history preserved</span>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                            {group.items.map((item, index) => {
-                                const isActive = activeSlug === item.slug;
-                                const isChecked = selectedSlugs.has(item.slug);
-                                const hasResume = item.artifacts['Conner_Jordan_Resume.pdf'];
-                                const hasCover = item.artifacts['Conner_Jordan_Cover_Letter.pdf'];
-                                const isLatest = index === 0;
-                                return (
-                                    <div
-                                        key={item.slug}
-                                        onClick={() => setActiveSlug(item.slug)}
-                                        style={{
-                                            padding: '10px 14px', cursor: 'pointer',
-                                            borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
-                                            background: isChecked ? 'rgba(75,142,240,.06)' : isActive ? 'var(--accent-light)' : 'transparent',
-                                            transition: 'background .08s',
-                                            display: 'flex', gap: '8px', alignItems: 'flex-start',
-                                        }}
-                                        onMouseEnter={e => { if (!isActive && !isChecked) e.currentTarget.style.background = 'var(--surface-2)'; }}
-                                        onMouseLeave={e => { if (!isActive && !isChecked) e.currentTarget.style.background = 'transparent'; }}
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={isChecked}
-                                            onClick={e => e.stopPropagation()}
-                                            onChange={() => {
-                                                setSelectedSlugs(prev => {
-                                                    const next = new Set(prev);
-                                                    next.has(item.slug) ? next.delete(item.slug) : next.add(item.slug);
-                                                    return next;
-                                                });
-                                            }}
-                                            style={{ accentColor: 'var(--accent)', width: 16, height: 16, marginTop: 2, flexShrink: 0 }}
-                                        />
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{
-                                                display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '4px',
-                                            }}>
-                                                <span style={{
-                                                    fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 700,
-                                                    padding: '1px 6px', borderRadius: '999px',
-                                                    background: isLatest ? 'rgba(75,142,240,.12)' : 'rgba(255,255,255,.04)',
-                                                    color: isLatest ? 'var(--accent)' : 'var(--text-secondary)',
-                                                    border: `1px solid ${isLatest ? 'rgba(75,142,240,.28)' : 'var(--border)'}`,
-                                                    textTransform: 'uppercase', letterSpacing: '.05em',
-                                                }}>
-                                                    {isLatest ? 'Latest' : `Previous ${index}`}
-                                                </span>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.62rem', color: 'var(--text-secondary)' }}>
-                                                    {timeAgo(item.updated_at)}
-                                                </span>
-                                            </div>
-                                            <div style={{
-                                                fontWeight: 600, fontSize: '.74rem', lineHeight: 1.3,
-                                                overflow: 'hidden', textOverflow: 'ellipsis',
-                                                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                                            }}>
-                                                {item.slug}
-                                            </div>
-                                            <div style={{ display: 'flex', gap: '4px', marginTop: '5px', flexWrap: 'wrap' }}>
-                                                <span style={{
-                                                    fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 500,
-                                                    padding: '1px 5px', borderRadius: '2px',
-                                                    background: hasResume ? 'rgba(60,179,113,.10)' : 'rgba(217,79,79,.08)',
-                                                    color: hasResume ? 'var(--green)' : 'var(--red)',
-                                                }}>RES</span>
-                                                <span style={{
-                                                    fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 500,
-                                                    padding: '1px 5px', borderRadius: '2px',
-                                                    background: hasCover ? 'rgba(60,179,113,.10)' : 'rgba(217,79,79,.08)',
-                                                    color: hasCover ? 'var(--green)' : 'var(--red)',
-                                                }}>CVR</span>
-                                                {(item.doc_status?.resume || item.doc_status?.cover) && (
-                                                    <>
-                                                        {item.doc_status?.resume && (
-                                                            <span style={{
-                                                                fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 500,
-                                                                padding: '1px 5px', borderRadius: '2px',
-                                                                background: item.doc_status.resume === 'passed' ? 'rgba(60,179,113,.10)' : 'rgba(217,79,79,.08)',
-                                                                color: item.doc_status.resume === 'passed' ? 'var(--green)' : 'var(--red)',
-                                                            }}>
-                                                                RES {item.doc_status.resume}
-                                                            </span>
-                                                        )}
-                                                        {item.doc_status?.cover && (
-                                                            <span style={{
-                                                                fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 500,
-                                                                padding: '1px 5px', borderRadius: '2px',
-                                                                background: item.doc_status.cover === 'passed' ? 'rgba(60,179,113,.10)' : 'rgba(217,79,79,.08)',
-                                                                color: item.doc_status.cover === 'passed' ? 'var(--green)' : 'var(--red)',
-                                                            }}>
-                                                                CVR {item.doc_status.cover}
-                                                            </span>
-                                                        )}
-                                                    </>
-                                                )}
-                                                {item.applied && (
-                                                    <span style={{
-                                                        fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 600,
-                                                        padding: '1px 5px', borderRadius: '2px',
-                                                        background: 'rgba(75,142,240,.12)', color: 'var(--accent)',
-                                                    }}>
-                                                        APPLIED
-                                                    </span>
-                                                )}
-                                                {item.decision && item.decision !== 'qa_approved' && !item.applied && (
-                                                    <span style={{
-                                                        fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 600,
-                                                        padding: '1px 5px', borderRadius: '2px',
-                                                        background: 'rgba(209,162,59,.12)', color: 'var(--amber, #d1a23b)',
-                                                    }}>
-                                                        RETURNED
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    ))}
-                </div>
+            )}
             </div>
-
-            {/* ══════════ MAIN CONTENT ══════════ */}
-            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            ) : (
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--surface)' }}>
+                <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', alignItems: 'center' }}>
+                    <button onClick={() => setActiveSlug(null)} className="btn btn-secondary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px' }}>
+                        <span style={{ fontSize: '1.2em', lineHeight: 1, display: 'inline-block' }}>&#8592;</span> <span style={{ fontWeight: 600 }}>Back to Packages</span>
+                    </button>
+                </div>
 
                 {filteredData.length === 0 ? (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, fontFamily: 'var(--font-mono)', fontSize: '.82rem', color: 'var(--text-secondary)' }}>
@@ -1125,43 +930,11 @@ export default function PackagesView() {
                             status={pkgDetail.summary?.status}
                             badges={(
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                    <a
-                                        className="btn btn-ghost btn-sm"
-                                        style={{ fontSize: '.68rem', pointerEvents: resumePdfUrl ? 'auto' : 'none', opacity: resumePdfUrl ? 1 : 0.45 }}
-                                        href={resumePdfUrl || undefined}
-                                        download={safePdfName(pkgDetail.summary?.meta?.company_name || pkgDetail.summary?.meta?.company, pkgDetail.summary?.meta?.job_title || pkgDetail.summary?.meta?.title || pkgDetail.job_context?.title, activeSlug || 'document', 'resume')}
-                                    >
-                                        Download Resume PDF
-                                    </a>
-                                    <a
-                                        className="btn btn-ghost btn-sm"
-                                        style={{ fontSize: '.68rem', pointerEvents: coverPdfUrl ? 'auto' : 'none', opacity: coverPdfUrl ? 1 : 0.45 }}
-                                        href={coverPdfUrl || undefined}
-                                        download={safePdfName(pkgDetail.summary?.meta?.company_name || pkgDetail.summary?.meta?.company, pkgDetail.summary?.meta?.job_title || pkgDetail.summary?.meta?.title || pkgDetail.job_context?.title, activeSlug || 'document', 'cover')}
-                                    >
-                                        Download Cover PDF
-                                    </a>
-                                    <a
-                                        className="btn btn-ghost btn-sm"
-                                        style={{ fontSize: '.68rem', pointerEvents: zipDownloadUrl ? 'auto' : 'none', opacity: zipDownloadUrl ? 1 : 0.45 }}
-                                        href={zipDownloadUrl || undefined}
-                                        download={`${activeSlug || 'package'}.zip`}
-                                    >
-                                        Download ZIP
-                                    </a>
-                                    <button
-                                        className="btn btn-ghost btn-sm"
-                                        style={{ fontSize: '.68rem' }}
-                                        disabled={regenerateBusy}
-                                        onClick={handleRegenerateCover}
-                                    >
-                                        {regenerateBusy ? 'Regenerating Cover...' : 'Regenerate Cover'}
-                                    </button>
                                     {appliedSummary && (
                                         <a
                                             className="btn btn-ghost btn-sm"
                                             href={`/pipeline/applied?application_id=${encodeURIComponent(String(appliedSummary.id))}`}
-                                            style={{ fontSize: '.68rem' }}
+                                            style={{ fontSize: '.68rem', background: 'rgba(75,142,240,.12)', color: 'var(--accent)' }}
                                         >
                                             View Applied
                                         </a>
@@ -1169,7 +942,7 @@ export default function PackagesView() {
                                     {!appliedSummary && (
                                         <button
                                             className="btn btn-primary btn-sm"
-                                            style={{ fontSize: '.68rem' }}
+                                            style={{ fontSize: '.68rem', fontWeight: 600, padding: '0 16px' }}
                                             onClick={() => setApplyFormOpen((open) => !open)}
                                         >
                                             Mark Applied
@@ -1178,47 +951,98 @@ export default function PackagesView() {
                                     {!appliedSummary && activeSlug && (
                                         <button
                                             className="btn btn-ghost btn-sm"
-                                            style={{ fontSize: '.68rem', color: 'var(--blue, #5b9fd4)' }}
-                                            disabled={deleteBusy}
-                                            onClick={() => handleRequeuePackage(activeSlug)}
-                                        >
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                                Re-queue for Tailoring
-                                                <ActionHelp text="Deletes the package files and keeps the job in Ready (qa_approved) so you can tailor it again." />
-                                            </span>
-                                        </button>
-                                    )}
-                                    {!appliedSummary && pkgDetail?.summary?.meta?.job_id && (
-                                        <button
-                                            className="btn btn-ghost btn-sm"
-                                            style={{ fontSize: '.68rem', color: 'var(--amber, #d1a23b)' }}
-                                            onClick={async () => {
-                                                const jobId = pkgDetail.summary.meta.job_id;
-                                                if (!confirm('Return this job to QA? Tailoring output files are preserved but the job will re-enter triage.')) return;
-                                                try {
-                                                    await api.rollbackToQA([jobId]);
-                                                    await fetchPackages();
-                                                } catch { }
-                                            }}
-                                        >
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                                Send Back to QA
-                                                <ActionHelp text="Keeps the package files, but moves the job back to QA Pending (qa_pending) for review." />
-                                            </span>
-                                        </button>
-                                    )}
-                                    {!appliedSummary && activeSlug && (
-                                        <button
-                                            className="btn btn-ghost btn-sm"
-                                            style={{ fontSize: '.68rem', color: 'var(--red)', fontWeight: 600 }}
+                                            style={{ fontSize: '.68rem', color: 'var(--red)', fontWeight: 600, border: '1px solid rgba(217,79,79,.2)' }}
                                             disabled={deleteBusy}
                                             onClick={() => handleDeadPackage(activeSlug)}
                                         >
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                                Dead
-                                                <ActionHelp text="Deletes the package files and permanently rejects the job so it never resurfaces." />
-                                            </span>
+                                            Dead
                                         </button>
+                                    )}
+
+                                    {activeSlug && (
+                                        <div style={{ position: 'relative' }} onBlur={(e) => {
+                                            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                                                setMoreOptionsOpen(false);
+                                            }
+                                        }}>
+                                            <button
+                                                className="btn btn-ghost btn-sm"
+                                                style={{ fontSize: '.68rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--border)' }}
+                                                onClick={() => setMoreOptionsOpen(!moreOptionsOpen)}
+                                            >
+                                                More Options <ChevronDown size={12} />
+                                            </button>
+                                            
+                                            {moreOptionsOpen && (
+                                                <div style={{
+                                                    position: 'absolute', top: '100%', right: 0, marginTop: '6px',
+                                                    background: 'var(--surface)', border: '1px solid var(--border)',
+                                                    borderRadius: '8px', padding: '6px', display: 'flex', flexDirection: 'column',
+                                                    gap: '2px', zIndex: 100, minWidth: '200px',
+                                                    boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
+                                                }}>
+                                                    <a
+                                                        className="btn btn-ghost btn-sm"
+                                                        style={{ fontSize: '.68rem', pointerEvents: resumePdfUrl ? 'auto' : 'none', opacity: resumePdfUrl ? 1 : 0.45, justifyContent: 'flex-start' }}
+                                                        href={resumePdfUrl || undefined}
+                                                        download={safePdfName(pkgDetail.summary?.meta?.company_name || pkgDetail.summary?.meta?.company, pkgDetail.summary?.meta?.job_title || pkgDetail.summary?.meta?.title || pkgDetail.job_context?.title, activeSlug || 'document', 'resume')}
+                                                    >
+                                                        Download Resume PDF
+                                                    </a>
+                                                    <a
+                                                        className="btn btn-ghost btn-sm"
+                                                        style={{ fontSize: '.68rem', pointerEvents: coverPdfUrl ? 'auto' : 'none', opacity: coverPdfUrl ? 1 : 0.45, justifyContent: 'flex-start' }}
+                                                        href={coverPdfUrl || undefined}
+                                                        download={safePdfName(pkgDetail.summary?.meta?.company_name || pkgDetail.summary?.meta?.company, pkgDetail.summary?.meta?.job_title || pkgDetail.summary?.meta?.title || pkgDetail.job_context?.title, activeSlug || 'document', 'cover')}
+                                                    >
+                                                        Download Cover PDF
+                                                    </a>
+                                                    <a
+                                                        className="btn btn-ghost btn-sm"
+                                                        style={{ fontSize: '.68rem', pointerEvents: zipDownloadUrl ? 'auto' : 'none', opacity: zipDownloadUrl ? 1 : 0.45, justifyContent: 'flex-start' }}
+                                                        href={zipDownloadUrl || undefined}
+                                                        download={`${activeSlug || 'package'}.zip`}
+                                                    >
+                                                        Download ZIP
+                                                    </a>
+                                                    <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }} />
+                                                    <button
+                                                        className="btn btn-ghost btn-sm"
+                                                        style={{ fontSize: '.68rem', justifyContent: 'flex-start' }}
+                                                        disabled={regenerateBusy}
+                                                        onClick={handleRegenerateCover}
+                                                    >
+                                                        {regenerateBusy ? 'Regenerating Cover...' : 'Regenerate Cover'}
+                                                    </button>
+                                                    {!appliedSummary && activeSlug && (
+                                                        <button
+                                                            className="btn btn-ghost btn-sm"
+                                                            style={{ fontSize: '.68rem', color: 'var(--blue, #5b9fd4)', justifyContent: 'flex-start' }}
+                                                            disabled={deleteBusy}
+                                                            onClick={() => handleRequeuePackage(activeSlug)}
+                                                        >
+                                                            Re-queue for Tailoring
+                                                        </button>
+                                                    )}
+                                                    {!appliedSummary && pkgDetail?.summary?.meta?.job_id && (
+                                                        <button
+                                                            className="btn btn-ghost btn-sm"
+                                                            style={{ fontSize: '.68rem', color: 'var(--amber, #d1a23b)', justifyContent: 'flex-start' }}
+                                                            onClick={async () => {
+                                                                const jobId = pkgDetail.summary.meta.job_id;
+                                                                if (!confirm('Return this job to QA? Tailoring output files are preserved but the job will re-enter triage.')) return;
+                                                                try {
+                                                                    await api.rollbackToQA([jobId]);
+                                                                    await fetchPackages();
+                                                                } catch { }
+                                                            }}
+                                                        >
+                                                            Send Back to QA
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             )}
@@ -1291,48 +1115,30 @@ export default function PackagesView() {
                             display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 20px',
                             borderBottom: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0,
                         }}>
-                            <button
-                                className={`btn ${mainTab === 'briefing' ? 'btn-primary' : 'btn-ghost'}`}
-                                onClick={() => setMainTab('briefing')}
-                                style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '.72rem' }}
-                            >
-                                <FileText size={13} /> Briefing
-                            </button>
-                            <button
-                                className={`btn ${mainTab === 'strategy' ? 'btn-primary' : 'btn-ghost'}`}
-                                onClick={() => setMainTab('strategy')}
-                                style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '.72rem' }}
-                            >
-                                <Layers size={13} /> Strategy
-                            </button>
-                            <button
-                                className={`btn ${mainTab === 'documents' ? 'btn-primary' : 'btn-ghost'}`}
-                                onClick={() => setMainTab('documents')}
-                                style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '.72rem' }}
-                            >
-                                <BookOpen size={13} /> Documents
-                            </button>
-                            <button
-                                className={`btn ${mainTab === 'jd' ? 'btn-primary' : 'btn-ghost'}`}
-                                onClick={() => setMainTab('jd')}
-                                style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '.72rem' }}
-                            >
-                                Full JD
-                            </button>
-                            <button
-                                className={`btn ${mainTab === 'diff' ? 'btn-primary' : 'btn-ghost'}`}
-                                onClick={() => setMainTab('diff')}
-                                style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '.72rem' }}
-                            >
-                                <FileDiff size={13} /> Diff
-                            </button>
-                            <button
-                                className={`btn ${mainTab === 'editor' ? 'btn-primary' : 'btn-ghost'}`}
-                                onClick={() => setMainTab('editor')}
-                                style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '.72rem' }}
-                            >
-                                <Pencil size={13} /> Edit
-                            </button>
+                            {([
+                                { id: 'briefing', label: 'Briefing' },
+                                { id: 'strategy', label: 'Strategy' },
+                                { id: 'documents', label: 'Documents' },
+                                { id: 'jd', label: 'Full JD' },
+                                { id: 'diff', label: 'Diff' },
+                                { id: 'editor', label: 'Editor' }
+                            ] as const).map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    className="btn btn-ghost"
+                                    onClick={() => setMainTab(tab.id as MainTab)}
+                                    style={{
+                                        fontSize: '.72rem', padding: '6px 12px',
+                                        color: mainTab === tab.id ? 'var(--accent)' : 'var(--text-secondary)',
+                                        borderBottom: mainTab === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
+                                        borderRadius: '0',
+                                        background: 'transparent',
+                                        fontWeight: mainTab === tab.id ? 600 : 400
+                                    }}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
                             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <button
                                     className="btn btn-ghost btn-sm"
@@ -1659,6 +1465,7 @@ export default function PackagesView() {
                     </>
                 )}
             </div>
+            )}
         </div>
     );
 }

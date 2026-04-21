@@ -7,9 +7,6 @@ import sqlite3
 from datetime import datetime, timezone
 
 
-_table_ensured = False
-
-
 def log_state_change(
     conn: sqlite3.Connection,
     *,
@@ -22,10 +19,7 @@ def log_state_change(
     detail: dict | str | None = None,
 ) -> None:
     """Insert an audit row into job_state_log."""
-    global _table_ensured
-    if not _table_ensured:
-        ensure_state_log_table(conn)
-        _table_ensured = True
+    ensure_state_log_table(conn)
     detail_str = json.dumps(detail) if isinstance(detail, dict) else detail
     conn.execute(
         "INSERT INTO job_state_log (job_id, job_url, old_state, new_state, action, source, detail, created_at) "

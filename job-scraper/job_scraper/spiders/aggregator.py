@@ -4,14 +4,18 @@ import logging
 from datetime import datetime, timezone
 import scrapy
 from job_scraper.items import JobItem
+from job_scraper.spiders import diversified_subset
 
 logger = logging.getLogger(__name__)
 
+_MAX_BOARDS_PER_RUN = 2
+
 class AggregatorSpider(scrapy.Spider):
     name = "aggregator"
-    def __init__(self, boards=None, *args, **kwargs):
+    def __init__(self, boards=None, run_id="", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._boards = boards or []
+        self._run_id = run_id
 
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):
@@ -19,11 +23,20 @@ class AggregatorSpider(scrapy.Spider):
         cfg = load_config()
         boards = [{"url": b.url, "company": b.company} for b in cfg.boards if b.board_type == "simplyhired" and b.enabled]
         kwargs["boards"] = boards
+        kwargs["run_id"] = crawler.settings.get("SCRAPE_RUN_ID", "")
         spider = super().from_crawler(crawler, *args, **kwargs)
         return spider
 
     def start_requests(self):
-        for board in self._boards:
+        boards = diversified_subset(
+            self._boards,
+            run_id=self._run_id,
+            scope=self.name,
+            limit=_MAX_BOARDS_PER_RUN,
+            key=lambda board: board["url"],
+        )
+        logger.info("Aggregator: scraping %d/%d boards this run", len(boards), len(self._boards))
+        for board in boards:
             yield scrapy.Request(
                 url=board["url"],
                 callback=self.parse_board,

@@ -16,8 +16,8 @@ Setup for:
 ## 1) SearXNG
 
 ```bash
-mkdir -p ~/Documents/JobForge
-cd ~/Documents/JobForge
+mkdir -p ~/Documents/TexTailor
+cd ~/Documents/TexTailor
 
 # Add docker-compose.yml + settings.yml
 # Then start:
@@ -28,7 +28,7 @@ curl "http://localhost:8888/search?q=test&format=json"
 ## 2) Python Environment + Scraper
 
 ```bash
-cd ~/Documents/JobForge
+cd ~/Documents/TexTailor
 python3 -m venv venv
 source venv/bin/activate
 pip install -e ./job-scraper/
@@ -65,7 +65,7 @@ tail -f ~/.local/share/job_scraper/scrape.log
 ## 4) Dashboard Frontend Build
 
 ```bash
-cd ~/Documents/JobForge/dashboard/web
+cd ~/Documents/TexTailor/dashboard/web
 npm install
 npm run build
 ```
@@ -73,7 +73,7 @@ npm run build
 ## 5) Dashboard Backend Run
 
 ```bash
-cd ~/Documents/JobForge
+cd ~/Documents/TexTailor
 source venv/bin/activate
 python dashboard/backend/server.py
 ```

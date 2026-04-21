@@ -36,7 +36,7 @@ class RemoteOKSpider(scrapy.Spider):
         yield scrapy.Request(
             url=_API_URL,
             callback=self.parse_api,
-            headers={"User-Agent": "JobForge/2.0"},
+            headers={"User-Agent": "TexTailor/2.0"},
             dont_filter=True,
         )
 

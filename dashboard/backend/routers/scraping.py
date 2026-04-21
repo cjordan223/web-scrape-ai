@@ -26,6 +26,8 @@ ROUTES: list[tuple[str, str, str]] = [
     ("GET", "/api/scrape/sources", "source_diagnostics"),
     ("GET", "/api/scraper/metrics/tier-stats", "tier_stats_rollup"),
     ("GET", "/api/scraper/system/status", "system_status"),
+    ("GET", "/api/scraper/reviews", "list_run_reviews"),
+    ("POST", "/api/scraper/reviews/{run_id}/regenerate", "regenerate_run_review"),
 ]
 
 

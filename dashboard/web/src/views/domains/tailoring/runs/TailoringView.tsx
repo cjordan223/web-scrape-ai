@@ -32,29 +32,43 @@ export default function TailoringView() {
     const [stopBusy, setStopBusy] = useState(false);
 
     const prevRunningRef = useRef<boolean>(false);
+    const runsRequestInFlightRef = useRef(false);
+    const runnerRequestInFlightRef = useRef(false);
+    const llmStatusRequestInFlightRef = useRef(false);
 
     // --- Data fetching ---
 
     const fetchRuns = useCallback(async () => {
+        if (runsRequestInFlightRef.current) return;
+        runsRequestInFlightRef.current = true;
         try {
             const res = await api.getTailoring();
             setRuns(res);
         } catch (err) { console.error(err); }
-        finally { setLoading(false); }
+        finally {
+            runsRequestInFlightRef.current = false;
+            setLoading(false);
+        }
     }, []);
 
     const fetchRunnerStatus = async () => {
+        if (runnerRequestInFlightRef.current) return;
+        runnerRequestInFlightRef.current = true;
         try {
             const res = await api.getTailoringRunnerStatus();
             setRunner(res);
         } catch (err) { console.error(err); }
+        finally { runnerRequestInFlightRef.current = false; }
     };
 
     const fetchLlmStatus = async () => {
+        if (llmStatusRequestInFlightRef.current) return;
+        llmStatusRequestInFlightRef.current = true;
         try {
             const res = await api.getLlmStatus();
             setLlmStatus(res);
         } catch { /* ignore */ }
+        finally { llmStatusRequestInFlightRef.current = false; }
     };
 
     const handleStopTailoringRuns = async () => {

@@ -1,5 +1,4 @@
 import json
-from unittest.mock import patch
 from scrapy.http import TextResponse, Request
 from job_scraper.spiders.searxng import SearXNGSpider
 from job_scraper.config import SearXNGQuery
@@ -14,32 +13,25 @@ def test_parses_searxng_results():
     response = _fake_json_response("http://localhost:8888/search?q=test&format=json", data)
     response.meta["query_phrase"] = "security engineer"
     results = list(spider.parse_results(response))
-    assert len(results) >= 1  # Should yield follow-up requests
+    assert len(results) == 1
+    assert results[0]["board"] == "ashby"
+    assert results[0]["query"] == "security engineer"
 
-def test_time_range_rotates_by_hour():
+def test_queries_are_batched_and_paginated():
     spider = SearXNGSpider()
     spider._searxng_url = "http://localhost:8888/search"
-    spider._queries = [SearXNGQuery(title_phrase="test engineer", board_site="", suffix="remote")]
+    spider._run_id = "run123"
+    spider._queries = [
+        SearXNGQuery(title_phrase=f"test engineer {i}", board_site="", suffix="remote")
+        for i in range(25)
+    ]
     spider._domain_blocklist = set()
-
-    # Even hour -> "day"
-    with patch("job_scraper.spiders.searxng.datetime") as mock_dt:
-        mock_now = mock_dt.now.return_value
-        mock_now.hour = 10
-        mock_now.isoformat.return_value = "2026-03-25T10:00:00"
-        mock_dt.now.return_value = mock_now
-        requests = list(spider.start_requests())
-        assert len(requests) == 1
-        assert "time_range=day" in requests[0].url
-
-    # Odd hour -> "week"
-    with patch("job_scraper.spiders.searxng.datetime") as mock_dt:
-        mock_now = mock_dt.now.return_value
-        mock_now.hour = 11
-        mock_now.isoformat.return_value = "2026-03-25T11:00:00"
-        mock_dt.now.return_value = mock_now
-        requests = list(spider.start_requests())
-        assert "time_range=week" in requests[0].url
+    requests = list(spider.start_requests())
+    assert len(requests) == 40
+    assert all("pageno=" in request.url for request in requests)
+    assert all("time_range=" in request.url for request in requests)
+    seen_phrases = {request.meta["query_phrase"] for request in requests}
+    assert len(seen_phrases) == 20
 
 
 def test_skips_blocklisted_urls():
@@ -50,3 +42,35 @@ def test_skips_blocklisted_urls():
     response.meta["query_phrase"] = "test"
     results = list(spider.parse_results(response))
     assert len(results) == 0
+
+
+def test_skips_low_signal_unknown_hosts():
+    spider = SearXNGSpider()
+    spider._domain_blocklist = set()
+    data = {"results": [{"url": "https://www.indeed.com/q-security-engineer-jobs.html", "title": "Security Engineer Jobs", "content": "..." }]}
+    response = _fake_json_response("http://localhost:8888/search?q=test&format=json", data)
+    response.meta["query_phrase"] = "security engineer"
+    results = list(spider.parse_results(response))
+    assert results == []
+
+
+def test_enforces_query_board_site_match():
+    spider = SearXNGSpider()
+    spider._domain_blocklist = set()
+    data = {"results": [{"url": "https://www.linkedin.com/jobs/view/123", "title": "Security Engineer", "content": "Remote role"}]}
+    response = _fake_json_response("http://localhost:8888/search?q=test&format=json", data)
+    response.meta["query_phrase"] = "security engineer"
+    response.meta["query_board_site"] = "boards.greenhouse.io"
+    results = list(spider.parse_results(response))
+    assert results == []
+
+
+def test_accepts_trusted_workday_hosts():
+    spider = SearXNGSpider()
+    spider._domain_blocklist = set()
+    data = {"results": [{"url": "https://example.wd1.myworkdaysite.com/en-US/recruiting/acme/job/123", "title": "Cloud Engineer", "content": "Remote USA role"}]}
+    response = _fake_json_response("http://localhost:8888/search?q=test&format=json", data)
+    response.meta["query_phrase"] = "cloud engineer"
+    results = list(spider.parse_results(response))
+    assert len(results) == 1
+    assert results[0]["board"] == "workday"

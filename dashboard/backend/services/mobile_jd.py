@@ -52,7 +52,21 @@ def scan_and_process(db_path: str | None = None) -> dict:
         return {"processed": 0, "results": [], "error": "mobile-jd directory not found"}
 
     if db_path is None:
-        db_path = os.path.expanduser("~/.local/share/job_scraper/jobs.db")
+        import app as _app
+        db_path = _app.DB_PATH
+
+    llm_runtime = None
+    model_id = None
+    try:
+        from services.tailoring import _ensure_results_approved_jd_column, _polish_job_description, _resolve_active_llm_runtime
+        try:
+            llm_runtime, model_id = _resolve_active_llm_runtime()
+        except Exception:
+            llm_runtime = None
+            model_id = None
+    except Exception:
+        _ensure_results_approved_jd_column = None
+        _polish_job_description = None
 
     results = []
     for entry in sorted(MOBILE_JD_DIR.iterdir()):
@@ -84,17 +98,33 @@ def scan_and_process(db_path: str | None = None) -> dict:
 
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         url = f"mobile://ingest/{int(time.time())}-{os.urandom(4).hex()}"
+        req_summary = None
+        approved_jd_text = jd_text
+        polished_with_llm = False
+        if _polish_job_description is not None:
+            req_summary, approved_jd_text, polished_with_llm = _polish_job_description(
+                jd_text,
+                title,
+                url,
+                llm_runtime,
+                model_id,
+            )
+        snippet = (req_summary or jd_text[:200]).strip() or None
+        approved_jd_text = (approved_jd_text or jd_text).strip() or None
 
         # Insert into DB
+        conn = None
         try:
             conn = sqlite3.connect(db_path)
+            if _ensure_results_approved_jd_column is not None:
+                _ensure_results_approved_jd_column(conn)
             cur = conn.execute(
                 """INSERT INTO jobs
                    (url, title, company, board, seniority, experience_years, salary_k, score, status,
-                    snippet, query, source, jd_text, filter_verdicts, run_id, created_at, updated_at)
-                   VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, 'qa_pending', ?, 'mobile-ingest', 'mobile', ?, NULL, 'mobile-ingest', ?, ?)
+                    snippet, query, source, jd_text, approved_jd_text, filter_verdicts, run_id, created_at, updated_at)
+                   VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, 'qa_approved', ?, 'mobile-ingest', 'mobile', ?, ?, NULL, 'mobile-ingest', ?, ?)
                    ON CONFLICT(url) DO NOTHING""",
-                (url, title, company, jd_text[:200], jd_text, now, now),
+                (url, title, company, snippet, jd_text, approved_jd_text, now, now),
             )
             job_id = cur.lastrowid if cur.rowcount > 0 else None
             if job_id is not None:
@@ -103,15 +133,22 @@ def scan_and_process(db_path: str | None = None) -> dict:
                     job_id=job_id,
                     job_url=url,
                     old_state=None,
-                    new_state="qa_pending",
+                    new_state="qa_approved",
                     action="ingest_mobile",
-                    detail={"query": "mobile-ingest", "folder": entry.name},
+                    detail={
+                        "query": "mobile-ingest",
+                        "folder": entry.name,
+                        "auto_approved": True,
+                        "polished_with_llm": polished_with_llm,
+                    },
                 )
             conn.commit()
-            conn.close()
         except Exception as e:
             results.append({"folder": entry.name, "ok": False, "error": str(e)})
             continue
+        finally:
+            if conn is not None:
+                conn.close()
 
         # Rename folder to mark as done
         done_name = entry.parent / f"_done {entry.name}"
@@ -128,6 +165,8 @@ def scan_and_process(db_path: str | None = None) -> dict:
             "company": company,
             "images": len(images),
             "jd_chars": len(jd_text),
+            "auto_approved": True,
+            "polished_with_llm": polished_with_llm,
         })
 
     return {"processed": len(results), "results": results}

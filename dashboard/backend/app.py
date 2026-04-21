@@ -243,7 +243,11 @@ CREATE TABLE IF NOT EXISTS qa_llm_review_batches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at TEXT,
     ended_at TEXT,
-    resolved_model TEXT
+    resolved_model TEXT,
+    trigger_source TEXT NOT NULL DEFAULT 'manual',
+    queued_count INTEGER NOT NULL DEFAULT 0,
+    report_json TEXT,
+    report_generated_at TEXT
 );
 CREATE TABLE IF NOT EXISTS qa_llm_review_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -374,18 +378,21 @@ from services.mlx_manager import recover_on_startup
 recover_on_startup()
 
 from services import scrape_scheduler as _scrape_scheduler
+from services import run_reviewer as _run_reviewer
 
 
 @app.on_event("startup")
 async def _scrape_scheduler_startup():
     if _scrape_scheduler.enabled():
         await _scrape_scheduler.start()
+    await _run_reviewer.start()
 
 
 @app.on_event("shutdown")
 async def _scrape_scheduler_shutdown():
     if _scrape_scheduler.enabled():
         await _scrape_scheduler.stop()
+    await _run_reviewer.stop()
 
 
 logger = logging.getLogger(__name__)
@@ -477,6 +484,23 @@ def _ensure_workflow_schema(force: bool = False) -> None:
                 conn.execute(
                     "ALTER TABLE seen_urls ADD COLUMN permanently_rejected INTEGER NOT NULL DEFAULT 0"
                 )
+        if "qa_llm_review_batches" in existing_tables:
+            batch_cols = {
+                row["name"] if isinstance(row, sqlite3.Row) else row[1]
+                for row in conn.execute("PRAGMA table_info(qa_llm_review_batches)")
+            }
+            if "trigger_source" not in batch_cols:
+                conn.execute(
+                    "ALTER TABLE qa_llm_review_batches ADD COLUMN trigger_source TEXT NOT NULL DEFAULT 'manual'"
+                )
+            if "queued_count" not in batch_cols:
+                conn.execute(
+                    "ALTER TABLE qa_llm_review_batches ADD COLUMN queued_count INTEGER NOT NULL DEFAULT 0"
+                )
+            if "report_json" not in batch_cols:
+                conn.execute("ALTER TABLE qa_llm_review_batches ADD COLUMN report_json TEXT")
+            if "report_generated_at" not in batch_cols:
+                conn.execute("ALTER TABLE qa_llm_review_batches ADD COLUMN report_generated_at TEXT")
         if "applied_snapshots" in existing_tables:
             snap_cols = {
                 row["name"] if isinstance(row, sqlite3.Row) else row[1]

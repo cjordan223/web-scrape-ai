@@ -11,7 +11,7 @@ KEEP UNDER ~900 chars.
 -->
 Use these as proof points when generating tailored letters:
 - Built Coraline: a full-stack React + Python + AWS + PostgreSQL application for enterprise asset correlation (flagship project)
-- Built JobForge: full-stack React + TypeScript + FastAPI platform using AI coding tools daily (Claude Code, Cursor, Copilot, Codex, Gemini CLI)
+- Built TexTailor: full-stack React + TypeScript + FastAPI platform using AI coding tools daily (Claude Code, Cursor, Copilot, Codex, Gemini CLI)
 - CS degree in software engineering; freelance web development experience (client sites, CMS, PHP)
 - Built and operated production security systems in a large environment
 - Integrated 5+ disparate systems (Rapid7, BigFix, Jamf, CrowdStrike, AD) via APIs and SAML into unified dashboards

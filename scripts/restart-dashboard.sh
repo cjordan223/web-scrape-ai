@@ -31,6 +31,7 @@ else
     lsof -tiTCP:8899 -sTCP:LISTEN | xargs kill || true
     sleep 1
   fi
+  export TEXTAILOR_SCRAPE_SCHEDULER=1
   nohup "$VENV_PY" "$BACKEND_DIR/server.py" > /tmp/dashboard-backend.log 2>&1 &
 fi
 
@@ -56,6 +57,6 @@ for i in {1..10}; do
 done
 
 echo ""
-echo "JobForge restart complete"
+echo "TexTailor restart complete"
 echo "  Dashboard: http://192.168.1.19:8899"
 echo "  SearXNG:   http://192.168.1.19:8888"

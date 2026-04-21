@@ -106,17 +106,20 @@ class AshbySpider(scrapy.Spider):
         company = response.meta.get("company", "unknown")
         for job in data.get("jobs", []):
             salary_k = None
-            comp = (job.get("compensation") or {}).get("summaryComponents") or []
+            comp_data = job.get("compensation") or {}
+            comp = comp_data.get("summaryComponents") or []
             if comp:
                 values = [c.get("minValue") for c in comp if c.get("minValue")]
                 if values:
                     salary_k = min(values) / 1000.0
+            salary_text = comp_data.get("compensationTierSummary") or comp_data.get("scrapeableCompensationSalarySummary") or ""
             yield JobItem(
                 url=job.get("jobUrl", ""),
                 title=job.get("title", "Unknown"),
                 company=company,
                 board="ashby",
-                location=job.get("locationName", ""),
+                location=job.get("location", ""),
+                salary_text=salary_text,
                 salary_k=salary_k,
                 jd_html=job.get("descriptionHtml", ""),
                 jd_text="",

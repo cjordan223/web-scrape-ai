@@ -1,6 +1,6 @@
 """Secure API key storage for LLM providers.
 
-Keys are stored at ~/.local/share/jobforge/llm_keys.json (outside the repo).
+Keys are stored at ~/.local/share/textailor/llm_keys.json (outside the repo).
 """
 
 from __future__ import annotations
@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-KEYS_PATH = Path.home() / ".local" / "share" / "jobforge" / "llm_keys.json"
+KEYS_PATH = Path.home() / ".local" / "share" / "textailor" / "llm_keys.json"
 
 
 def load_keys() -> dict[str, str]:

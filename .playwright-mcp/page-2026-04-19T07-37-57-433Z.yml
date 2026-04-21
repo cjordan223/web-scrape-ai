@@ -1,0 +1,1734 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: Job
+      - text: Forge
+    - generic [ref=e6]:
+      - link "Pipeline" [ref=e7] [cursor=pointer]:
+        - /url: /pipeline
+        - img [ref=e8]
+        - text: Pipeline
+      - link "Ops" [ref=e12] [cursor=pointer]:
+        - /url: /ops
+        - img [ref=e13]
+        - text: Ops
+    - generic [ref=e15]: v5.0 · Pipeline
+  - generic [ref=e16]:
+    - complementary [ref=e17]:
+      - navigation [ref=e18]:
+        - link "Editor Visual pipeline control" [ref=e20] [cursor=pointer]:
+          - /url: /pipeline/editor
+          - img [ref=e21]
+          - generic [ref=e25]:
+            - generic [ref=e26]: Editor
+            - generic [ref=e27]: Visual pipeline control
+        - link "Ingest" [ref=e29] [cursor=pointer]:
+          - /url: /pipeline/ingest
+          - img [ref=e30]
+          - generic [ref=e36]: Ingest
+        - link "QA Approve, reject, LLM review" [ref=e38] [cursor=pointer]:
+          - /url: /pipeline/qa
+          - img [ref=e39]
+          - generic [ref=e42]:
+            - generic [ref=e43]: QA
+            - generic [ref=e44]: Approve, reject, LLM review
+        - link "Leads HN finds — browse & ingest" [ref=e46] [cursor=pointer]:
+          - /url: /pipeline/leads
+          - img [ref=e47]
+          - generic [ref=e49]:
+            - generic [ref=e50]: Leads
+            - generic [ref=e51]: HN finds — browse & ingest
+        - link "Ready QA-approved backlog" [ref=e53] [cursor=pointer]:
+          - /url: /pipeline/ready
+          - img [ref=e54]
+          - generic [ref=e57]:
+            - generic [ref=e58]: Ready
+            - generic [ref=e59]: QA-approved backlog
+        - link "Packages" [ref=e61] [cursor=pointer]:
+          - /url: /pipeline/packages
+          - img [ref=e62]
+          - generic [ref=e67]: Packages
+        - link "Applied" [ref=e69] [cursor=pointer]:
+          - /url: /pipeline/applied
+          - img [ref=e70]
+          - generic [ref=e75]: Applied
+      - generic [ref=e78]: "97402880"
+    - main [ref=e79]:
+      - generic [ref=e81]:
+        - generic [ref=e82]:
+          - text: Pipeline
+          - generic [ref=e83]: /
+        - generic [ref=e84]: Ready
+      - generic [ref=e88]:
+        - generic [ref=e89]:
+          - generic [ref=e90]:
+            - button "Ready" [active] [ref=e91] [cursor=pointer]
+            - button "Pipeline" [ref=e92] [cursor=pointer]
+            - button "History" [ref=e93] [cursor=pointer]
+          - generic [ref=e94]:
+            - generic [ref=e96]: IDLE
+            - generic "mlx-community/Qwen3-Coder-Next-4bit" [ref=e98]: Qwen3-Coder-Next-4bit
+            - link "Configure" [ref=e99] [cursor=pointer]:
+              - /url: /ops/llm
+            - button "Stop" [disabled] [ref=e101] [cursor=pointer]
+        - generic [ref=e2769]:
+          - generic [ref=e2770]:
+            - generic [ref=e2771]: Ready Backlog (60)
+            - button "Reset to QA" [ref=e2772] [cursor=pointer]
+          - generic [ref=e2773]:
+            - generic [ref=e2774]:
+              - button "All (60)" [ref=e2775] [cursor=pointer]
+              - button "Backlog (60)" [ref=e2776] [cursor=pointer]
+              - button "Queue Next (0)" [ref=e2777] [cursor=pointer]
+              - button "Later (0)" [ref=e2778] [cursor=pointer]
+              - button "Untailored (32)" [ref=e2780] [cursor=pointer]
+              - button "Filters" [ref=e2781] [cursor=pointer]:
+                - img [ref=e2782]
+                - text: Filters
+            - generic [ref=e2783]:
+              - button "Queue Selected (0)" [disabled] [ref=e2784] [cursor=pointer]
+              - button "Queue Next (0)" [disabled] [ref=e2785] [cursor=pointer]
+              - button "Select Visible" [ref=e2786] [cursor=pointer]
+              - generic [ref=e2787]:
+                - checkbox "Skip analysis" [ref=e2788]
+                - text: Skip analysis
+            - generic [ref=e2789]:
+              - generic [ref=e2790]: Queue top
+              - generic [ref=e2791]:
+                - button "10" [ref=e2792] [cursor=pointer]
+                - button "20" [ref=e2793] [cursor=pointer]
+                - button "50" [ref=e2794] [cursor=pointer]
+                - button "100" [ref=e2795] [cursor=pointer]
+                - spinbutton "Custom top-N value" [ref=e2797]: "20"
+              - button "Queue 20" [ref=e2798] [cursor=pointer]
+              - button "Select 20" [ref=e2799] [cursor=pointer]
+          - generic [ref=e2800]:
+            - generic [ref=e2801]:
+              - generic [ref=e2802]:
+                - generic [ref=e2803]:
+                  - generic [ref=e2804]: Sort
+                  - combobox [ref=e2805]:
+                    - option "Date added" [selected]
+                    - option "Title"
+                    - option "Company"
+                    - option "Location / Pay"
+                    - option "Prior runs"
+                  - button "▼" [ref=e2806] [cursor=pointer]
+                - generic [ref=e2807]: 60 shown · ↑↓ j/k navigate · space pick · enter open
+              - generic [ref=e2808]:
+                - generic [ref=e2809] [cursor=pointer]:
+                  - generic [ref=e2810]:
+                    - checkbox "Select job 5086" [ref=e2811]
+                    - generic [ref=e2812]: "#5086"
+                    - generic [ref=e2813]: Backlog
+                    - generic "Apr 18, 12:02 AM" [ref=e2814]:
+                      - img [ref=e2815]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e2818]:
+                      - /url: https://www.helpnetsecurity.com/2026/02/24/cybersecurity-jobs-available-right-now-february-24-2026/
+                      - img [ref=e2819]
+                  - generic [ref=e2823]: "Cybersecurity jobs available right now: February 24, 2026 - Help Net Security"
+                  - generic [ref=e2824]:
+                    - generic [ref=e2825]:
+                      - img [ref=e2826]
+                      - text: Salary N/A
+                    - generic [ref=e2828]:
+                      - img [ref=e2829]
+                      - text: Location N/A
+                  - generic [ref=e2832]:
+                    - generic [ref=e2833]: "2026"
+                    - generic [ref=e2834]: unknown
+                    - generic [ref=e2835]: Scrape
+                  - generic [ref=e2836]: The role is for an Application Security Engineer focused on securing AI products and internal tools through embedded SDLC security practices, including design reviews, threat modeling, and scalable secure code review. Key responsibilities include leading vulnerability management with automation and prioritization workflows. The position is remote in the United Kingdom.
+                  - generic [ref=e2838]: helpnetsecurity.com
+                - generic [ref=e2839] [cursor=pointer]:
+                  - generic [ref=e2840]:
+                    - checkbox "Select job 5085" [ref=e2841]
+                    - generic [ref=e2842]: "#5085"
+                    - generic [ref=e2843]: Backlog
+                    - generic "Apr 18, 12:02 AM" [ref=e2844]:
+                      - img [ref=e2845]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e2848]:
+                      - /url: https://novaedge.page.gd/job/application-security-engineer-north-central-region-remote-in-the-u-s
+                      - img [ref=e2849]
+                  - generic [ref=e2853]: Application Security Engineer - North Central region (Remote in the U.S.) | Novaedge
+                  - generic [ref=e2854]:
+                    - generic [ref=e2855]:
+                      - img [ref=e2856]
+                      - text: Salary N/A
+                    - generic [ref=e2858]:
+                      - img [ref=e2859]
+                      - text: Location N/A
+                  - generic [ref=e2862]:
+                    - generic [ref=e2863]: job
+                    - generic [ref=e2864]: unknown
+                    - generic [ref=e2865]: Scrape
+                  - generic [ref=e2866]: ROLE SUMMARY Application Security Engineer - North Central region (Remote in the U.S.) | Novaedge role with a focus on the responsibilities and qualifications listed below. LOGISTICS - Application Security Engineer - North Central region (Remote in the U.S.)
+                  - generic [ref=e2868]: novaedge.page.gd
+                - generic [ref=e2869] [cursor=pointer]:
+                  - generic [ref=e2870]:
+                    - checkbox "Select job 5080" [ref=e2871]
+                    - generic [ref=e2872]: "#5080"
+                    - generic [ref=e2873]: Backlog
+                    - generic "Apr 18, 12:02 AM" [ref=e2874]:
+                      - img [ref=e2875]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e2878]:
+                      - /url: https://www.virtualvocations.com/job/senior-application-security-engineer-2994579-i.html
+                      - img [ref=e2879]
+                  - generic [ref=e2883]: Senior Application Security Engineer - Virtual Vocations
+                  - generic [ref=e2884]:
+                    - generic [ref=e2885]:
+                      - img [ref=e2886]
+                      - text: Salary N/A
+                    - generic [ref=e2888]:
+                      - img [ref=e2889]
+                      - text: Location N/A
+                  - generic [ref=e2892]:
+                    - generic [ref=e2893]: job
+                    - generic [ref=e2894]: unknown
+                    - generic [ref=e2895]: Scrape
+                  - generic [ref=e2896]: The Senior Application Security Engineer role focuses on embedding security into the software development lifecycle through close collaboration with engineering teams. Key technical requirements include expertise in encryption, authentication, secure protocols, and hands-on experience with SAST, DAST, and penetration testing tools. A proven track record of partnering with engineering teams during planning and development phases is essential.
+                  - generic [ref=e2898]: virtualvocations.com
+                - generic [ref=e2899] [cursor=pointer]:
+                  - generic [ref=e2900]:
+                    - checkbox "Select job 5052" [ref=e2901]
+                    - generic [ref=e2902]: "#5052"
+                    - generic [ref=e2903]: Backlog
+                    - generic "Apr 17, 10:46 PM" [ref=e2904]:
+                      - img [ref=e2905]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e2908]:
+                      - /url: https://www.linkedin.com/jobs/view/ai-engineer-at-dynamism-4403437211
+                      - img [ref=e2909]
+                  - generic [ref=e2913]: dynamism hiring AI Engineer in San Francisco, CA | LinkedIn
+                  - generic [ref=e2914]:
+                    - generic [ref=e2915]:
+                      - img [ref=e2916]
+                      - text: Salary N/A
+                    - generic [ref=e2918]:
+                      - img [ref=e2919]
+                      - text: Location N/A
+                  - generic [ref=e2922]:
+                    - generic [ref=e2923]: jobs
+                    - generic [ref=e2924]: linkedin
+                    - generic [ref=e2925]: Scrape
+                  - generic [ref=e2926]: The AI Engineer role at Dynamism focuses on forward-deployed software engineering—directly engaging with customers to implement AI-powered solutions and build customizations. Requires strong engineering skills, customer-facing experience, and the ability to translate business needs into technical implementations. Targeting experienced engineers, potentially with founder background, in a high-impact, in-office role in San Francisco.
+                  - generic [ref=e2928]: linkedin.com
+                - generic [ref=e2929] [cursor=pointer]:
+                  - generic [ref=e2930]:
+                    - checkbox "Select job 5046" [ref=e2931]
+                    - generic [ref=e2932]: "#5046"
+                    - generic [ref=e2933]: Backlog
+                    - generic "Apr 17, 10:45 PM" [ref=e2934]:
+                      - img [ref=e2935]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e2938]:
+                      - /url: https://www.linkedin.com/jobs/view/remote-senior-backend-engineer-python-fastapi-%E2%80%93-ai-evaluation-us-based-at-turing-4403486550
+                      - img [ref=e2939]
+                  - generic [ref=e2943]: Remote Senior Backend Engineer (Python/FastAPI) – AI Evaluation ...
+                  - generic [ref=e2944]:
+                    - generic [ref=e2945]:
+                      - img [ref=e2946]
+                      - text: Salary N/A
+                    - generic [ref=e2948]:
+                      - img [ref=e2949]
+                      - text: Location N/A
+                  - generic [ref=e2952]:
+                    - generic [ref=e2953]: jobs
+                    - generic [ref=e2954]: linkedin
+                    - generic [ref=e2955]: Scrape
+                  - generic [ref=e2956]: Senior-level remote backend engineer role focused on AI evaluation and code assessment, requiring 3+ years of full-stack software engineering experience with strong Python/FastAPI and JavaScript (React/Node.js) expertise, plus familiarity with multiple languages (C/C++, Java, Rust, Go). Must demonstrate production-grade system deployment, deep software architecture understanding, and strong evaluation/communication skills. Contractor role (10–40 hrs/week), US-based only, with flexible duration and AI video interview assessment.
+                  - generic [ref=e2958]: linkedin.com
+                - generic [ref=e2959] [cursor=pointer]:
+                  - generic [ref=e2960]:
+                    - checkbox "Select job 5045" [ref=e2961]
+                    - generic [ref=e2962]: "#5045"
+                    - generic [ref=e2963]: Backlog
+                    - generic "Apr 17, 10:45 PM" [ref=e2964]:
+                      - img [ref=e2965]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e2968]:
+                      - /url: https://www.linkedin.com/jobs/view/remote-senior-backend-engineer-python-fastapi-%E2%80%93-ai-evaluation-us-based-at-turing-4403494046
+                      - img [ref=e2969]
+                  - generic [ref=e2973]: Remote Senior Backend Engineer (Python/FastAPI) – AI Evaluation ...
+                  - generic [ref=e2974]:
+                    - generic [ref=e2975]:
+                      - img [ref=e2976]
+                      - text: Salary N/A
+                    - generic [ref=e2978]:
+                      - img [ref=e2979]
+                      - text: Location N/A
+                  - generic [ref=e2982]:
+                    - generic [ref=e2983]: jobs
+                    - generic [ref=e2984]: linkedin
+                    - generic [ref=e2985]: Scrape
+                  - generic [ref=e2986]: Senior Backend Engineer (Python/FastAPI) role focused on AI evaluation and code assessment for frontier AI research and enterprise deployment; requires 3+ years of full-stack software engineering experience with deep Python and JavaScript (React/Node.js) expertise, plus familiarity with C/C++, Java, Rust, and Go; must demonstrate strong software architecture, debugging, and evaluation skills, especially in verifying AI-generated code quality and reliability.
+                  - generic [ref=e2988]: linkedin.com
+                - generic [ref=e2989] [cursor=pointer]:
+                  - generic [ref=e2990]:
+                    - checkbox "Select job 5029" [ref=e2991]
+                    - generic [ref=e2992]: "#5029"
+                    - generic [ref=e2993]: Backlog
+                    - generic "Apr 17, 10:45 PM" [ref=e2994]:
+                      - img [ref=e2995]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e2998]:
+                      - /url: https://www.linkedin.com/jobs/view/cloud-engineer-at-henderson-scott-4403423469
+                      - img [ref=e2999]
+                  - generic [ref=e3003]: Henderson Scott hiring Cloud Engineer in Culver City, CA | LinkedIn
+                  - generic [ref=e3004]:
+                    - generic [ref=e3005]:
+                      - img [ref=e3006]
+                      - text: Salary N/A
+                    - generic [ref=e3008]:
+                      - img [ref=e3009]
+                      - text: Location N/A
+                  - generic [ref=e3012]:
+                    - generic [ref=e3013]: jobs
+                    - generic [ref=e3014]: linkedin
+                    - generic [ref=e3015]: Scrape
+                  - generic [ref=e3016]: Henderson Scott is seeking a Senior Cloud & Automation Engineer with deep hands-on AWS expertise to build, automate, and improve enterprise-scale cloud infrastructure. Must-haves include strong AWS (EC2, VPC, IAM, S3, etc.), Terraform (modules/state), Ansible, and Linux administration experience in enterprise environments. The role emphasizes automation, reliability, and cross-functional collaboration, with preferred exposure to VMware, CI/CD tooling, containers, and scripting.
+                  - generic [ref=e3018]: linkedin.com
+                - generic [ref=e3019] [cursor=pointer]:
+                  - generic [ref=e3020]:
+                    - checkbox "Select job 5026" [ref=e3021]
+                    - generic [ref=e3022]: "#5026"
+                    - generic [ref=e3023]: Backlog
+                    - generic "Apr 17, 10:45 PM" [ref=e3024]:
+                      - img [ref=e3025]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3028]:
+                      - /url: https://www.linkedin.com/jobs/view/cloud-operations-engineer-datadog-focus-at-cmk-resources-inc-4400879381
+                      - img [ref=e3029]
+                  - generic [ref=e3033]: Cloud Operations Engineer (Datadog Focus) - LinkedIn
+                  - generic [ref=e3034]:
+                    - generic [ref=e3035]:
+                      - img [ref=e3036]
+                      - text: Salary N/A
+                    - generic [ref=e3038]:
+                      - img [ref=e3039]
+                      - text: Location N/A
+                  - generic [ref=e3042]:
+                    - generic [ref=e3043]: jobs
+                    - generic [ref=e3044]: linkedin
+                    - generic [ref=e3045]: Scrape
+                  - generic [ref=e3046]: Mid-to-senior Cloud Operations Engineer with deep Datadog expertise required to design, implement, and optimize cloud monitoring and observability solutions in AWS. Must have 4–8+ years in SRE/DevOps, strong AWS and IaC (Terraform/CloudFormation/Ansible) skills, incident response/on-call experience, and Linux/Windows systems familiarity. Datadog proficiency is mandatory.
+                  - generic [ref=e3048]: linkedin.com
+                - generic [ref=e3049] [cursor=pointer]:
+                  - generic [ref=e3050]:
+                    - checkbox "Select job 5019" [ref=e3051]
+                    - generic [ref=e3052]: "#5019"
+                    - generic [ref=e3053]: Backlog
+                    - generic "Apr 17, 10:45 PM" [ref=e3054]:
+                      - img [ref=e3055]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3058]:
+                      - /url: https://www.linkedin.com/jobs/view/remote-senior-python-engineer-%E2%80%93-llm-evaluation-us-based-at-turing-4403429001
+                      - img [ref=e3059]
+                  - generic [ref=e3063]: Remote Senior Python Engineer – LLM Evaluation (US-based)
+                  - generic [ref=e3064]:
+                    - generic [ref=e3065]:
+                      - img [ref=e3066]
+                      - text: Salary N/A
+                    - generic [ref=e3068]:
+                      - img [ref=e3069]
+                      - text: Location N/A
+                  - generic [ref=e3072]:
+                    - generic [ref=e3073]: jobs
+                    - generic [ref=e3074]: linkedin
+                    - generic [ref=e3075]: Scrape
+                  - generic [ref=e3076]: Senior-level Python engineer focused on evaluating and improving large language model outputs for software engineering tasks; requires 3+ years of software engineering experience with deep Python expertise and knowledge of production-grade software development practices.
+                  - generic [ref=e3078]: linkedin.com
+                - generic [ref=e3079] [cursor=pointer]:
+                  - generic [ref=e3080]:
+                    - checkbox "Select job 5013" [ref=e3081]
+                    - generic [ref=e3082]: "#5013"
+                    - generic [ref=e3083]: Backlog
+                    - generic "Apr 17, 10:45 PM" [ref=e3084]:
+                      - img [ref=e3085]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3088]:
+                      - /url: https://www.linkedin.com/jobs/view/information-security-engineer-at-x4-technology-4400816103
+                      - img [ref=e3089]
+                  - generic [ref=e3093]: Information Security Engineer - X4 Technology - LinkedIn
+                  - generic [ref=e3094]:
+                    - generic [ref=e3095]:
+                      - img [ref=e3096]
+                      - text: Salary N/A
+                    - generic [ref=e3098]:
+                      - img [ref=e3099]
+                      - text: Location N/A
+                  - generic [ref=e3102]:
+                    - generic [ref=e3103]: jobs
+                    - generic [ref=e3104]: linkedin
+                    - generic [ref=e3105]: Scrape
+                  - generic [ref=e3106]: The Information Security Engineer role at X4 Technology focuses on securing next-generation agentic AI systems and high-performance computing environments. Must-haves include strong infosec fundamentals (threat detection, incident response, vulnerability management), penetration testing and endpoint security experience, DevSecOps background, and scripting skills (Python/Go). AI/ML security experience and automation focus are strong differentiators. The role is senior-level, with a high compensation range ($250K–$600K base) and hybrid (3 days on-site in NYC) logistics.
+                  - generic [ref=e3108]: linkedin.com
+                - generic [ref=e3109] [cursor=pointer]:
+                  - generic [ref=e3110]:
+                    - checkbox "Select job 5010" [ref=e3111]
+                    - generic [ref=e3112]: "#5010"
+                    - generic [ref=e3113]: Backlog
+                    - generic "Apr 17, 10:44 PM" [ref=e3114]:
+                      - img [ref=e3115]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3118]:
+                      - /url: https://ca.linkedin.com/jobs/view/cybersecurity-engineer-entry-level-canada-at-jobright-ai-4402714380
+                      - img [ref=e3119]
+                  - generic [ref=e3123]: Cybersecurity Engineer, Entry Level (Canada) - Jobright.ai - LinkedIn
+                  - generic [ref=e3124]:
+                    - generic [ref=e3125]:
+                      - img [ref=e3126]
+                      - text: Salary N/A
+                    - generic [ref=e3128]:
+                      - img [ref=e3129]
+                      - text: Location N/A
+                  - generic [ref=e3132]:
+                    - generic [ref=e3133]: jobs
+                    - generic [ref=e3134]: linkedin
+                    - generic [ref=e3135]: Scrape
+                  - generic [ref=e3136]: Entry-level Cybersecurity Engineer role at Jobright.ai (Canada) focused on monitoring security incidents, conducting vulnerability assessments, and building security automation. Requires recent graduation or 0–2 years' experience, strong Python/Bash scripting skills, foundational knowledge of network protocols and common attack vectors (OWASP Top 10, MITRE ATT&CK), and clear communication of security risks. Preferred qualifications include CTF/bug bounty experience, familiarity with tools like Burp Suite/Nmap/Wireshark, SIEM experience, and interest in application security.
+                  - generic [ref=e3138]: ca.linkedin.com
+                - generic [ref=e3139] [cursor=pointer]:
+                  - generic [ref=e3140]:
+                    - checkbox "Select job 5007" [ref=e3141]
+                    - generic [ref=e3142]: "#5007"
+                    - generic [ref=e3143]: Backlog
+                    - generic "Apr 17, 10:44 PM" [ref=e3144]:
+                      - img [ref=e3145]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3148]:
+                      - /url: https://www.linkedin.com/jobs/view/data-engineer-remote-at-yo-it-consulting-4402704120
+                      - img [ref=e3149]
+                  - generic [ref=e3153]: YO IT Consulting hiring Data Engineer - Remote in Washington ...
+                  - generic [ref=e3154]:
+                    - generic [ref=e3155]:
+                      - img [ref=e3156]
+                      - text: Salary N/A
+                    - generic [ref=e3158]:
+                      - img [ref=e3159]
+                      - text: Location N/A
+                  - generic [ref=e3162]:
+                    - generic [ref=e3163]: jobs
+                    - generic [ref=e3164]: linkedin
+                    - generic [ref=e3165]: Scrape
+                  - generic [ref=e3166]: Data Engineer role focused on developing next-generation AI agents through data engineering, coding, and AI/ML expertise; contractor position, fully remote in Washington; requires expert-level data engineering skills and experience with AI/ML systems.
+                  - generic [ref=e3168]: linkedin.com
+                - generic [ref=e3169] [cursor=pointer]:
+                  - generic [ref=e3170]:
+                    - checkbox "Select job 5000" [ref=e3171]
+                    - generic [ref=e3172]: "#5000"
+                    - generic [ref=e3173]: Backlog
+                    - generic "Apr 17, 10:42 PM" [ref=e3174]:
+                      - img [ref=e3175]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3178]:
+                      - /url: https://www.linkedin.com/jobs/view/cloud-security-engineer-at-jobs-via-dice-4402391982
+                      - img [ref=e3179]
+                  - generic [ref=e3183]: Cloud Security Engineer - Jobs via Dice - LinkedIn
+                  - generic [ref=e3184]:
+                    - generic [ref=e3185]:
+                      - img [ref=e3186]
+                      - text: Salary N/A
+                    - generic [ref=e3188]:
+                      - img [ref=e3189]
+                      - text: Location N/A
+                  - generic [ref=e3192]:
+                    - generic [ref=e3193]: jobs
+                    - generic [ref=e3194]: linkedin
+                    - generic [ref=e3195]: Scrape
+                  - generic [ref=e3196]: Cloud Security Engineer role focused on securing a robotic delivery platform in AWS and GCP environments; requires strong infrastructure-as-code expertise, container security knowledge, and IAM tool experience; mid-to-senior level position offering $160,000 salary and fully remote work.
+                  - generic [ref=e3198]: linkedin.com
+                - generic [ref=e3199] [cursor=pointer]:
+                  - generic [ref=e3200]:
+                    - checkbox "Select job 4999" [ref=e3201]
+                    - generic [ref=e3202]: "#4999"
+                    - generic [ref=e3203]: Backlog
+                    - generic "Apr 17, 10:42 PM" [ref=e3204]:
+                      - img [ref=e3205]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3208]:
+                      - /url: https://www.ycombinator.com/companies/arc-prize-foundation/jobs/AKZRZDN-platform-engineer-benchmark-lead
+                      - img [ref=e3209]
+                  - generic [ref=e3213]: Platform Engineer - Benchmark Lead at ARC Prize Foundation
+                  - generic [ref=e3214]:
+                    - generic [ref=e3215]:
+                      - img [ref=e3216]
+                      - text: Salary N/A
+                    - generic [ref=e3218]:
+                      - img [ref=e3219]
+                      - text: Location N/A
+                  - generic [ref=e3222]:
+                    - generic [ref=e3223]: companies
+                    - generic [ref=e3224]: unknown
+                    - generic [ref=e3225]: Scrape
+                  - generic [ref=e3226]: Senior Platform Engineer to lead development and stabilization of the ARC-AGI benchmark platform, with deep expertise in Python backend systems, distributed systems, SQL, cloud infrastructure, and production reliability. Must have experience building evaluation harnesses, testing pipelines, and data logging/analysis workflows—particularly for AI/ML systems. The role requires senior-level ownership, architectural decision-making, and the ability to lay technical groundwork for future benchmark versions.
+                  - generic [ref=e3228]: ycombinator.com
+                - generic [ref=e3229] [cursor=pointer]:
+                  - generic [ref=e3230]:
+                    - checkbox "Select job 4989" [ref=e3231]
+                    - generic [ref=e3232]: "#4989"
+                    - generic [ref=e3233]: Backlog
+                    - generic "Apr 17, 10:42 PM" [ref=e3234]:
+                      - img [ref=e3235]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3238]:
+                      - /url: https://www.linkedin.com/jobs/view/cloud-security-engineer-at-franklin-fitch-4403404379
+                      - img [ref=e3239]
+                  - generic [ref=e3243]: Cloud Security Engineer - Franklin Fitch - LinkedIn
+                  - generic [ref=e3244]:
+                    - generic [ref=e3245]:
+                      - img [ref=e3246]
+                      - text: Salary N/A
+                    - generic [ref=e3248]:
+                      - img [ref=e3249]
+                      - text: Location N/A
+                  - generic [ref=e3252]:
+                    - generic [ref=e3253]: jobs
+                    - generic [ref=e3254]: linkedin
+                    - generic [ref=e3255]: Scrape
+                  - generic [ref=e3256]: The Cloud Security Engineer role focuses on securing multi-cloud environments (AWS, GCP, and Azure) within a professional services firm. Key requirements include strong hands-on experience across major cloud platforms, familiarity with cloud security tools and frameworks, and likely knowledge of compliance standards relevant to professional services. The role is mid-to-senior level, reflected in the $152k–$182k salary range and emphasis on strategic cloud security initiatives.
+                  - generic [ref=e3258]: linkedin.com
+                - generic [ref=e3259] [cursor=pointer]:
+                  - generic [ref=e3260]:
+                    - checkbox "Select job 4981" [ref=e3261]
+                    - generic [ref=e3262]: "#4981"
+                    - generic [ref=e3263]: Backlog
+                    - generic "Apr 17, 10:42 PM" [ref=e3264]:
+                      - img [ref=e3265]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3268]:
+                      - /url: https://join.com/companies/akveloncom/16023231-mlops-engineer-relocation-to-serbia
+                      - img [ref=e3269]
+                  - generic [ref=e3273]: MLOps Engineer (Relocation to Serbia) - Akvelon (Remote) - JOIN
+                  - generic [ref=e3274]:
+                    - generic [ref=e3275]:
+                      - img [ref=e3276]
+                      - text: Salary N/A
+                    - generic [ref=e3278]:
+                      - img [ref=e3279]
+                      - text: Location N/A
+                  - generic [ref=e3282]:
+                    - generic [ref=e3283]: companies
+                    - generic [ref=e3284]: unknown
+                    - generic [ref=e3285]: Scrape
+                  - generic [ref=e3286]: The MLOps Engineer role focuses on building and operating an internal AI platform to accelerate development of LLM-powered services. Key technical requirements include strong production Kubernetes experience (preferably AKS), Python proficiency for automation and tooling, and hands-on experience with Kubeflow/Argo and ML lifecycle tooling. The role is mid-to-senior level, requiring collaboration with engineering teams to improve developer experience through APIs, templates, and automation.
+                  - generic [ref=e3288]: join.com
+                - generic [ref=e3289] [cursor=pointer]:
+                  - generic [ref=e3290]:
+                    - checkbox "Select job 4969" [ref=e3291]
+                    - generic [ref=e3292]: "#4969"
+                    - generic [ref=e3293]: Backlog
+                    - generic "Apr 17, 10:42 PM" [ref=e3294]:
+                      - img [ref=e3295]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3298]:
+                      - /url: https://jobs.lever.co/goodleap/6de28553-53fd-440a-9dd9-9bc4ffa90a90
+                      - img [ref=e3299]
+                  - generic [ref=e3303]: GoodLeap - Senior Software Engineer/Tech Lead (Full-Stack) - Lever
+                  - generic [ref=e3304]:
+                    - generic [ref=e3305]:
+                      - img [ref=e3306]
+                      - text: Salary N/A
+                    - generic [ref=e3308]:
+                      - img [ref=e3309]
+                      - text: Location N/A
+                  - generic [ref=e3312]:
+                    - generic [ref=e3313]: goodleap
+                    - generic [ref=e3314]: lever
+                    - generic [ref=e3315]: Scrape
+                  - generic [ref=e3316]: Senior Full-Stack Software Engineer/Tech Lead role focused on building scalable, secure applications with strong frontend (React) and backend expertise; requires leadership in end-to-end feature delivery, architecture design for AI/ML-integrated platforms, and close collaboration with product and engineering teams. Must-haves include full-stack development experience, technical leadership, and experience with modern web technologies. FinTech or Mortgage domain experience is a strong plus.
+                  - generic [ref=e3318]: jobs.lever.co
+                - generic [ref=e3319] [cursor=pointer]:
+                  - generic [ref=e3320]:
+                    - checkbox "Select job 4957" [ref=e3321]
+                    - generic [ref=e3322]: "#4957"
+                    - generic [ref=e3323]: Backlog
+                    - generic "Apr 17, 10:42 PM" [ref=e3324]:
+                      - img [ref=e3325]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3328]:
+                      - /url: https://novaedge.page.gd/job/founding-backend-infra-engineer-remote
+                      - img [ref=e3329]
+                  - generic [ref=e3333]: Founding Backend / Infra Engineer (Remote) | Novaedge
+                  - generic [ref=e3334]:
+                    - generic [ref=e3335]:
+                      - img [ref=e3336]
+                      - text: Salary N/A
+                    - generic [ref=e3338]:
+                      - img [ref=e3339]
+                      - text: Location N/A
+                  - generic [ref=e3342]:
+                    - generic [ref=e3343]: job
+                    - generic [ref=e3344]: unknown
+                    - generic [ref=e3345]: Scrape
+                  - generic [ref=e3346]: Founding Backend/Infra Engineer role focused on building core infrastructure for a healthcare AI product; requires strong backend systems and infrastructure expertise; offers $150K–$200K base salary, founding equity, fully remote setup, and high-impact technical ownership at an early-stage company.
+                  - generic [ref=e3348]: novaedge.page.gd
+                - generic [ref=e3349] [cursor=pointer]:
+                  - generic [ref=e3350]:
+                    - checkbox "Select job 4946" [ref=e3351]
+                    - generic [ref=e3352]: "#4946"
+                    - generic [ref=e3353]: Backlog
+                    - generic "Apr 17, 10:42 PM" [ref=e3354]:
+                      - img [ref=e3355]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3358]:
+                      - /url: https://www.aijobs.com/jobs/444133989-devsecops-engineer
+                      - img [ref=e3359]
+                  - generic [ref=e3363]: DevSecOps Engineer at Yubo - aijobs.com
+                  - generic [ref=e3364]:
+                    - generic [ref=e3365]:
+                      - img [ref=e3366]
+                      - text: Salary N/A
+                    - generic [ref=e3368]:
+                      - img [ref=e3369]
+                      - text: Location N/A
+                  - generic [ref=e3372]:
+                    - generic [ref=e3373]: jobs
+                    - generic [ref=e3374]: unknown
+                    - generic [ref=e3375]: Scrape
+                  - generic [ref=e3376]: The DevSecOps Engineer role at Yubo focuses on embedding security into the software development lifecycle through automation and tooling within CI/CD pipelines, repositories, and developer workflows. Must have experience turning complex security requirements into scalable, engineer-adoptable systems. The role requires close collaboration with Security and Platform Engineering teams to enhance production resilience and reduce risk at scale.
+                  - generic [ref=e3378]: aijobs.com
+                - generic [ref=e3379] [cursor=pointer]:
+                  - generic [ref=e3380]:
+                    - checkbox "Select job 4941" [ref=e3381]
+                    - generic [ref=e3382]: "#4941"
+                    - generic [ref=e3383]: Backlog
+                    - generic "Apr 17, 10:42 PM" [ref=e3384]:
+                      - img [ref=e3385]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3388]:
+                      - /url: https://novaedge.page.gd/job/senior-threat-detection-engineer-cybersecurity-expert-for-remote-threat-hunting-and-detection-100-re
+                      - img [ref=e3389]
+                  - generic [ref=e3393]: Senior Threat Detection Engineer - Cybersecurity Expert for Remote ...
+                  - generic [ref=e3394]:
+                    - generic [ref=e3395]:
+                      - img [ref=e3396]
+                      - text: Salary N/A
+                    - generic [ref=e3398]:
+                      - img [ref=e3399]
+                      - text: Location N/A
+                  - generic [ref=e3402]:
+                    - generic [ref=e3403]: job
+                    - generic [ref=e3404]: unknown
+                    - generic [ref=e3405]: Scrape
+                  - generic [ref=e3406]: Senior Threat Detection Engineer role focused on building and tuning threat detection logic, rules, and alerting systems within a SIEM environment to defend against evolving cyber threats. Must-haves include experience with content development, alert tuning, network monitoring/exploitation techniques, scripting (Python/Bash/PowerShell), IOC tools (YARA/OpenIOC), and orchestration/automation for threat hunting. The position is remote and supports 24/7 Security Operations and Incident Response.
+                  - generic [ref=e3408]: novaedge.page.gd
+                - generic [ref=e3409] [cursor=pointer]:
+                  - generic [ref=e3410]:
+                    - checkbox "Select job 4939" [ref=e3411]
+                    - generic [ref=e3412]: "#4939"
+                    - generic [ref=e3413]: Backlog
+                    - generic "Apr 17, 10:42 PM" [ref=e3414]:
+                      - img [ref=e3415]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3418]:
+                      - /url: https://bebee.com/ph/jobs/senior-devsecops-engineer-remote-first-on-call-antler-pasig--whatjobs-c2729dd8f209410e9ada9381c37da96f
+                      - img [ref=e3419]
+                  - generic [ref=e3423]: Senior DevSecOps Engineer - Remote-First & On-Call - Antler | BeBee
+                  - generic [ref=e3424]:
+                    - generic [ref=e3425]:
+                      - img [ref=e3426]
+                      - text: Salary N/A
+                    - generic [ref=e3428]:
+                      - img [ref=e3429]
+                      - text: Location N/A
+                  - generic [ref=e3432]:
+                    - generic [ref=e3433]: ph
+                    - generic [ref=e3434]: unknown
+                    - generic [ref=e3435]: Scrape
+                  - generic [ref=e3436]: Senior DevSecOps Engineer role focused on securing cloud-native environments (AWS, Kubernetes) across the SDLC for a travel-tech company; requires 5+ years of DevSecOps experience, deep AWS and Kubernetes expertise, and security incident response capabilities; remote-first with on-call responsibilities.
+                  - generic [ref=e3438]: bebee.com
+                - generic [ref=e3439] [cursor=pointer]:
+                  - generic [ref=e3440]:
+                    - checkbox "Select job 4937" [ref=e3441]
+                    - generic [ref=e3442]: "#4937"
+                    - generic [ref=e3443]: Backlog
+                    - generic "Apr 17, 10:42 PM" [ref=e3444]:
+                      - img [ref=e3445]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3448]:
+                      - /url: https://career.avenga.com/jobs/7590264-senior-devsecops-engineer-freelance
+                      - img [ref=e3449]
+                  - generic [ref=e3453]: Senior DevSecOps Engineer (Freelance) - Avenga
+                  - generic [ref=e3454]:
+                    - generic [ref=e3455]:
+                      - img [ref=e3456]
+                      - text: Salary N/A
+                    - generic [ref=e3458]:
+                      - img [ref=e3459]
+                      - text: Location N/A
+                  - generic [ref=e3462]:
+                    - generic [ref=e3463]: jobs
+                    - generic [ref=e3464]: unknown
+                    - generic [ref=e3465]: Scrape
+                  - generic [ref=e3466]: Senior-level freelance DevSecOps Engineer needed to support a digital services platform in Gothenburg, Sweden, with a focus on secure, scalable cloud-native architectures. Requires 5+ years of DevOps/Cloud Engineering experience, strong scripting skills (Bash, Python, Java, TypeScript), deep AWS expertise (CloudFormation, CodePipeline, etc.), CI/CD automation, Infrastructure-as-Code, and hands-on experience with Jenkins, Linux, monitoring/observability tools, and SQL/NoSQL databases. Kubernetes and security tooling (Artifactory, Xray, SonarQube) are preferred.
+                  - generic [ref=e3468]: career.avenga.com
+                - generic [ref=e3469] [cursor=pointer]:
+                  - generic [ref=e3470]:
+                    - checkbox "Select job 4929" [ref=e3471]
+                    - generic [ref=e3472]: "#4929"
+                    - generic [ref=e3473]: Backlog
+                    - generic "Apr 17, 10:42 PM" [ref=e3474]:
+                      - img [ref=e3475]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3478]:
+                      - /url: https://bebee.com/mx/jobs/senior-application-security-engineer-remote-luxoft-xico--buscojob-134822961
+                      - img [ref=e3479]
+                  - generic [ref=e3483]: Senior Application Security Engineer (Remote) - Luxoft - BeBee
+                  - generic [ref=e3484]:
+                    - generic [ref=e3485]:
+                      - img [ref=e3486]
+                      - text: Salary N/A
+                    - generic [ref=e3488]:
+                      - img [ref=e3489]
+                      - text: Location N/A
+                  - generic [ref=e3492]:
+                    - generic [ref=e3493]: mx
+                    - generic [ref=e3494]: unknown
+                    - generic [ref=e3495]: Scrape
+                  - generic [ref=e3496]: Senior Application Security Engineer role focused on securing AI/ML systems, APIs, and cloud-native applications within the Oil & Gas domain; requires 5+ years in AppSec with 1-2 years specifically in AI/ML security, strong SAST/DAST/SCA tool experience, cloud (AWS/Azure) and Kubernetes security expertise, Python/Java coding skills, and familiarity with AI platforms like Amazon Bedrock or SageMaker.
+                  - generic [ref=e3498]: bebee.com
+                - generic [ref=e3499] [cursor=pointer]:
+                  - generic [ref=e3500]:
+                    - checkbox "Select job 4923" [ref=e3501]
+                    - generic [ref=e3502]: "#4923"
+                    - generic [ref=e3503]: Backlog
+                    - generic "Apr 17, 10:42 PM" [ref=e3504]:
+                      - img [ref=e3505]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3508]:
+                      - /url: https://jobs.lever.co/jobgether/075d7516-5d25-4f7f-9589-4d862f3ad815
+                      - img [ref=e3509]
+                  - generic [ref=e3513]: Senior Software Engineer- (Agentic Commerce & Automation) - Lever
+                  - generic [ref=e3514]:
+                    - generic [ref=e3515]:
+                      - img [ref=e3516]
+                      - text: Salary N/A
+                    - generic [ref=e3518]:
+                      - img [ref=e3519]
+                      - text: Location N/A
+                  - generic [ref=e3522]:
+                    - generic [ref=e3523]: jobgether
+                    - generic [ref=e3524]: lever
+                    - generic [ref=e3525]: Scrape
+                  - generic [ref=e3526]: Senior Software Engineer focused on Agentic Commerce & Automation, requiring 4–6+ years of backend/full-stack experience with strong expertise in system design, distributed architecture, and service-oriented systems. The role emphasizes building scalable backend services and APIs for merchant/partner integrations, with exposure to e-commerce platforms like Shopify and potential frontend contributions in React.
+                  - generic [ref=e3528]: jobs.lever.co
+                - generic [ref=e3529] [cursor=pointer]:
+                  - generic [ref=e3530]:
+                    - checkbox "Select job 4922" [ref=e3531]
+                    - generic [ref=e3532]: "#4922"
+                    - generic [ref=e3533]: Backlog
+                    - generic "Apr 17, 10:42 PM" [ref=e3534]:
+                      - img [ref=e3535]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3538]:
+                      - /url: https://job-boards.greenhouse.io/nearform/jobs/7702718003
+                      - img [ref=e3539]
+                  - generic [ref=e3543]: Job Application for Technical Lead (Perm, UK, Remote) at Nearform
+                  - generic [ref=e3544]:
+                    - generic [ref=e3545]:
+                      - img [ref=e3546]
+                      - text: Salary N/A
+                    - generic [ref=e3548]:
+                      - img [ref=e3549]
+                      - text: Location N/A
+                  - generic [ref=e3552]:
+                    - generic [ref=e3553]: nearform
+                    - generic [ref=e3554]: greenhouse
+                    - generic [ref=e3555]: Scrape
+                  - generic [ref=e3556]: The Technical Lead role at Nearform is a permanent, fully remote position for UK-based professionals with significant experience in software engineering—specifically as a Senior Engineer or Technical Lead—leading projects and mentoring teams. Must-have qualifications include strong JavaScript or Python expertise, deep knowledge of agile methodologies and design patterns, and proven experience translating client business requirements into technical solutions. Preferred skills encompass cloud platforms (AWS/Azure/GCP), DevOps practices, and awareness of operational concerns like security, monitoring, and GDPR. The role emphasizes client collaboration, technical leadership, and building AI-enabled digital solutions for enterprise clients.
+                  - generic [ref=e3558]: job-boards.greenhouse.io
+                - generic [ref=e3559] [cursor=pointer]:
+                  - generic [ref=e3560]:
+                    - checkbox "Select job 4892" [ref=e3561]
+                    - generic [ref=e3562]: "#4892"
+                    - generic [ref=e3563]: Backlog
+                    - generic "Apr 17, 10:40 PM" [ref=e3564]:
+                      - img [ref=e3565]
+                      - text: 1d ago
+                    - link "Open JD in new tab" [ref=e3568]:
+                      - /url: https://jobs.lever.co/trility/e16480fa-7daa-4f23-ba32-7818847366dd/apply?lever-origin=applied&lever-source%5B%5D=Jobgether
+                      - img [ref=e3569]
+                  - generic [ref=e3573]: Trility Consulting - General Application - Lever
+                  - generic [ref=e3574]:
+                    - generic [ref=e3575]:
+                      - img [ref=e3576]
+                      - text: Salary N/A
+                    - generic [ref=e3578]:
+                      - img [ref=e3579]
+                      - text: Location N/A
+                  - generic [ref=e3582]:
+                    - generic [ref=e3583]: trility
+                    - generic [ref=e3584]: lever
+                    - generic [ref=e3585]: Scrape
+                  - generic [ref=e3586]: General application posting for remote technology roles at Trility Consulting in the United States; open to both full-time employee (FTE) and 1099 independent contractor arrangements. No specific role details, responsibilities, or qualifications are provided in the scraped content—only a generic note that AI tools may assist in application review.
+                  - generic [ref=e3588]: jobs.lever.co
+                - generic [ref=e3589] [cursor=pointer]:
+                  - generic [ref=e3590]:
+                    - checkbox "Select job 4752" [ref=e3591]
+                    - generic [ref=e3592]: "#4752"
+                    - generic [ref=e3593]: Backlog
+                    - generic "Apr 15, 8:22 PM" [ref=e3594]:
+                      - img [ref=e3595]
+                      - text: 3d ago
+                    - link "Open JD in new tab" [ref=e3598]:
+                      - /url: https://ca.linkedin.com/jobs/view/frontend-platform-engineer-javascript-infrastructure-at-stripe-4402615226
+                      - img [ref=e3599]
+                  - generic [ref=e3603]: Frontend Platform Engineer, JavaScript Infrastructure - LinkedIn
+                  - generic [ref=e3604]:
+                    - generic [ref=e3605]:
+                      - img [ref=e3606]
+                      - text: Salary N/A
+                    - generic [ref=e3608]:
+                      - img [ref=e3609]
+                      - text: Location N/A
+                  - generic [ref=e3612]:
+                    - generic [ref=e3613]: jobs
+                    - generic [ref=e3614]: linkedin
+                    - generic [ref=e3615]: Scrape
+                  - generic [ref=e3616]: The Frontend Platform Engineer, JavaScript Infrastructure role at Stripe Canada focuses on building and maintaining core developer infrastructure—including package managers, build toolchains, bundlers, and TypeScript tooling—for large-scale frontend systems. Must-haves include 2+ years of software development experience with JavaScript/TypeScript, deep frontend ecosystem knowledge, experience with developer tooling or CLI tools, strong systems thinking, and excellent written communication. The ideal candidate is motivated by improving fellow engineers' productivity and thrives in high-autonomy, distributed environments.
+                  - generic [ref=e3617]:
+                    - generic [ref=e3618]: ca.linkedin.com
+                    - generic "2 prior tailoring run(s)" [ref=e3619]:
+                      - img [ref=e3620]
+                      - text: "2"
+                - generic [ref=e3624] [cursor=pointer]:
+                  - generic [ref=e3625]:
+                    - checkbox "Select job 4712" [ref=e3626]
+                    - generic [ref=e3627]: "#4712"
+                    - generic [ref=e3628]: Backlog
+                    - generic "Apr 15, 8:22 PM" [ref=e3629]:
+                      - img [ref=e3630]
+                      - text: 3d ago
+                    - link "Open JD in new tab" [ref=e3633]:
+                      - /url: https://www.dice.com/job-detail/46838ee8-8431-486f-8c54-c025f3cbaa10
+                      - img [ref=e3634]
+                  - generic [ref=e3638]: Penetration Tester / Security Engineer | $100/hr | Remote - Dice
+                  - generic [ref=e3639]:
+                    - generic [ref=e3640]:
+                      - img [ref=e3641]
+                      - text: Salary N/A
+                    - generic [ref=e3643]:
+                      - img [ref=e3644]
+                      - text: Location N/A
+                  - generic [ref=e3647]:
+                    - generic [ref=e3648]: job-detail
+                    - generic [ref=e3649]: unknown
+                    - generic [ref=e3650]: Scrape
+                  - generic [ref=e3651]: The role is a remote, contract-based Penetration Tester / Security Engineer position offering $30–$100/hour, focused on expert-level secure code reviews (OWASP Top 10, CWE) and developing security automation tools in Python, Go, or JavaScript/TypeScript to improve vulnerability detection. Requires hands-on experience in vulnerability assessment, penetration testing, and tool development.
+                  - generic [ref=e3652]:
+                    - generic [ref=e3653]: dice.com
+                    - generic "7 prior tailoring run(s)" [ref=e3654]:
+                      - img [ref=e3655]
+                      - text: "7"
+                - generic [ref=e3659] [cursor=pointer]:
+                  - generic [ref=e3660]:
+                    - checkbox "Select job 4692" [ref=e3661]
+                    - generic [ref=e3662]: "#4692"
+                    - generic [ref=e3663]: Backlog
+                    - generic "Apr 15, 8:22 PM" [ref=e3664]:
+                      - img [ref=e3665]
+                      - text: 3d ago
+                    - link "Open JD in new tab" [ref=e3668]:
+                      - /url: https://hireza.wuaze.com/job/jr-cloud-security-automation-engineer-remote-anywhere-in-the-u-s-11
+                      - img [ref=e3669]
+                  - generic [ref=e3673]: Jr Cloud Security Automation Engineer- Remote (Anywhere in the ...
+                  - generic [ref=e3674]:
+                    - generic [ref=e3675]:
+                      - img [ref=e3676]
+                      - text: Salary N/A
+                    - generic [ref=e3678]:
+                      - img [ref=e3679]
+                      - text: Location N/A
+                  - generic [ref=e3682]:
+                    - generic [ref=e3683]: job
+                    - generic [ref=e3684]: unknown
+                    - generic [ref=e3685]: Scrape
+                  - generic [ref=e3686]: Entry-level Cloud Security Automation Engineer role focused on supporting cloud-native security initiatives for government and commercial clients. Requires basic experience with Infrastructure as Code (e.g., Terraform), with preference for familiarity with CI/CD platforms like GitHub Actions or GitLab CI. The role emphasizes hands-on learning in Kubernetes security, policy-as-code (OPA/Kyverno), and automation under senior mentorship.
+                  - generic [ref=e3687]:
+                    - generic [ref=e3688]: hireza.wuaze.com
+                    - generic "5 prior tailoring run(s)" [ref=e3689]:
+                      - img [ref=e3690]
+                      - text: "5"
+                - generic [ref=e3694] [cursor=pointer]:
+                  - generic [ref=e3695]:
+                    - checkbox "Select job 4688" [ref=e3696]
+                    - generic [ref=e3697]: "#4688"
+                    - generic [ref=e3698]: Backlog
+                    - generic "Apr 15, 8:22 PM" [ref=e3699]:
+                      - img [ref=e3700]
+                      - text: 3d ago
+                    - link "Open JD in new tab" [ref=e3703]:
+                      - /url: https://job-boards.greenhouse.io/branch/jobs/7701734003
+                      - img [ref=e3704]
+                  - generic [ref=e3708]: Senior Application Security Engineer - Greenhouse
+                  - generic [ref=e3709]:
+                    - generic [ref=e3710]:
+                      - img [ref=e3711]
+                      - text: Salary N/A
+                    - generic [ref=e3713]:
+                      - img [ref=e3714]
+                      - text: Location N/A
+                  - generic [ref=e3717]:
+                    - generic [ref=e3718]: branch
+                    - generic [ref=e3719]: greenhouse
+                    - generic [ref=e3720]: Scrape
+                  - generic [ref=e3721]: Senior Application Security Engineer focused on securing cloud-native applications, APIs, and AI-powered features in a fintech environment; requires 5–7 years of AppSec experience with hands-on SAST/DAST/SCA tools, incident response, vulnerability management, and SDLC integration; must have strong API security knowledge (OWASP API Top 10, OAuth 2.0/OIDC), cloud security (IAM, Kubernetes, serverless), scripting skills (Python/Bash), and familiarity with security frameworks (SOC 2, PCI-DSS, NIST CSF). AI/LLM security awareness (OWASP LLM Top 10) is a key differentiator.
+                  - generic [ref=e3722]:
+                    - generic [ref=e3723]: job-boards.greenhouse.io
+                    - generic "5 prior tailoring run(s)" [ref=e3724]:
+                      - img [ref=e3725]
+                      - text: "5"
+                - generic [ref=e3729] [cursor=pointer]:
+                  - generic [ref=e3730]:
+                    - checkbox "Select job 4659" [ref=e3731]
+                    - generic [ref=e3732]: "#4659"
+                    - generic [ref=e3733]: Backlog
+                    - generic "Apr 15, 8:22 PM" [ref=e3734]:
+                      - img [ref=e3735]
+                      - text: 3d ago
+                    - link "Open JD in new tab" [ref=e3738]:
+                      - /url: https://jobs.lever.co/jobgether/deb80410-b333-4cb2-ac82-1fdda53f1845
+                      - img [ref=e3739]
+                  - generic [ref=e3743]: Jobgether - Data Platform Engineer - Lever
+                  - generic [ref=e3744]:
+                    - generic [ref=e3745]:
+                      - img [ref=e3746]
+                      - text: Salary N/A
+                    - generic [ref=e3748]:
+                      - img [ref=e3749]
+                      - text: Location N/A
+                  - generic [ref=e3752]:
+                    - generic [ref=e3753]: jobgether
+                    - generic [ref=e3754]: lever
+                    - generic [ref=e3755]: Scrape
+                  - generic [ref=e3756]: The Data Platform Engineer role focuses on building and scaling foundational data and ML platforms to support self-serve analytics, model deployment, and real-time data access. Must-haves include 5+ years in data platform, infrastructure, or ML engineering with hands-on AI/ML system experience, plus familiarity with LLMs, RAG, prompt processing, or AI-native infrastructure.
+                  - generic [ref=e3757]:
+                    - generic [ref=e3758]: jobs.lever.co
+                    - generic "5 prior tailoring run(s)" [ref=e3759]:
+                      - img [ref=e3760]
+                      - text: "5"
+                - generic [ref=e3764] [cursor=pointer]:
+                  - generic [ref=e3765]:
+                    - checkbox "Select job 4608" [ref=e3766]
+                    - generic [ref=e3767]: "#4608"
+                    - generic [ref=e3768]: Backlog
+                    - generic "Apr 15, 1:14 PM" [ref=e3769]:
+                      - img [ref=e3770]
+                      - text: 3d ago
+                    - link "Open JD in new tab" [ref=e3773]:
+                      - /url: https://bitwarden.com/careers/7693498003/?gh_jid=7693498003
+                      - img [ref=e3774]
+                  - generic [ref=e3778]: Senior Security Engineer | Bitwarden
+                  - generic [ref=e3779]:
+                    - generic [ref=e3780]:
+                      - img [ref=e3781]
+                      - text: Salary N/A
+                    - generic [ref=e3783]:
+                      - img [ref=e3784]
+                      - text: Location N/A
+                  - generic [ref=e3787]:
+                    - generic [ref=e3788]: careers
+                    - generic [ref=e3789]: unknown
+                    - generic [ref=e3790]: Scrape
+                  - generic [ref=e3791]: Senior Security Engineer role focused on purple teaming, threat modeling, penetration testing, and vulnerability management across Bitwarden’s multi-product platform (web, mobile, CLI, desktop apps, APIs, serverless, databases). Requires deep hands-on experience with security tools (Burp Suite, Kali, Metasploit, etc.), application security testing, authentication protocols (OAuth, SAML, OpenID Connect), and cloud environments. Must have strong offensive security skills, collaboration abilities, and passion for open-source security. U.S.-based remote role with $140K–$180K base pay.
+                  - generic [ref=e3792]:
+                    - generic [ref=e3793]: bitwarden.com
+                    - generic "2 prior tailoring run(s)" [ref=e3794]:
+                      - img [ref=e3795]
+                      - text: "2"
+                - generic [ref=e3799] [cursor=pointer]:
+                  - generic [ref=e3800]:
+                    - checkbox "Select job 4466" [ref=e3801]
+                    - generic [ref=e3802]: "#4466"
+                    - generic [ref=e3803]: Backlog
+                    - generic "Apr 14, 8:34 PM" [ref=e3804]:
+                      - img [ref=e3805]
+                      - text: 4d ago
+                    - link "Open JD in new tab" [ref=e3808]:
+                      - /url: https://www.apexsystems.com/job/3030541_usa/devops-engineer-awsterraform
+                      - img [ref=e3809]
+                  - generic [ref=e3813]: Devops Engineer (AWS/Terraform) | Apex Systems
+                  - generic [ref=e3814]:
+                    - generic [ref=e3815]:
+                      - img [ref=e3816]
+                      - text: Salary N/A
+                    - generic [ref=e3818]:
+                      - img [ref=e3819]
+                      - text: Location N/A
+                  - generic [ref=e3822]:
+                    - generic [ref=e3823]: job
+                    - generic [ref=e3824]: unknown
+                    - generic [ref=e3825]: Scrape
+                  - generic [ref=e3826]: The DevOps Engineer role focuses on designing, implementing, and managing scalable AWS infrastructure using infrastructure-as-code (Terraform). Must-haves include hands-on Terraform experience, GitHub CI/CD pipeline development, AWS service expertise (e.g., ECS, RDS, Lambda), and scripting skills (Python/Bash). The role requires collaboration across development, security, and ops teams to streamline deployments and ensure secure, highly available systems.
+                  - generic [ref=e3827]:
+                    - generic [ref=e3828]: apexsystems.com
+                    - generic "3 prior tailoring run(s)" [ref=e3829]:
+                      - img [ref=e3830]
+                      - text: "3"
+                - generic [ref=e3834] [cursor=pointer]:
+                  - generic [ref=e3835]:
+                    - checkbox "Select job 4463" [ref=e3836]
+                    - generic [ref=e3837]: "#4463"
+                    - generic [ref=e3838]: Backlog
+                    - generic "Apr 14, 8:34 PM" [ref=e3839]:
+                      - img [ref=e3840]
+                      - text: 4d ago
+                    - link "Open JD in new tab" [ref=e3843]:
+                      - /url: https://jobs.lever.co/jobgether/6539b265-968a-4863-b445-d9012722363d
+                      - img [ref=e3844]
+                  - generic [ref=e3848]: Senior Software Engineer, AI Data - Jobgether - Lever
+                  - generic [ref=e3849]:
+                    - generic [ref=e3850]:
+                      - img [ref=e3851]
+                      - text: Salary N/A
+                    - generic [ref=e3853]:
+                      - img [ref=e3854]
+                      - text: Location N/A
+                  - generic [ref=e3857]:
+                    - generic [ref=e3858]: jobgether
+                    - generic [ref=e3859]: lever
+                    - generic [ref=e3860]: Scrape
+                  - generic [ref=e3861]: Senior Software Engineer focused on AI data infrastructure, requiring 5+ years of Python/SQL experience, strong distributed systems and cloud (GCP) expertise, and familiarity with ML/AI tooling (e.g., Airflow, Beam, PySpark). Must demonstrate ability to build scalable data pipelines, optimize cost/performance, and collaborate closely with researchers—ideal for a startup-minded engineer in a fully remote, high-impact role.
+                  - generic [ref=e3862]:
+                    - generic [ref=e3863]: jobs.lever.co
+                    - generic "3 prior tailoring run(s)" [ref=e3864]:
+                      - img [ref=e3865]
+                      - text: "3"
+                - generic [ref=e3869] [cursor=pointer]:
+                  - generic [ref=e3870]:
+                    - checkbox "Select job 4402" [ref=e3871]
+                    - generic [ref=e3872]: "#4402"
+                    - generic [ref=e3873]: Backlog
+                    - generic "Apr 14, 8:34 PM" [ref=e3874]:
+                      - img [ref=e3875]
+                      - text: 4d ago
+                    - link "Open JD in new tab" [ref=e3878]:
+                      - /url: https://jobs.lever.co/jobgether/49fcb363-9006-44b2-8366-acf1290b5552
+                      - img [ref=e3879]
+                  - generic [ref=e3883]: Jobgether - Senior Integrations Engineer – Slack and Microsoft Teams
+                  - generic [ref=e3884]:
+                    - generic [ref=e3885]:
+                      - img [ref=e3886]
+                      - text: Salary N/A
+                    - generic [ref=e3888]:
+                      - img [ref=e3889]
+                      - text: Location N/A
+                  - generic [ref=e3892]:
+                    - generic [ref=e3893]: jobgether
+                    - generic [ref=e3894]: lever
+                    - generic [ref=e3895]: Scrape
+                  - generic [ref=e3896]: Senior Integrations Engineer focused on building and scaling mission-critical Slack and Microsoft Teams integrations for enterprise customers; requires 5+ years of full-stack/platform engineering experience with Node.js, TypeScript, React, and Next.js, plus deep expertise in messaging platform APIs and scalable integration architectures.
+                  - generic [ref=e3897]:
+                    - generic [ref=e3898]: jobs.lever.co
+                    - generic "2 prior tailoring run(s)" [ref=e3899]:
+                      - img [ref=e3900]
+                      - text: "2"
+                - generic [ref=e3904] [cursor=pointer]:
+                  - generic [ref=e3905]:
+                    - checkbox "Select job 4401" [ref=e3906]
+                    - generic [ref=e3907]: "#4401"
+                    - generic [ref=e3908]: Backlog
+                    - generic "Apr 14, 8:34 PM" [ref=e3909]:
+                      - img [ref=e3910]
+                      - text: 4d ago
+                    - link "Open JD in new tab" [ref=e3913]:
+                      - /url: https://job-boards.greenhouse.io/brandwatch/jobs/4694650101
+                      - img [ref=e3914]
+                  - generic [ref=e3918]: Job Application for DevOps Engineer – Observability at Brandwatch
+                  - generic [ref=e3919]:
+                    - generic [ref=e3920]:
+                      - img [ref=e3921]
+                      - text: Salary N/A
+                    - generic [ref=e3923]:
+                      - img [ref=e3924]
+                      - text: Location N/A
+                  - generic [ref=e3927]:
+                    - generic [ref=e3928]: brandwatch
+                    - generic [ref=e3929]: greenhouse
+                    - generic [ref=e3930]: Scrape
+                  - generic [ref=e3931]: The DevOps Engineer – Observability role focuses on designing and implementing reliable, scalable infrastructure and observability tooling using cloud platforms, infrastructure-as-code (e.g., Terraform), and CI/CD automation. Must-haves include hands-on experience with infrastructure automation tools, secure SDLC/CI/CD practices, and familiarity with data systems like Kafka, MySQL/PostgreSQL, and Redis. The role involves mentoring engineers, supporting 24/7 on-call, and collaborating cross-functionally—indicating a mid-to-senior level position.
+                  - generic [ref=e3932]:
+                    - generic [ref=e3933]: job-boards.greenhouse.io
+                    - generic "2 prior tailoring run(s)" [ref=e3934]:
+                      - img [ref=e3935]
+                      - text: "2"
+                - generic [ref=e3939] [cursor=pointer]:
+                  - generic [ref=e3940]:
+                    - checkbox "Select job 4388" [ref=e3941]
+                    - generic [ref=e3942]: "#4388"
+                    - generic [ref=e3943]: Backlog
+                    - generic "Apr 14, 8:33 PM" [ref=e3944]:
+                      - img [ref=e3945]
+                      - text: 4d ago
+                    - link "Open JD in new tab" [ref=e3948]:
+                      - /url: https://job-boards.greenhouse.io/wizardcommerce/jobs/5969937004
+                      - img [ref=e3949]
+                  - generic [ref=e3953]: Senior Software Engineer- (Agentic Commerce & Automation)
+                  - generic [ref=e3954]:
+                    - generic [ref=e3955]:
+                      - img [ref=e3956]
+                      - text: Salary N/A
+                    - generic [ref=e3958]:
+                      - img [ref=e3959]
+                      - text: Location N/A
+                  - generic [ref=e3962]:
+                    - generic [ref=e3963]: wizardcommerce
+                    - generic [ref=e3964]: greenhouse
+                    - generic [ref=e3965]: Scrape
+                  - generic [ref=e3966]: Senior Software Engineer focused on agentic commerce infrastructure, requiring strong backend API and integration development (Node.js/TypeScript), frontend exposure (React), and experience with compliance-sensitive environments (e.g., PCI, SOC 2). Must demonstrate ownership of scalable platform services, robust external integrations (e.g., Shopify), and high-quality engineering practices including CI/CD, code review, and documentation.
+                  - generic [ref=e3967]:
+                    - generic [ref=e3968]: job-boards.greenhouse.io
+                    - generic "2 prior tailoring run(s)" [ref=e3969]:
+                      - img [ref=e3970]
+                      - text: "2"
+                - generic [ref=e3974] [cursor=pointer]:
+                  - generic [ref=e3975]:
+                    - checkbox "Select job 4351" [ref=e3976]
+                    - generic [ref=e3977]: "#4351"
+                    - generic [ref=e3978]: Backlog
+                    - generic "Apr 13, 9:13 PM" [ref=e3979]:
+                      - img [ref=e3980]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e3983]:
+                      - /url: https://jobs.lever.co/spotify/a8606ee6-84b9-4677-af2f-b57f1e71fd91
+                      - img [ref=e3984]
+                  - generic [ref=e3988]: Frontend Engineer II - SRC - Music
+                  - generic [ref=e3989]:
+                    - generic [ref=e3990]:
+                      - img [ref=e3991]
+                      - text: Salary N/A
+                    - generic [ref=e3993]:
+                      - img [ref=e3994]
+                      - text: Location N/A
+                  - generic [ref=e3997]:
+                    - generic [ref=e3998]: spotify
+                    - generic [ref=e3999]: lever
+                    - generic [ref=e4000]: Scrape
+                  - generic [ref=e4001]: Frontend Engineer II role on Spotify’s Rights Systems team, focused on building and operating the Spotify Rights Center (SRC) — a platform for managing music licensing rights. The role emphasizes frontend development to support complex rights data workflows, though the scraped text lacks specific technical requirements, tools, or experience details.
+                  - generic [ref=e4002]:
+                    - generic [ref=e4003]: jobs.lever.co
+                    - generic "4 prior tailoring run(s)" [ref=e4004]:
+                      - img [ref=e4005]
+                      - text: "4"
+                - generic [ref=e4009] [cursor=pointer]:
+                  - generic [ref=e4010]:
+                    - checkbox "Select job 4344" [ref=e4011]
+                    - generic [ref=e4012]: "#4344"
+                    - generic [ref=e4013]: Backlog
+                    - generic "Apr 13, 9:13 PM" [ref=e4014]:
+                      - img [ref=e4015]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4018]:
+                      - /url: https://jobs.lever.co/spotify/ee5064af-0116-4ef2-994a-cb8fed580290
+                      - img [ref=e4019]
+                  - generic [ref=e4023]: Backend Engineer, Music
+                  - generic [ref=e4024]:
+                    - generic [ref=e4025]:
+                      - img [ref=e4026]
+                      - text: Salary N/A
+                    - generic [ref=e4028]:
+                      - img [ref=e4029]
+                      - text: Location N/A
+                  - generic [ref=e4032]:
+                    - generic [ref=e4033]: spotify
+                    - generic [ref=e4034]: lever
+                    - generic [ref=e4035]: Scrape
+                  - generic [ref=e4036]: Backend Engineer role focused on building scalable services for artist promotion and music discovery within Spotify's Music Mission; requires strong backend development skills, though specific technical requirements and qualifications were not included in the scraped text.
+                  - generic [ref=e4037]:
+                    - generic [ref=e4038]: jobs.lever.co
+                    - generic "2 prior tailoring run(s)" [ref=e4039]:
+                      - img [ref=e4040]
+                      - text: "2"
+                - generic [ref=e4044] [cursor=pointer]:
+                  - generic [ref=e4045]:
+                    - checkbox "Select job 4330" [ref=e4046]
+                    - generic [ref=e4047]: "#4330"
+                    - generic [ref=e4048]: Backlog
+                    - generic "Apr 13, 9:12 PM" [ref=e4049]:
+                      - img [ref=e4050]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4053]:
+                      - /url: https://jobs.lever.co/spotify/66492688-d5b0-4cf8-b1a4-4a715157edd9
+                      - img [ref=e4054]
+                  - generic [ref=e4058]: Backend Engineer - Data Infrastructure
+                  - generic [ref=e4059]:
+                    - generic [ref=e4060]:
+                      - img [ref=e4061]
+                      - text: Salary N/A
+                    - generic [ref=e4063]:
+                      - img [ref=e4064]
+                      - text: Location N/A
+                  - generic [ref=e4067]:
+                    - generic [ref=e4068]: spotify
+                    - generic [ref=e4069]: lever
+                    - generic [ref=e4070]: Scrape
+                  - generic [ref=e4071]: Spotify seeks a Backend Engineer to strengthen its Data Infrastructure team, focusing on building scalable OLAP systems for internal and music-industry-facing analytics tools. The role emphasizes platform reliability, cross-team collaboration, and operational ownership—requiring strong backend engineering skills, experience with data infrastructure, and a commitment to production-grade systems. Seniority is implied through ownership expectations and cross-squad impact.
+                  - generic [ref=e4072]:
+                    - generic [ref=e4073]: jobs.lever.co
+                    - generic "2 prior tailoring run(s)" [ref=e4074]:
+                      - img [ref=e4075]
+                      - text: "2"
+                - generic [ref=e4079] [cursor=pointer]:
+                  - generic [ref=e4080]:
+                    - checkbox "Select job 4329" [ref=e4081]
+                    - generic [ref=e4082]: "#4329"
+                    - generic [ref=e4083]: Backlog
+                    - generic "Apr 13, 9:12 PM" [ref=e4084]:
+                      - img [ref=e4085]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4088]:
+                      - /url: https://jobs.lever.co/spotify/31bf7d45-9448-413c-8f61-b69a8f636f82
+                      - img [ref=e4089]
+                  - generic [ref=e4093]: Backend Engineer - Platform Developer Experience
+                  - generic [ref=e4094]:
+                    - generic [ref=e4095]:
+                      - img [ref=e4096]
+                      - text: Salary N/A
+                    - generic [ref=e4098]:
+                      - img [ref=e4099]
+                      - text: Location N/A
+                  - generic [ref=e4102]:
+                    - generic [ref=e4103]: spotify
+                    - generic [ref=e4104]: lever
+                    - generic [ref=e4105]: Scrape
+                  - generic [ref=e4106]: Backend Engineer focused on building and scaling AI-powered fleet management infrastructure for Spotify’s Platform team. Requires 3+ years of backend development experience in Java and Python, with comfort in polyglot environments (including Node.js), designing scalable distributed systems, and owning services end-to-end—including production support. Strong emphasis on developer experience, observability, CI/CD, and cross-functional collaboration.
+                  - generic [ref=e4107]:
+                    - generic [ref=e4108]: jobs.lever.co
+                    - generic "2 prior tailoring run(s)" [ref=e4109]:
+                      - img [ref=e4110]
+                      - text: "2"
+                - generic [ref=e4114] [cursor=pointer]:
+                  - generic [ref=e4115]:
+                    - checkbox "Select job 4328" [ref=e4116]
+                    - generic [ref=e4117]: "#4328"
+                    - generic [ref=e4118]: Backlog
+                    - generic "Apr 13, 9:12 PM" [ref=e4119]:
+                      - img [ref=e4120]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4123]:
+                      - /url: https://jobs.lever.co/spotify/db6450c7-5017-4aa5-8a64-52e39f1ed525
+                      - img [ref=e4124]
+                  - generic [ref=e4128]: Backend Engineer - Data Platform
+                  - generic [ref=e4129]:
+                    - generic [ref=e4130]:
+                      - img [ref=e4131]
+                      - text: Salary N/A
+                    - generic [ref=e4133]:
+                      - img [ref=e4134]
+                      - text: Location N/A
+                  - generic [ref=e4137]:
+                    - generic [ref=e4138]: spotify
+                    - generic [ref=e4139]: lever
+                    - generic [ref=e4140]: Scrape
+                  - generic [ref=e4141]: Backend Engineer role focused on building and operating Spotify’s scalable data processing platform; requires strong backend experience in Java, familiarity with platform engineering and data-intensive systems, proficiency with SQL/BigQuery and distributed processing frameworks (Spark/Flink/Beam), plus hands-on experience with Scala/Python, Kubernetes, and cloud infrastructure. The role emphasizes collaboration, reliability, and continuous improvement in a hybrid London-based position.
+                  - generic [ref=e4142]:
+                    - generic [ref=e4143]: jobs.lever.co
+                    - generic "2 prior tailoring run(s)" [ref=e4144]:
+                      - img [ref=e4145]
+                      - text: "2"
+                - generic [ref=e4149] [cursor=pointer]:
+                  - generic [ref=e4150]:
+                    - checkbox "Select job 4327" [ref=e4151]
+                    - generic [ref=e4152]: "#4327"
+                    - generic [ref=e4153]: Backlog
+                    - generic "Apr 13, 9:11 PM" [ref=e4154]:
+                      - img [ref=e4155]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4158]:
+                      - /url: https://jobs.lever.co/spotify/e8ef80ed-633f-45ec-a1fc-a55704241f64
+                      - img [ref=e4159]
+                  - generic [ref=e4163]: Backend Engineer - Platform
+                  - generic [ref=e4164]:
+                    - generic [ref=e4165]:
+                      - img [ref=e4166]
+                      - text: Salary N/A
+                    - generic [ref=e4168]:
+                      - img [ref=e4169]
+                      - text: Location N/A
+                  - generic [ref=e4172]:
+                    - generic [ref=e4173]: spotify
+                    - generic [ref=e4174]: lever
+                    - generic [ref=e4175]: Scrape
+                  - generic [ref=e4176]: Backend Engineer role on Spotify's Platform team focused on building and operating high-impact internal infrastructure—specifically tools like Fleetshift (large-scale automated code refactoring) and Production Policy Enforcer (production security/stability). Requires strong backend engineering skills, experience with scalable systems, and a focus on developer productivity and reliability at scale.
+                  - generic [ref=e4177]:
+                    - generic [ref=e4178]: jobs.lever.co
+                    - generic "2 prior tailoring run(s)" [ref=e4179]:
+                      - img [ref=e4180]
+                      - text: "2"
+                - generic [ref=e4184] [cursor=pointer]:
+                  - generic [ref=e4185]:
+                    - checkbox "Select job 4325" [ref=e4186]
+                    - generic [ref=e4187]: "#4325"
+                    - generic [ref=e4188]: Backlog
+                    - generic "Apr 13, 9:11 PM" [ref=e4189]:
+                      - img [ref=e4190]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4193]:
+                      - /url: https://jobs.lever.co/spotify/58860a10-4a0d-4a21-a495-1f3605b300c1
+                      - img [ref=e4194]
+                  - generic [ref=e4198]: Backend Engineer - User Platform
+                  - generic [ref=e4199]:
+                    - generic [ref=e4200]:
+                      - img [ref=e4201]
+                      - text: Salary N/A
+                    - generic [ref=e4203]:
+                      - img [ref=e4204]
+                      - text: Location N/A
+                  - generic [ref=e4207]:
+                    - generic [ref=e4208]: spotify
+                    - generic [ref=e4209]: lever
+                    - generic [ref=e4210]: Scrape
+                  - generic [ref=e4211]: Backend Engineer role focused on building and scaling core Identity and Access Management (IAM) systems for Spotify’s User Platform team, supporting 700M+ users. Must have strong backend engineering skills with experience in authorization systems, scalability, and security. The role emphasizes full-stack collaboration within a studio under Spotify’s Platform Mission, requiring expertise in designing and expanding enterprise-grade IAM infrastructure.
+                  - generic [ref=e4212]:
+                    - generic [ref=e4213]: jobs.lever.co
+                    - generic "2 prior tailoring run(s)" [ref=e4214]:
+                      - img [ref=e4215]
+                      - text: "2"
+                - generic [ref=e4219] [cursor=pointer]:
+                  - generic [ref=e4220]:
+                    - checkbox "Select job 4324" [ref=e4221]
+                    - generic [ref=e4222]: "#4324"
+                    - generic [ref=e4223]: Backlog
+                    - generic "Apr 13, 9:11 PM" [ref=e4224]:
+                      - img [ref=e4225]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4228]:
+                      - /url: https://jobs.lever.co/spotify/59973efb-2bd2-4315-87cb-633bdf48aae5
+                      - img [ref=e4229]
+                  - generic [ref=e4233]: Backend Engineer I - User Fraud
+                  - generic [ref=e4234]:
+                    - generic [ref=e4235]:
+                      - img [ref=e4236]
+                      - text: Salary N/A
+                    - generic [ref=e4238]:
+                      - img [ref=e4239]
+                      - text: Location N/A
+                  - generic [ref=e4242]:
+                    - generic [ref=e4243]: spotify
+                    - generic [ref=e4244]: lever
+                    - generic [ref=e4245]: Scrape
+                  - generic [ref=e4246]: Backend Engineer I for Spotify's User Fraud team, focused on building and operating a scalable fraud mitigation platform in Java. Requires 2+ years of backend service experience, strong distributed systems and API design skills, and familiarity with SQL/NoSQL databases and observability tooling. The role involves close collaboration with data engineers using Scala/Scio/Dataflow and cross-regional teams.
+                  - generic [ref=e4247]:
+                    - generic [ref=e4248]: jobs.lever.co
+                    - generic "2 prior tailoring run(s)" [ref=e4249]:
+                      - img [ref=e4250]
+                      - text: "2"
+                - generic [ref=e4254] [cursor=pointer]:
+                  - generic [ref=e4255]:
+                    - checkbox "Select job 4323" [ref=e4256]
+                    - generic [ref=e4257]: "#4323"
+                    - generic [ref=e4258]: Backlog
+                    - generic "Apr 13, 9:11 PM" [ref=e4259]:
+                      - img [ref=e4260]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4263]:
+                      - /url: https://jobs.lever.co/spotify/b1f7eac7-40bd-47a9-8564-d2d4e4bf1062
+                      - img [ref=e4264]
+                  - generic [ref=e4268]: Backend Engineer, Security
+                  - generic [ref=e4269]:
+                    - generic [ref=e4270]:
+                      - img [ref=e4271]
+                      - text: Salary N/A
+                    - generic [ref=e4273]:
+                      - img [ref=e4274]
+                      - text: Location N/A
+                  - generic [ref=e4277]:
+                    - generic [ref=e4278]: spotify
+                    - generic [ref=e4279]: lever
+                    - generic [ref=e4280]: Scrape
+                  - generic [ref=e4281]: The Backend Engineer, Security role focuses on protecting Spotify’s platform and 700+ million users through secure backend systems development. While the scraped text lacks specific technical requirements or responsibilities, the title and summary imply a need for strong backend engineering skills with a security-first mindset—likely including expertise in secure API design, authentication/authorization systems, data protection, and infrastructure security. Seniority signals suggest mid-to-senior level experience is expected.
+                  - generic [ref=e4282]:
+                    - generic [ref=e4283]: jobs.lever.co
+                    - generic "2 prior tailoring run(s)" [ref=e4284]:
+                      - img [ref=e4285]
+                      - text: "2"
+                - generic [ref=e4289] [cursor=pointer]:
+                  - generic [ref=e4290]:
+                    - checkbox "Select job 4321" [ref=e4291]
+                    - generic [ref=e4292]: "#4321"
+                    - generic [ref=e4293]: Backlog
+                    - generic "Apr 13, 9:11 PM" [ref=e4294]:
+                      - img [ref=e4295]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4298]:
+                      - /url: https://jobs.lever.co/spotify/2d1f743f-9174-413f-b824-6e426082ebeb
+                      - img [ref=e4299]
+                  - generic [ref=e4303]: Fullstack Engineer - Generative UI Platform
+                  - generic [ref=e4304]:
+                    - generic [ref=e4305]:
+                      - img [ref=e4306]
+                      - text: Salary N/A
+                    - generic [ref=e4308]:
+                      - img [ref=e4309]
+                      - text: Location N/A
+                  - generic [ref=e4312]:
+                    - generic [ref=e4313]: spotify
+                    - generic [ref=e4314]: lever
+                    - generic [ref=e4315]: Scrape
+                  - generic [ref=e4316]: The Fullstack Engineer role focuses on building and enhancing Spotify’s internal generative UI prototyping platform (UI Studio), which creates functional, music-enabled replicas of Spotify interfaces for rapid product exploration and pitching. The role requires fullstack development expertise—likely including frontend (e.g., React, TypeScript) and backend (e.g., Node.js, Python, cloud services)—with familiarity in generative AI/LLM integration, UI/UX systems, and scalable web applications. Seniority signals include ownership of core platform features and collaboration with product teams across Spotify.
+                  - generic [ref=e4317]:
+                    - generic [ref=e4318]: jobs.lever.co
+                    - generic "2 prior tailoring run(s)" [ref=e4319]:
+                      - img [ref=e4320]
+                      - text: "2"
+                - generic [ref=e4324] [cursor=pointer]:
+                  - generic [ref=e4325]:
+                    - checkbox "Select job 4320" [ref=e4326]
+                    - generic [ref=e4327]: "#4320"
+                    - generic [ref=e4328]: Backlog
+                    - generic "Apr 13, 9:11 PM" [ref=e4329]:
+                      - img [ref=e4330]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4333]:
+                      - /url: https://jobs.lever.co/spotify/41b4a35f-775d-4a3f-a5bf-ec99f845e14d
+                      - img [ref=e4334]
+                  - generic [ref=e4338]: Senior Fullstack Engineer – Internationalisation Platform
+                  - generic [ref=e4339]:
+                    - generic [ref=e4340]:
+                      - img [ref=e4341]
+                      - text: Salary N/A
+                    - generic [ref=e4343]:
+                      - img [ref=e4344]
+                      - text: Location N/A
+                  - generic [ref=e4347]:
+                    - generic [ref=e4348]: spotify
+                    - generic [ref=e4349]: lever
+                    - generic [ref=e4350]: Scrape
+                  - generic [ref=e4351]: Senior Fullstack Engineer role focused on building and scaling Spotify’s Internationalisation Platform—bridging design systems, content infrastructure, and global content delivery. Requires strong fullstack experience (frontend frameworks + backend/distributed systems), expertise in scalable web services, and familiarity with internationalisation/localisation challenges. Must thrive in cross-functional settings with design/product and mentor others while contributing to technical direction.
+                  - generic [ref=e4352]:
+                    - generic [ref=e4353]: jobs.lever.co
+                    - generic "1 prior tailoring run(s)" [ref=e4354]:
+                      - img [ref=e4355]
+                      - text: "1"
+                - generic [ref=e4359] [cursor=pointer]:
+                  - generic [ref=e4360]:
+                    - checkbox "Select job 4319" [ref=e4361]
+                    - generic [ref=e4362]: "#4319"
+                    - generic [ref=e4363]: Backlog
+                    - generic "Apr 13, 9:11 PM" [ref=e4364]:
+                      - img [ref=e4365]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4368]:
+                      - /url: https://jobs.lever.co/spotify/651491f7-cd91-49bd-93f5-eb939344463b
+                      - img [ref=e4369]
+                  - generic [ref=e4373]: Fullstack Engineer – Platform Developer Experience
+                  - generic [ref=e4374]:
+                    - generic [ref=e4375]:
+                      - img [ref=e4376]
+                      - text: Salary N/A
+                    - generic [ref=e4378]:
+                      - img [ref=e4379]
+                      - text: Location N/A
+                  - generic [ref=e4382]:
+                    - generic [ref=e4383]: spotify
+                    - generic [ref=e4384]: lever
+                    - generic [ref=e4385]: Scrape
+                  - generic [ref=e4386]: The role is for a Fullstack Engineer focused on improving the developer experience for Spotify’s internal platform. Core responsibilities center on building tools, libraries, and infrastructure that empower internal engineers—though the scraped text lacks specific technical details, tools, or qualifications, indicating the excerpt is incomplete or heavily redacted.
+                  - generic [ref=e4387]:
+                    - generic [ref=e4388]: jobs.lever.co
+                    - generic "1 prior tailoring run(s)" [ref=e4389]:
+                      - img [ref=e4390]
+                      - text: "1"
+                - generic [ref=e4394] [cursor=pointer]:
+                  - generic [ref=e4395]:
+                    - checkbox "Select job 4314" [ref=e4396]
+                    - generic [ref=e4397]: "#4314"
+                    - generic [ref=e4398]: Backlog
+                    - generic "Apr 13, 9:11 PM" [ref=e4399]:
+                      - img [ref=e4400]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4403]:
+                      - /url: https://jobs.lever.co/spotify/26731335-a117-4126-abdc-c0fa9cca5892
+                      - img [ref=e4404]
+                  - generic [ref=e4408]: Senior Engineer - User Platform
+                  - generic [ref=e4409]:
+                    - generic [ref=e4410]:
+                      - img [ref=e4411]
+                      - text: Salary N/A
+                    - generic [ref=e4413]:
+                      - img [ref=e4414]
+                      - text: Location N/A
+                  - generic [ref=e4417]:
+                    - generic [ref=e4418]: spotify
+                    - generic [ref=e4419]: lever
+                    - generic [ref=e4420]: Scrape
+                  - generic [ref=e4421]: Senior Engineer role focused on building and maintaining core Identity and Access Management (IAM) systems for Spotify’s global user platform; requires full-stack expertise to develop secure, scalable infrastructure supporting 700M+ users; emphasizes experience with foundational platform services, security best practices, and high-velocity engineering environments.
+                  - generic [ref=e4422]:
+                    - generic [ref=e4423]: jobs.lever.co
+                    - generic "1 prior tailoring run(s)" [ref=e4424]:
+                      - img [ref=e4425]
+                      - text: "1"
+                - generic [ref=e4429] [cursor=pointer]:
+                  - generic [ref=e4430]:
+                    - checkbox "Select job 4313" [ref=e4431]
+                    - generic [ref=e4432]: "#4313"
+                    - generic [ref=e4433]: Backlog
+                    - generic "Apr 13, 9:11 PM" [ref=e4434]:
+                      - img [ref=e4435]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4438]:
+                      - /url: https://jobs.lever.co/spotify/7aa8f2c1-eaa7-445a-a2ed-9e1be3ae2dd4
+                      - img [ref=e4439]
+                  - generic [ref=e4443]: Senior Fullstack Engineer - Backstage Portal, Data Experience
+                  - generic [ref=e4444]:
+                    - generic [ref=e4445]:
+                      - img [ref=e4446]
+                      - text: Salary N/A
+                    - generic [ref=e4448]:
+                      - img [ref=e4449]
+                      - text: Location N/A
+                  - generic [ref=e4452]:
+                    - generic [ref=e4453]: spotify
+                    - generic [ref=e4454]: lever
+                    - generic [ref=e4455]: Scrape
+                  - generic [ref=e4456]: Senior Fullstack Engineer focused on unifying data experiences within Spotify’s enterprise internal developer portal (Backstage Portal), requiring strong fullstack development skills, experience with data systems and developer tools, and the ability to bridge data silos with software catalog functionality.
+                  - generic [ref=e4458]: jobs.lever.co
+                - generic [ref=e4459] [cursor=pointer]:
+                  - generic [ref=e4460]:
+                    - checkbox "Select job 4310" [ref=e4461]
+                    - generic [ref=e4462]: "#4310"
+                    - generic [ref=e4463]: Backlog
+                    - generic "Apr 13, 9:11 PM" [ref=e4464]:
+                      - img [ref=e4465]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4468]:
+                      - /url: https://jobs.lever.co/spotify/ad5ef898-b800-4213-a63e-e39a97df9cfb
+                      - img [ref=e4469]
+                  - generic [ref=e4473]: Site Reliability Engineer - Backstage
+                  - generic [ref=e4474]:
+                    - generic [ref=e4475]:
+                      - img [ref=e4476]
+                      - text: Salary N/A
+                    - generic [ref=e4478]:
+                      - img [ref=e4479]
+                      - text: Location N/A
+                  - generic [ref=e4482]:
+                    - generic [ref=e4483]: spotify
+                    - generic [ref=e4484]: lever
+                    - generic [ref=e4485]: Scrape
+                  - generic [ref=e4486]: Site Reliability Engineer focused on building and operating AI-native infrastructure for Spotify’s developer platform, including external portals and internal coding agents. Requires hands-on experience with cloud platforms (GCP/AWS), Infrastructure-as-Code (e.g., Terraform), and modern full-stack systems (TypeScript, React, Python). Strong interest in AI/ML concepts like LLMs, RAG, or agentic workflows is essential. The role emphasizes reliability, automation, and collaboration across human and synthetic engineering teams.
+                  - generic [ref=e4488]: jobs.lever.co
+                - generic [ref=e4489] [cursor=pointer]:
+                  - generic [ref=e4490]:
+                    - checkbox "Select job 4309" [ref=e4491]
+                    - generic [ref=e4492]: "#4309"
+                    - generic [ref=e4493]: Backlog
+                    - generic "Apr 13, 9:11 PM" [ref=e4494]:
+                      - img [ref=e4495]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4498]:
+                      - /url: https://jobs.lever.co/spotify/454e6013-78ca-4009-9ad4-7597f2045d0a
+                      - img [ref=e4499]
+                  - generic [ref=e4503]: Backend Engineer, Podcast
+                  - generic [ref=e4504]:
+                    - generic [ref=e4505]:
+                      - img [ref=e4506]
+                      - text: Salary N/A
+                    - generic [ref=e4508]:
+                      - img [ref=e4509]
+                      - text: Location N/A
+                  - generic [ref=e4512]:
+                    - generic [ref=e4513]: spotify
+                    - generic [ref=e4514]: lever
+                    - generic [ref=e4515]: Scrape
+                  - generic [ref=e4516]: Backend Engineer role focused on building scalable backend systems for Spotify's podcast ecosystem, including services for content ingestion, distribution, and monetization. Requires strong Java experience and familiarity with JavaScript or Ruby on Rails, along with hands-on experience designing and maintaining high-scale APIs and data pipelines. The role involves collaboration across product and engineering teams, on-call responsibilities, and contributing to AI-driven creator platform features.
+                  - generic [ref=e4518]: jobs.lever.co
+                - generic [ref=e4519] [cursor=pointer]:
+                  - generic [ref=e4520]:
+                    - checkbox "Select job 4304" [ref=e4521]
+                    - generic [ref=e4522]: "#4304"
+                    - generic [ref=e4523]: Backlog
+                    - generic "Apr 13, 9:10 PM" [ref=e4524]:
+                      - img [ref=e4525]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4528]:
+                      - /url: https://jobs.lever.co/spotify/88b0a5ea-65d8-4c0c-8d1f-c30989ea5c16
+                      - img [ref=e4529]
+                  - generic [ref=e4533]: Senior Backend Engineer - Commerce Platform
+                  - generic [ref=e4534]:
+                    - generic [ref=e4535]:
+                      - img [ref=e4536]
+                      - text: Salary N/A
+                    - generic [ref=e4538]:
+                      - img [ref=e4539]
+                      - text: Location N/A
+                  - generic [ref=e4542]:
+                    - generic [ref=e4543]: spotify
+                    - generic [ref=e4544]: lever
+                    - generic [ref=e4545]: Scrape
+                  - generic [ref=e4546]: The Senior Backend Engineer role on Spotify’s Subscriptions Mission team focuses on building scalable backend systems to drive global subscriber acquisition, conversion, and retention. The role requires strong backend engineering expertise, though the scraped JD excerpt lacks specific technical requirements, tools, or experience details—likely due to truncation or incomplete scraping.
+                  - generic [ref=e4548]: jobs.lever.co
+                - generic [ref=e4549] [cursor=pointer]:
+                  - generic [ref=e4550]:
+                    - checkbox "Select job 4257" [ref=e4551]
+                    - generic [ref=e4552]: "#4257"
+                    - generic [ref=e4553]: Backlog
+                    - generic "Apr 13, 9:08 PM" [ref=e4554]:
+                      - img [ref=e4555]
+                      - text: 5d ago
+                    - link "Open JD in new tab" [ref=e4558]:
+                      - /url: https://remoteOK.com/remote-jobs/remote-senior-engineer-platform-devops-cloudwalk-1131081
+                      - img [ref=e4559]
+                  - generic [ref=e4563]: Senior Engineer Platform Devops
+                  - generic [ref=e4564]:
+                    - generic [ref=e4565]:
+                      - img [ref=e4566]
+                      - text: Salary N/A
+                    - generic [ref=e4568]:
+                      - img [ref=e4569]
+                      - text: SÃ£o Paulo
+                  - generic [ref=e4572]:
+                    - generic [ref=e4573]: CloudWalk
+                    - generic [ref=e4574]: remoteok
+                    - generic [ref=e4575]: Scrape
+                  - generic [ref=e4576]: Senior Platform DevOps Engineer focused on designing, scaling, and securing Kubernetes-based infrastructure in GCP; requires deep expertise in infrastructure-as-code (Terraform), GitOps (Helm, Kustomize), networking, and security for distributed systems, plus practical AI fluency for operational acceleration. Must be self-taught, autonomous, and an excellent communicator able to bridge platform, security, and AI domains.
+                  - generic [ref=e4578]: remoteok.com
+                - generic [ref=e4579] [cursor=pointer]:
+                  - generic [ref=e4580]:
+                    - checkbox "Select job 3921" [ref=e4581]
+                    - generic [ref=e4582]: "#3921"
+                    - generic [ref=e4583]: Backlog
+                    - generic "Apr 11, 11:35 AM" [ref=e4584]:
+                      - img [ref=e4585]
+                      - text: 7d ago
+                    - link "Open JD in new tab" [ref=e4588]:
+                      - /url: https://jobs.ashbyhq.com/fieldguide/aaf78ce6-b06d-48a7-98e1-8f9368d5393d
+                      - img [ref=e4589]
+                  - generic [ref=e4593]: Software Engineer, AgentOps
+                  - generic [ref=e4594]:
+                    - generic [ref=e4595]:
+                      - img [ref=e4596]
+                      - text: Salary N/A
+                    - generic [ref=e4598]:
+                      - img [ref=e4599]
+                      - text: San Francisco, CA
+                  - generic [ref=e4602]:
+                    - generic [ref=e4603]: fieldguide
+                    - generic [ref=e4604]: ashby
+                    - generic [ref=e4605]: Scrape
+                  - generic [ref=e4606]: The Software Engineer, AgentOps role focuses on building internal agent infrastructure and tooling to support agentic workflows in audit and advisory software. Must-haves include deep experience with AI coding tools (e.g., Claude Code, Cursor), platform engineering/developer experience, LLMOps (evaluation, prompt regression, cost tracking), internal tool adoption strategies, knowledge systems (RAG, search), and security/compliance awareness for AI workflows. The role demands an engineer-first mindset, cross-functional influence, and early-stage startup adaptability.
+                  - generic [ref=e4607]:
+                    - generic [ref=e4608]: jobs.ashbyhq.com
+                    - generic "1 prior tailoring run(s)" [ref=e4609]:
+                      - img [ref=e4610]
+                      - text: "1"
+                - generic [ref=e4614] [cursor=pointer]:
+                  - generic [ref=e4615]:
+                    - checkbox "Select job 3920" [ref=e4616]
+                    - generic [ref=e4617]: "#3920"
+                    - generic [ref=e4618]: Backlog
+                    - generic "Apr 11, 11:35 AM" [ref=e4619]:
+                      - img [ref=e4620]
+                      - text: 7d ago
+                    - link "Open JD in new tab" [ref=e4623]:
+                      - /url: https://jobs.ashbyhq.com/fieldguide/47a2afc4-1075-4378-83bb-714543b6c272
+                      - img [ref=e4624]
+                  - generic [ref=e4628]: Software Engineer (All Levels)
+                  - generic [ref=e4629]:
+                    - generic [ref=e4630]:
+                      - img [ref=e4631]
+                      - text: Salary N/A
+                    - generic [ref=e4633]:
+                      - img [ref=e4634]
+                      - text: San Francisco, CA or Remote (USA)
+                  - generic [ref=e4637]:
+                    - generic [ref=e4638]: fieldguide
+                    - generic [ref=e4639]: ashby
+                    - generic [ref=e4640]: Scrape
+                  - generic [ref=e4641]: Fieldguide is seeking Software Engineers at all levels to build software that modernizes cybersecurity, privacy, and financial audits—automating trust workflows for businesses. The role requires strong full-stack fundamentals (TypeScript, React, Node.js, Python, GraphQL), experience shipping production code, and ownership mindset across ideation to deployment. Senior roles demand architecture leadership, mentoring, and influence over technical strategy, with preference for domain knowledge in audit/risk management, cloud infrastructure (AWS, Postgres, Hasura), document-heavy system design, ML integration, and security/compliance (SOC 2, FedRAMP).
+                  - generic [ref=e4642]:
+                    - generic [ref=e4643]: jobs.ashbyhq.com
+                    - generic "1 prior tailoring run(s)" [ref=e4644]:
+                      - img [ref=e4645]
+                      - text: "1"
+                - generic [ref=e4649] [cursor=pointer]:
+                  - generic [ref=e4650]:
+                    - checkbox "Select job 3915" [ref=e4651]
+                    - generic [ref=e4652]: "#3915"
+                    - generic [ref=e4653]: Backlog
+                    - generic "Apr 11, 11:35 AM" [ref=e4654]:
+                      - img [ref=e4655]
+                      - text: 7d ago
+                    - link "Open JD in new tab" [ref=e4658]:
+                      - /url: https://jobs.ashbyhq.com/wraithwatch/b05f8e8c-4781-4dd7-88c0-aa5b17d022d3
+                      - img [ref=e4659]
+                  - generic [ref=e4663]: Software Engineer
+                  - generic [ref=e4664]:
+                    - generic [ref=e4665]:
+                      - img [ref=e4666]
+                      - text: Salary N/A
+                    - generic [ref=e4668]:
+                      - img [ref=e4669]
+                      - text: United States
+                  - generic [ref=e4672]:
+                    - generic [ref=e4673]: wraithwatch
+                    - generic [ref=e4674]: ashby
+                    - generic [ref=e4675]: Scrape
+                  - generic [ref=e4676]: The Software Engineer role focuses on building AI-powered cyber defense systems for high-stakes sectors including defense, aerospace, and critical infrastructure. Key responsibilities span full-stack development across digital twins, AI-worker orchestration, security data pipelines, and site reliability. The only explicitly stated requirement is flexibility for extended hours/weekends; preferred qualifications section is incomplete.
+                  - generic [ref=e4677]:
+                    - generic [ref=e4678]: jobs.ashbyhq.com
+                    - generic "1 prior tailoring run(s)" [ref=e4679]:
+                      - img [ref=e4680]
+                      - text: "1"
+                - generic [ref=e4684] [cursor=pointer]:
+                  - generic [ref=e4685]:
+                    - checkbox "Select job 3857" [ref=e4686]
+                    - generic [ref=e4687]: "#3857"
+                    - generic [ref=e4688]: Backlog
+                    - generic "Apr 11, 11:32 AM" [ref=e4689]:
+                      - img [ref=e4690]
+                      - text: 7d ago
+                    - link "Open JD in new tab" [ref=e4693]:
+                      - /url: https://www.usajobs.gov:443/job/863777900
+                      - img [ref=e4694]
+                  - generic [ref=e4698]: CLOUD SOLUTIONS DEVELOPER/ARCHITECT
+                  - generic [ref=e4699]:
+                    - generic [ref=e4700]:
+                      - img [ref=e4701]
+                      - text: Salary N/A
+                    - generic [ref=e4703]:
+                      - img [ref=e4704]
+                      - text: Washington, District of Columbia
+                  - generic [ref=e4707]:
+                    - generic [ref=e4708]: Securities and Exchange Commission
+                    - generic [ref=e4709]: usajobs
+                    - generic [ref=e4710]: Scrape
+                  - generic [ref=e4711]: "This is a senior-level (SK-14) Cloud Solutions Developer/Architect role requiring at least one year of specialized experience equivalent to GS/SK-13, focused on architecting and developing secure software solutions, leading IT modernization initiatives, engaging with customers to identify solution opportunities, and securing software across the full lifecycle. Must demonstrate four core competencies: Attention to Detail, Technical Communication, Technology Expertise (including security, risk management, and modern tools), and Critical Thinking."
+                  - generic [ref=e4712]:
+                    - generic [ref=e4713]: usajobs.gov
+                    - generic "1 prior tailoring run(s)" [ref=e4714]:
+                      - img [ref=e4715]
+                      - text: "1"
+                - generic [ref=e4719] [cursor=pointer]:
+                  - generic [ref=e4720]:
+                    - checkbox "Select job 3730" [ref=e4721]
+                    - generic [ref=e4722]: "#3730"
+                    - generic [ref=e4723]: Backlog
+                    - generic "Apr 11, 11:32 AM" [ref=e4724]:
+                      - img [ref=e4725]
+                      - text: 7d ago
+                    - link "Open JD in new tab" [ref=e4728]:
+                      - /url: https://remoteOK.com/remote-jobs/remote-senior-full-stack-engineer-runn-1130978
+                      - img [ref=e4729]
+                  - generic [ref=e4733]: Senior Full Stack Engineer
+                  - generic [ref=e4734]:
+                    - generic [ref=e4735]:
+                      - img [ref=e4736]
+                      - text: Salary N/A
+                    - generic [ref=e4738]:
+                      - img [ref=e4739]
+                      - text: Location N/A
+                  - generic [ref=e4742]:
+                    - generic [ref=e4743]: Runn
+                    - generic [ref=e4744]: remoteok
+                    - generic [ref=e4745]: Scrape
+                  - generic [ref=e4746]: Senior Full Stack Engineer (Level II) responsible for owning complex technical outcomes and guiding small cross-functional teams; requires strong full-stack development skills, clear communication, product sense, and alignment with UX/design values; must balance technical excellence with user-centric delivery and be comfortable with remote collaboration across New Zealand.
+                  - generic [ref=e4748]: remoteok.com
+            - generic [ref=e4750]:
+              - img [ref=e4751]
+              - generic [ref=e4753]: Select a candidate on the left to see the tailoring briefing, requirements mapping, and strategy.
+              - generic [ref=e4754]: ↑↓ / j k navigate · space pick · enter expand · o open JD

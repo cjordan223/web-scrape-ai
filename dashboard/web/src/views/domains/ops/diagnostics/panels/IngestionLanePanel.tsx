@@ -37,19 +37,29 @@ function PendingTab() {
 
   const jobsInterval = useRef<ReturnType<typeof setInterval>>(undefined);
   const reviewInterval = useRef<ReturnType<typeof setInterval>>(undefined);
+  const jobsRequestInFlightRef = useRef(false);
+  const reviewRequestInFlightRef = useRef(false);
 
   const fetchJobs = useCallback(async () => {
+    if (jobsRequestInFlightRef.current) return;
+    jobsRequestInFlightRef.current = true;
     try {
       const res = await api.getQAPending(500);
       setJobs(res.items || []);
       setTotal(res.total ?? (res.items || []).length);
     } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    finally {
+      jobsRequestInFlightRef.current = false;
+      setLoading(false);
+    }
   }, []);
 
   const fetchReview = useCallback(async () => {
+    if (reviewRequestInFlightRef.current) return;
+    reviewRequestInFlightRef.current = true;
     try { setReviewStatus(await api.getQALlmReviewStatus()); }
     catch (e) { console.error(e); }
+    finally { reviewRequestInFlightRef.current = false; }
   }, []);
 
   useEffect(() => {

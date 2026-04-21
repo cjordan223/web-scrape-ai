@@ -73,8 +73,9 @@ def select_job(job_id: int) -> SelectedJob:
     jd_expr = "jd_text"
     if _jobs_has_column(conn, "approved_jd_text"):
         jd_expr = "COALESCE(approved_jd_text, jd_text)"
+    company_expr = "company" if _jobs_has_column(conn, "company") else "NULL AS company"
     row = conn.execute(
-        f"SELECT id, url, title, board, seniority, {jd_expr} AS jd_text, snippet, status "
+        f"SELECT id, url, title, {company_expr}, board, seniority, {jd_expr} AS jd_text, snippet, status "
         "FROM jobs WHERE id = ?",
         (job_id,),
     ).fetchone()
@@ -93,5 +94,5 @@ def select_job(job_id: int) -> SelectedJob:
         seniority=row["seniority"],
         jd_text=row["jd_text"],
         snippet=row["snippet"],
-        company=_parse_company(row["url"], row["title"]),
+        company=(row["company"] or _parse_company(row["url"], row["title"])).strip(),
     )

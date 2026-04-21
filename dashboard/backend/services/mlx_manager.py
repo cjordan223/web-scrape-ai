@@ -30,7 +30,7 @@ _pull_log: list[str] = []
 
 
 def _mlx_log_path() -> Path:
-    override = os.environ.get("JOBFORGE_MLX_LOG")
+    override = os.environ.get("TEXTAILOR_MLX_LOG")
     if override:
         return Path(override).expanduser()
     return Path.home() / ".local" / "share" / "job_scraper" / "mlx_server.log"

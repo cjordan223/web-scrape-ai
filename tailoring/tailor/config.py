@@ -23,7 +23,7 @@ OUTPUT_DIR = TAILORING_ROOT / "output"
 GROUNDING_CONFIG = TAILORING_ROOT / "grounding" / "v1.json"
 
 DB_PATH = Path.home() / ".local" / "share" / "job_scraper" / "jobs.db"
-LOCK_PATH = Path.home() / ".local" / "share" / "jobforge" / "llm.lock"
+LOCK_PATH = Path.home() / ".local" / "share" / "textailor" / "llm.lock"
 
 # ── LLM Endpoint (Ollama default) ─────────────────────────────────────
 OLLAMA_URL = os.environ.get(

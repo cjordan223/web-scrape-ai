@@ -166,8 +166,8 @@ class TestTailoringAPI(unittest.TestCase):
             run_dir = root / "123-foo-role-2026-02-24"
             run_dir.mkdir(parents=True)
 
-            (run_dir / "meta.json").write_text(json.dumps({"job_id": 123, "title": "Role", "url": "https://example.com/jobs/123"}), encoding="utf-8")
-            (run_dir / "analysis.json").write_text(json.dumps({"role_title": "Role", "key_requirements": ["Python"]}), encoding="utf-8")
+            (run_dir / "meta.json").write_text(json.dumps({"job_id": 123, "title": "Role", "company": "ingest", "url": "https://example.com/jobs/123"}), encoding="utf-8")
+            (run_dir / "analysis.json").write_text(json.dumps({"company_name": "ExampleCo", "role_title": "Role", "key_requirements": ["Python"]}), encoding="utf-8")
             (run_dir / "Conner_Jordan_Resume.pdf").write_bytes(b"%PDF-resume")
             (run_dir / "Conner_Jordan_Cover_Letter.pdf").write_bytes(b"%PDF-cover")
             (run_dir / "llm_trace.jsonl").write_text(
@@ -207,6 +207,8 @@ class TestTailoringAPI(unittest.TestCase):
                 resp = client.get("/api/packages?status=all")
                 self.assertEqual(resp.status_code, 200)
                 self.assertEqual(len(resp.json()["items"]), 1)
+                self.assertEqual(resp.json()["items"][0]["meta"]["company_name"], "ExampleCo")
+                self.assertEqual(resp.json()["items"][0]["meta"]["company"], "ExampleCo")
 
                 resp = client.get(f"/api/packages/{slug}")
                 self.assertEqual(resp.status_code, 200)
@@ -933,7 +935,7 @@ class TestTailoringAPI(unittest.TestCase):
                 conn = sqlite3.connect(db_path)
                 conn.row_factory = sqlite3.Row
                 row = conn.execute(
-                    "SELECT id, decision, query, url FROM results WHERE id = ?",
+                    "SELECT id, decision, query, url, company FROM results WHERE id = ?",
                     (payload["job_id"],),
                 ).fetchone()
                 log_row = conn.execute(
@@ -944,9 +946,158 @@ class TestTailoringAPI(unittest.TestCase):
 
                 self.assertEqual(row["decision"], "qa_pending")
                 self.assertEqual(row["query"], "manual-ingest")
+                self.assertEqual(row["company"], "ExampleCo")
                 self.assertTrue(str(row["url"]).startswith("manual://ingest/"))
                 self.assertEqual(log_row["action"], "ingest_manual")
                 self.assertEqual(log_row["new_state"], "qa_pending")
+            finally:
+                server.DB_PATH = old_db
+
+    def test_manual_ingest_prepare_auto_approves_and_polishes_job(self):
+        with tempfile.TemporaryDirectory() as td:
+            db_path = Path(td) / "jobs.db"
+            self._create_results_db(db_path, with_approved_jd_text=False)
+
+            old_db = server.DB_PATH
+            server.DB_PATH = str(db_path)
+            client = TestClient(server.app)
+            try:
+                with (
+                    patch(
+                        "services.tailoring._resolve_active_llm_runtime",
+                        return_value=({"provider": "test"}, "model-1"),
+                    ),
+                    patch(
+                        "services.tailoring._polish_job_description",
+                        return_value=(
+                            "Platform engineering role focused on automation and reliability.",
+                            "ROLE SUMMARY\nPlatform engineering role.\n\nCORE RESPONSIBILITIES\n- Build automation.",
+                            True,
+                        ),
+                    ),
+                ):
+                    resp = client.post(
+                        "/api/tailoring/ingest/prepare",
+                        json={
+                            "title": "Platform Engineer",
+                            "company": "ExampleCo",
+                            "jd_text": (
+                                "Build automation for platform tooling, improve reliability, "
+                                "and support production systems across cloud infrastructure."
+                            ),
+                            "snippet": "Short summary",
+                        },
+                    )
+                    self.assertEqual(resp.status_code, 200)
+                    payload = resp.json()
+                    self.assertTrue(payload["ok"])
+                    self.assertEqual(payload["decision"], "qa_approved")
+                    self.assertEqual(payload["approval"]["job_id"], payload["job_id"])
+                    self.assertTrue(payload["approval"]["polished"])
+
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    "SELECT id, decision, query, url, company, snippet, approved_jd_text FROM results WHERE id = ?",
+                    (payload["job_id"],),
+                ).fetchone()
+                logs = conn.execute(
+                    "SELECT action, new_state, detail FROM job_state_log WHERE job_id = ? ORDER BY id ASC",
+                    (payload["job_id"],),
+                ).fetchall()
+                conn.close()
+
+                self.assertEqual(row["decision"], "qa_approved")
+                self.assertEqual(row["query"], "manual-ingest")
+                self.assertEqual(row["company"], "ExampleCo")
+                self.assertTrue(str(row["url"]).startswith("manual://ingest/"))
+                self.assertEqual(
+                    row["snippet"],
+                    "Platform engineering role focused on automation and reliability.",
+                )
+                self.assertEqual(
+                    row["approved_jd_text"],
+                    "ROLE SUMMARY\nPlatform engineering role.\n\nCORE RESPONSIBILITIES\n- Build automation.",
+                )
+                self.assertEqual(
+                    [(log["action"], log["new_state"]) for log in logs],
+                    [("ingest_manual", "qa_pending"), ("qa_approve", "qa_approved")],
+                )
+                self.assertIn('"prepare_for_tailoring": true', logs[0]["detail"])
+            finally:
+                server.DB_PATH = old_db
+
+    def test_scan_mobile_auto_approves_and_enriches_job(self):
+        with tempfile.TemporaryDirectory() as td:
+            db_path = Path(td) / "jobs.db"
+            mobile_root = Path(td) / "mobile-jd"
+            folder = mobile_root / "ExampleCo - Mobile Platform Engineer"
+            folder.mkdir(parents=True)
+            (folder / "1.png").write_bytes(b"fake image bytes")
+
+            self._create_results_db(db_path, with_approved_jd_text=False)
+
+            old_db = server.DB_PATH
+            server.DB_PATH = str(db_path)
+            client = TestClient(server.app)
+            try:
+                with (
+                    patch("services.mobile_jd.MOBILE_JD_DIR", mobile_root),
+                    patch(
+                        "services.mobile_jd.ocr_image",
+                        return_value="Build platform tooling.\nLinkedIn follow text.\nRemote in the US.",
+                    ),
+                    patch(
+                        "services.tailoring._resolve_active_llm_runtime",
+                        return_value=({"provider": "test"}, "model-1"),
+                    ),
+                    patch(
+                        "services.tailoring._polish_job_description",
+                        return_value=(
+                            "Platform engineering role focused on internal tooling and delivery systems.",
+                            "ROLE SUMMARY\nPlatform engineering role.\n\nCORE RESPONSIBILITIES\n- Build platform tooling.",
+                            True,
+                        ),
+                    ),
+                ):
+                    resp = client.post("/api/tailoring/ingest/scan-mobile")
+                    self.assertEqual(resp.status_code, 200)
+                    body = resp.json()
+                    self.assertEqual(body["processed"], 1)
+                    self.assertTrue(body["results"][0]["auto_approved"])
+                    self.assertTrue(body["results"][0]["polished_with_llm"])
+
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    "SELECT status, title, company, source, query, run_id, snippet, approved_jd_text, url "
+                    "FROM jobs"
+                ).fetchone()
+                log_row = conn.execute(
+                    "SELECT action, new_state, detail FROM job_state_log ORDER BY id DESC LIMIT 1"
+                ).fetchone()
+                conn.close()
+
+                self.assertIsNotNone(row)
+                self.assertEqual(row["status"], "qa_approved")
+                self.assertEqual(row["title"], "Mobile Platform Engineer")
+                self.assertEqual(row["company"], "ExampleCo")
+                self.assertEqual(row["source"], "mobile")
+                self.assertEqual(row["query"], "mobile-ingest")
+                self.assertEqual(row["run_id"], "mobile-ingest")
+                self.assertEqual(
+                    row["snippet"],
+                    "Platform engineering role focused on internal tooling and delivery systems.",
+                )
+                self.assertEqual(
+                    row["approved_jd_text"],
+                    "ROLE SUMMARY\nPlatform engineering role.\n\nCORE RESPONSIBILITIES\n- Build platform tooling.",
+                )
+                self.assertTrue(str(row["url"]).startswith("mobile://ingest/"))
+                self.assertEqual(log_row["action"], "ingest_mobile")
+                self.assertEqual(log_row["new_state"], "qa_approved")
+                self.assertIn('"auto_approved": true', log_row["detail"])
+                self.assertTrue((mobile_root / "_done ExampleCo - Mobile Platform Engineer").exists())
             finally:
                 server.DB_PATH = old_db
 
@@ -1285,14 +1436,37 @@ class TestTailoringAPI(unittest.TestCase):
                 self.assertEqual([call["model_id"] for call in review_calls], ["meta/llama-3.3-70b"])
                 self.assertEqual(review_calls[0]["trace"]["phase"], "dashboard_qa_llm_review")
 
+                reports_resp = client.get("/api/tailoring/qa/llm-review/reports")
+                self.assertEqual(reports_resp.status_code, 200)
+                reports = reports_resp.json()["items"]
+                self.assertEqual(len(reports), 1)
+                self.assertEqual(reports[0]["summary"]["passed"], 1)
+                self.assertEqual(reports[0]["queued_count"], 1)
+                self.assertEqual(reports[0]["scrape_run_ids"], ["run-1"])
+
+                detail_resp = client.get(f"/api/tailoring/qa/llm-review/reports/{reports[0]['batch_id']}")
+                self.assertEqual(detail_resp.status_code, 200)
+                report = detail_resp.json()["report"]
+                self.assertEqual(report["resolved_model"], "meta/llama-3.3-70b")
+                self.assertEqual(report["items"][0]["job_id"], 1)
+                self.assertEqual(report["items"][0]["review_status"], "pass")
+                self.assertEqual(report["items"][0]["final_decision"], "qa_approved")
+                self.assertEqual(report["items"][0]["top_matches"], ["detections", "cloud security"])
+
                 conn = sqlite3.connect(db_path)
                 conn.row_factory = sqlite3.Row
                 row = conn.execute("SELECT decision, snippet, approved_jd_text FROM results WHERE id = 1").fetchone()
+                batch_row = conn.execute(
+                    "SELECT queued_count, report_json, report_generated_at FROM qa_llm_review_batches"
+                ).fetchone()
                 conn.close()
 
                 self.assertEqual(row["decision"], "qa_approved")
                 self.assertEqual(row["snippet"], "Security role summary")
                 self.assertEqual(row["approved_jd_text"], "ROLE SUMMARY\nSecurity role")
+                self.assertEqual(batch_row["queued_count"], 1)
+                self.assertIsNotNone(batch_row["report_json"])
+                self.assertIsNotNone(batch_row["report_generated_at"])
             finally:
                 with server._QA_LLM_REVIEW_LOCK:
                     thread = server._QA_LLM_REVIEW_RUNNER.get("thread")

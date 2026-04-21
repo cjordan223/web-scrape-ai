@@ -6,8 +6,36 @@ type RunRow = {
   run_id: string;
   started_at: string;
   net_new: number | null;
+  net_new_qa_pending: number;
+  net_new_lead: number;
   gate_mode: string | null;
   rotation_group: number | null;
+};
+
+type ReviewHealth = 'green' | 'yellow' | 'red' | 'unknown';
+
+type RunReview = {
+  health?: ReviewHealth;
+  summary?: string;
+  flags?: string[];
+  recommendations?: string[];
+  _raw?: string;
+};
+
+type ReviewedRun = {
+  run_id: string;
+  started_at: string;
+  completed_at: string | null;
+  elapsed: number | null;
+  net_new: number | null;
+  gate_mode: string | null;
+  rotation_group: number | null;
+  rotation_members: string[] | null;
+  raw_count: number | null;
+  dedup_count: number | null;
+  filtered_count: number | null;
+  llm_review_at: string | null;
+  review: RunReview | null;
 };
 
 type SourceRow = {
@@ -22,7 +50,12 @@ type SourceRow = {
   runs: number;
 };
 
-type DayRow = { day: string; net_new: number | null };
+type DayRow = {
+  day: string;
+  net_new: number | null;
+  net_new_qa_pending: number;
+  net_new_lead: number;
+};
 
 type TierStats = { per_run: RunRow[]; by_source: SourceRow[]; daily_net_new: DayRow[] };
 
@@ -35,6 +68,8 @@ type SystemStatus = {
 export default function ScraperMetricsView() {
   const [stats, setStats] = useState<TierStats | null>(null);
   const [sys, setSys] = useState<SystemStatus | null>(null);
+  const [reviews, setReviews] = useState<ReviewedRun[]>([]);
+  const [regenerating, setRegenerating] = useState<string | null>(null);
   const [since, setSince] = useState<'7d' | '14d' | '30d'>('7d');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,9 +77,14 @@ export default function ScraperMetricsView() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [a, b] = await Promise.all([api.getTierStatsRollup(since), api.getSystemStatus()]);
+      const [a, b, c] = await Promise.all([
+        api.getTierStatsRollup(since),
+        api.getSystemStatus(),
+        api.getScraperReviews(10),
+      ]);
       setStats(a);
       setSys(b);
+      setReviews(c.runs ?? []);
       setError(null);
     } catch (e) {
       setError(String(e));
@@ -54,6 +94,19 @@ export default function ScraperMetricsView() {
   }, [since]);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  const handleRegenerate = useCallback(async (runId: string) => {
+    setRegenerating(runId);
+    try {
+      await api.regenerateScraperReview(runId);
+      const c = await api.getScraperReviews(10);
+      setReviews(c.runs ?? []);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setRegenerating(null);
+    }
+  }, []);
 
   const target = sys?.profile.target_net_new_per_run ?? 13;
   const rotationGroups = sys?.profile.rotation_groups ?? 4;
@@ -72,9 +125,11 @@ export default function ScraperMetricsView() {
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <div>
           <h1 style={{ fontSize: 28, margin: 0, fontWeight: 600 }}>Scraper Metrics</h1>
-          <p style={{ color: 'var(--text-muted)', margin: '4px 0 0', fontSize: 13 }}>
-            Tier-aware scheduler output. Target: <strong>{target}</strong> net-new / run,{' '}
-            <strong>{dailyTarget}</strong> / day at {runsPerDay} runs/day.
+          <p style={{ color: 'var(--text-muted)', margin: '4px 0 0', fontSize: 13, maxWidth: 780, lineHeight: 1.55 }}>
+            Tier-aware scheduler fires every <strong>{cadenceHours}h</strong> ({runsPerDay} runs/day) and rotates spiders across{' '}
+            <strong>{rotationGroups}</strong> discovery groups. Target: <strong>{target}</strong> net-new jobs per run (
+            <strong>{dailyTarget}</strong>/day). Each completed run is auto-reviewed by the LLM oversight loop below; the KPI
+            tiles, per-run strip, and source funnel below are the inputs the reviewer sees.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -99,18 +154,26 @@ export default function ScraperMetricsView() {
         </div>
       </header>
 
+      <LatestReviewPanel
+        reviews={reviews}
+        onRegenerate={handleRegenerate}
+        regenerating={regenerating}
+      />
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
         <KpiTile
           label="Last run"
           value={kpis.lastNetNew != null ? String(kpis.lastNetNew) : '—'}
           unit={kpis.lastNetNew != null ? `/ ${target} target` : ''}
           tone={kpis.lastNetNew == null ? 'muted' : kpis.lastNetNew >= target ? 'good' : kpis.lastNetNew >= target * 0.7 ? 'warn' : 'bad'}
+          footer={kpis.lastNetNew != null ? <StatusSplit qa={kpis.lastQaPending} lead={kpis.lastLead} /> : undefined}
         />
         <KpiTile
           label={`Total net-new (${since})`}
           value={kpis.totalNetNew != null ? String(kpis.totalNetNew) : '—'}
           unit={kpis.totalNetNew != null ? `vs ${kpis.windowTarget} target` : ''}
           tone={kpis.totalNetNew == null ? 'muted' : kpis.totalNetNew >= kpis.windowTarget ? 'good' : 'warn'}
+          footer={kpis.totalNetNew != null ? <StatusSplit qa={kpis.totalQaPending} lead={kpis.totalLead} /> : undefined}
         />
         <KpiTile
           label="Gate overflow rate"
@@ -130,7 +193,7 @@ export default function ScraperMetricsView() {
         <section style={card}>
           <SectionHeader
             title={`Daily net-new (${since})`}
-            subtitle={`Dashed line = daily target (${dailyTarget}). Bars below mean the pipeline is starving.`}
+            subtitle={`Bars are stacked by scrape-time status: amber = qa_pending (still owes QA approval before tailoring), blue = lead (hn_hiring/remoteok — lowest confidence). Dashed line = daily target (${dailyTarget}). Target is set at total-net-new today — "ready for tailoring" is a subset earned after QA.`}
           />
           <DailyChart data={stats.daily_net_new} target={dailyTarget} />
         </section>
@@ -138,7 +201,7 @@ export default function ScraperMetricsView() {
         <section style={card}>
           <SectionHeader
             title="Per-run net-new (last 20)"
-            subtitle="Green = gate ran normally. Amber = overflow (gate skipped some items). Grey = historical run before freshness merge."
+            subtitle="Bar height = net-new stored. Fill is stacked by status (amber = qa_pending, blue = lead). Outline reflects the gate: green = normal, amber = overflow (budget hit, some items unscored), no outline = skipped_by_cadence. Hover a bar for exact breakdown."
           />
           <RunStrip rows={stats.per_run.slice(0, 20)} target={target} />
         </section>
@@ -147,7 +210,7 @@ export default function ScraperMetricsView() {
       <section style={card}>
         <SectionHeader
           title={`Source health (${since})`}
-          subtitle="For each source: raw hits that came in, and the fate of those hits across dedup, filter, LLM gate, and storage."
+          subtitle="Per-spider funnel aggregated over the window. Tiers: workhorse (always runs, known-good sources) · discovery (rotates, LLM-gated for noise) · lead (HN hiring / curated). Columns: Raw = items fetched; Dedup/Filter/LLM = drops at each stage; Stored = kept as pending or lead; Runs = how many scheduler ticks this spider appeared in."
         />
         <SourceTable rows={stats.by_source} />
       </section>
@@ -155,10 +218,140 @@ export default function ScraperMetricsView() {
   );
 }
 
+const REVIEWER_EXPLAINER =
+  'When a scheduled run completes, a background loop (60s poll, max 5 reviews/tick) sends the run\u2019s raw/dedup/filter/net-new counts, per-spider tier stats, and the last 7 runs as baseline to the MLX gate model (Meta-Llama-3.1-8B-Instruct-4bit, qwen2.5:7b fallback). The model returns health, summary, flags, and recommendations as JSON. If the LLM is unreachable the review stays empty and is retried on the next tick \u2014 no fake summaries. Regenerate forces a fresh call for a specific run.';
+
+const HEALTH_STYLE: Record<ReviewHealth, { dot: string; label: string; text: string }> = {
+  green: { dot: 'rgb(34, 197, 94)', label: 'Healthy', text: 'rgb(134, 239, 172)' },
+  yellow: { dot: 'rgb(234, 179, 8)', label: 'Watch', text: 'rgb(252, 211, 77)' },
+  red: { dot: 'rgb(239, 68, 68)', label: 'Degraded', text: 'rgb(252, 165, 165)' },
+  unknown: { dot: 'rgba(148, 163, 184, 0.8)', label: 'Unknown', text: 'var(--text-muted)' },
+};
+
+function LatestReviewPanel({
+  reviews,
+  onRegenerate,
+  regenerating,
+}: {
+  reviews: ReviewedRun[];
+  onRegenerate: (runId: string) => void;
+  regenerating: string | null;
+}) {
+  const latest = reviews[0];
+  if (!latest) {
+    return (
+      <section style={card}>
+        <SectionHeader
+          title="Run oversight"
+          subtitle={REVIEWER_EXPLAINER}
+        />
+        <Empty>No completed runs reviewed yet.</Empty>
+      </section>
+    );
+  }
+  const review = latest.review;
+  const health: ReviewHealth = (review?.health as ReviewHealth) ?? 'unknown';
+  const style = HEALTH_STYLE[health] ?? HEALTH_STYLE.unknown;
+  const pending = !review;
+  const isRegenerating = regenerating === latest.run_id;
+  return (
+    <section style={card}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 10px',
+                borderRadius: 999,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                fontSize: 12,
+                color: style.text,
+                fontWeight: 600,
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: style.dot }} />
+              {style.label}
+            </span>
+            <h2 style={{ fontSize: 15, margin: 0, fontWeight: 600 }}>Run oversight</h2>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              {fmtDate(latest.started_at)} · net-new {latest.net_new ?? '—'} · gate {latest.gate_mode ?? '—'}
+            </span>
+          </div>
+          <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.55 }}>
+            {REVIEWER_EXPLAINER}
+          </p>
+          <p style={{ margin: '10px 0 0', fontSize: 13, lineHeight: 1.55, color: pending ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+            {pending
+              ? 'Awaiting review. Background reviewer will retry on its next 60s tick. If MLX is down or the primary model is unavailable, the reviewer falls back to qwen2.5:7b via Ollama.'
+              : review?.summary || '(No summary provided.)'}
+          </p>
+        </div>
+        <button
+          style={{ ...btn, minWidth: 110 }}
+          onClick={() => onRegenerate(latest.run_id)}
+          disabled={isRegenerating}
+          title="Clear this run's review and force the background reviewer to re-generate it on the next poll tick."
+        >
+          {isRegenerating ? 'Regenerating…' : 'Regenerate'}
+        </button>
+      </div>
+
+      {review?.flags && review.flags.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
+          {review.flags.map((f, i) => (
+            <span
+              key={i}
+              style={{
+                fontSize: 11,
+                padding: '3px 9px',
+                borderRadius: 4,
+                background: 'rgba(239, 68, 68, 0.12)',
+                color: 'rgb(252, 165, 165)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                fontFamily: 'var(--font-mono)',
+              }}
+            >
+              {f}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {review?.recommendations && review.recommendations.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)', marginBottom: 6 }}>
+            Recommendations
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
+            {review.recommendations.map((r, i) => (
+              <li key={i} style={{ marginBottom: 3 }}>{r}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {latest.llm_review_at && (
+        <div style={{ marginTop: 14, fontSize: 11, color: 'var(--text-muted)' }}>
+          Reviewed {fmtDate(latest.llm_review_at)} · run {latest.run_id.slice(0, 12)}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function computeKpis(stats: TierStats | null, target: number) {
-  const lastNetNew = stats?.per_run[0]?.net_new ?? null;
+  const last = stats?.per_run[0];
+  const lastNetNew = last?.net_new ?? null;
+  const lastQaPending = last?.net_new_qa_pending ?? 0;
+  const lastLead = last?.net_new_lead ?? 0;
   const dayCount = stats?.daily_net_new.length ?? 0;
   const totalNetNew = stats?.daily_net_new.reduce((acc, d) => acc + (d.net_new ?? 0), 0) ?? null;
+  const totalQaPending = stats?.daily_net_new.reduce((acc, d) => acc + d.net_new_qa_pending, 0) ?? 0;
+  const totalLead = stats?.daily_net_new.reduce((acc, d) => acc + d.net_new_lead, 0) ?? 0;
   const runsInWindow = stats?.per_run.length ?? 0;
   const windowTarget = runsInWindow * target;
   const rotationSeen = new Set<number>();
@@ -171,14 +364,21 @@ function computeKpis(stats: TierStats | null, target: number) {
       if (r.gate_mode === 'overflow') overflow += 1;
     }
   });
-  return { lastNetNew, totalNetNew, rotationSeen, overflow, gateTotal, windowTarget, dayCount };
+  return {
+    lastNetNew, lastQaPending, lastLead,
+    totalNetNew, totalQaPending, totalLead,
+    rotationSeen, overflow, gateTotal, windowTarget, dayCount,
+  };
 }
 
 function DailyChart({ data, target }: { data: DayRow[]; target: number }) {
   if (data.length === 0) return <Empty>No runs in this window.</Empty>;
-  const values = data.map((d) => d.net_new ?? 0);
-  const max = Math.max(target * 1.2, ...values, 1);
+  const totals = data.map((d) => d.net_new ?? 0);
+  const max = Math.max(target * 1.2, ...totals, 1);
   const width = 100 / data.length;
+  const QA_COLOR = 'rgba(245,158,11,0.85)';
+  const LEAD_COLOR = 'rgba(96,165,250,0.7)';
+  const OTHER_COLOR = 'rgba(148,163,184,0.45)';
   return (
     <div style={{ position: 'relative', height: 180 }}>
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
@@ -193,14 +393,33 @@ function DailyChart({ data, target }: { data: DayRow[]; target: number }) {
           vectorEffect="non-scaling-stroke"
         />
         {data.map((d, i) => {
-          const v = d.net_new ?? 0;
-          const h = (v / max) * 100;
+          const total = d.net_new ?? 0;
+          const qa = d.net_new_qa_pending;
+          const lead = d.net_new_lead;
+          const other = Math.max(0, total - qa - lead);
           const x = i * width + width * 0.15;
           const barW = width * 0.7;
-          const color = v >= target ? 'rgba(34,197,94,0.8)' : v >= target * 0.5 ? 'rgba(245,158,11,0.8)' : 'rgba(239,68,68,0.7)';
+          const qaH = (qa / max) * 100;
+          const leadH = (lead / max) * 100;
+          const otherH = (other / max) * 100;
+          let y = 100 - qaH;
+          const segs: React.ReactNode[] = [];
+          if (qa > 0) {
+            segs.push(<rect key="qa" x={x} y={y} width={barW} height={qaH} fill={QA_COLOR} rx="0.5" />);
+          }
+          if (lead > 0) {
+            const ly = y - leadH;
+            segs.push(<rect key="lead" x={x} y={ly} width={barW} height={leadH} fill={LEAD_COLOR} rx="0.5" />);
+            y = ly;
+          }
+          if (other > 0) {
+            const oy = y - otherH;
+            segs.push(<rect key="other" x={x} y={oy} width={barW} height={otherH} fill={OTHER_COLOR} rx="0.5" />);
+          }
           return (
             <g key={d.day}>
-              <rect x={x} y={100 - h} width={barW} height={h} fill={color} rx="0.5" />
+              <title>{`${d.day} · ${total} total · ${qa} qa_pending · ${lead} lead${other ? ` · ${other} other` : ''}`}</title>
+              {segs}
             </g>
           );
         })}
@@ -213,6 +432,20 @@ function DailyChart({ data, target }: { data: DayRow[]; target: number }) {
           </div>
         ))}
       </div>
+      <ChartLegend qaColor={QA_COLOR} leadColor={LEAD_COLOR} />
+    </div>
+  );
+}
+
+function ChartLegend({ qaColor, leadColor }: { qaColor: string; leadColor: string }) {
+  const swatch = (c: string): React.CSSProperties => ({
+    display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: c, marginRight: 6,
+  });
+  return (
+    <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+      <span><span style={swatch(qaColor)} />qa_pending — needs QA approval</span>
+      <span><span style={swatch(leadColor)} />lead — hn_hiring / remoteok</span>
+      <span style={{ marginLeft: 'auto' }}>Dashed line = total target</span>
     </div>
   );
 }
@@ -222,20 +455,34 @@ function RunStrip({ rows, target }: { rows: RunRow[]; target: number }) {
   const reversed = [...rows].reverse();
   const values = reversed.map((r) => r.net_new ?? 0);
   const max = Math.max(target * 1.2, ...values, 1);
+  const QA_COLOR = 'rgba(245,158,11,0.85)';
+  const LEAD_COLOR = 'rgba(96,165,250,0.7)';
+  const OTHER_COLOR = 'rgba(148,163,184,0.45)';
   return (
     <div style={{ height: 180, display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', flex: 1, gap: 3 }}>
         {reversed.map((r) => {
-          const v = r.net_new;
-          const h = v == null ? 20 : (v / max) * 100;
-          const color = v == null
-            ? 'rgba(255,255,255,0.08)'
-            : r.gate_mode === 'overflow'
-            ? 'rgba(245,158,11,0.8)'
-            : r.gate_mode === 'normal'
-            ? 'rgba(34,197,94,0.75)'
-            : 'rgba(147, 197, 253, 0.6)';
-          const title = `${fmtDate(r.started_at)} · net-new=${v ?? 'n/a'} · gate=${r.gate_mode ?? 'n/a'} · group=${r.rotation_group ?? 'n/a'}`;
+          if (r.net_new == null) {
+            return (
+              <div
+                key={r.run_id}
+                title={`${fmtDate(r.started_at)} · net-new=n/a · gate=${r.gate_mode ?? 'n/a'} · group=${r.rotation_group ?? 'n/a'}`}
+                style={{ flex: 1, height: '20%', background: 'rgba(255,255,255,0.08)', borderRadius: 2, minHeight: 2 }}
+              />
+            );
+          }
+          const total = r.net_new;
+          const qa = r.net_new_qa_pending;
+          const lead = r.net_new_lead;
+          const other = Math.max(0, total - qa - lead);
+          const h = (total / max) * 100;
+          const title = `${fmtDate(r.started_at)} · net-new=${total} (qa=${qa}, lead=${lead}${other ? `, other=${other}` : ''}) · gate=${r.gate_mode ?? 'n/a'} · group=${r.rotation_group ?? 'n/a'}`;
+          const outline =
+            r.gate_mode === 'overflow'
+              ? '1px solid rgba(245,158,11,0.9)'
+              : r.gate_mode === 'normal'
+              ? '1px solid rgba(34,197,94,0.7)'
+              : 'none';
           return (
             <div
               key={r.run_id}
@@ -243,11 +490,19 @@ function RunStrip({ rows, target }: { rows: RunRow[]; target: number }) {
               style={{
                 flex: 1,
                 height: `${h}%`,
-                background: color,
+                minHeight: 4,
+                display: 'flex',
+                flexDirection: 'column-reverse',
                 borderRadius: 2,
-                minHeight: v == null ? 2 : 4,
+                overflow: 'hidden',
+                outline,
+                outlineOffset: -1,
               }}
-            />
+            >
+              {qa > 0 && <div style={{ flex: qa, background: QA_COLOR }} />}
+              {lead > 0 && <div style={{ flex: lead, background: LEAD_COLOR }} />}
+              {other > 0 && <div style={{ flex: other, background: OTHER_COLOR }} />}
+            </div>
           );
         })}
       </div>
@@ -343,7 +598,7 @@ function TierBadge({ tier }: { tier: string }) {
   );
 }
 
-function KpiTile({ label, value, unit, tone }: { label: string; value: string; unit?: string; tone: 'good' | 'warn' | 'bad' | 'muted' }) {
+function KpiTile({ label, value, unit, tone, footer }: { label: string; value: string; unit?: string; tone: 'good' | 'warn' | 'bad' | 'muted'; footer?: React.ReactNode }) {
   const accent: Record<string, string> = {
     good: 'rgb(134, 239, 172)',
     warn: 'rgb(252, 211, 77)',
@@ -357,6 +612,29 @@ function KpiTile({ label, value, unit, tone }: { label: string; value: string; u
         <div style={{ fontSize: 28, fontWeight: 600, color: accent[tone], fontVariantNumeric: 'tabular-nums' }}>{value}</div>
         {unit && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{unit}</div>}
       </div>
+      {footer && <div style={{ marginTop: 6 }}>{footer}</div>}
+    </div>
+  );
+}
+
+function StatusSplit({ qa, lead }: { qa: number; lead: number }) {
+  if (qa === 0 && lead === 0) {
+    return <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>no items stored</span>;
+  }
+  return (
+    <div style={{ display: 'flex', gap: 10, fontSize: 11, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+      {qa > 0 && (
+        <span title="Items that reached storage as qa_pending — they still need QA approval (manual or LLM-review) before they can be tailored.">
+          <span style={{ color: 'rgb(252, 211, 77)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{qa}</span>{' '}
+          <span>need QA</span>
+        </span>
+      )}
+      {lead > 0 && (
+        <span title="Lead-tier items from hn_hiring / remoteok — lowest confidence, separate manual flow.">
+          <span style={{ color: 'rgb(147, 197, 253)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{lead}</span>{' '}
+          <span>lead</span>
+        </span>
+      )}
     </div>
   );
 }

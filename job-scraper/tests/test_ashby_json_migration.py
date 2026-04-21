@@ -26,3 +26,4 @@ def test_ashby_json_path_yields_item():
     assert item["title"] == "Security Engineer"
     assert "Remote" in item["location"]
     assert item["salary_k"] is not None
+    assert "$160,000" in item["salary_text"]

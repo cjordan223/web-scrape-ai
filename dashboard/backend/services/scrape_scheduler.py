@@ -31,10 +31,11 @@ def compute_tick_plan(
 
 def _next_run_index(db_path) -> int:
     """Count of historical rotated runs — feeds run_index for new tick."""
+    import contextlib
     import sqlite3
 
     try:
-        with sqlite3.connect(str(db_path)) as conn:
+        with contextlib.closing(sqlite3.connect(str(db_path))) as conn:
             row = conn.execute(
                 "SELECT COUNT(*) FROM runs WHERE rotation_group IS NOT NULL"
             ).fetchone()

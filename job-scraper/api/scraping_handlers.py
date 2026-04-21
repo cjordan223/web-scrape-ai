@@ -858,8 +858,18 @@ def tier_stats_rollup(since: str = "7d"):
         per_run = [
             dict(r)
             for r in conn.execute(
-                """SELECT run_id, started_at, net_new, gate_mode, rotation_group
-                   FROM runs WHERE started_at >= ? ORDER BY started_at DESC LIMIT 60""",
+                """SELECT r.run_id, r.started_at, r.net_new, r.gate_mode, r.rotation_group,
+                          COALESCE(ts.qa_pending, 0) AS net_new_qa_pending,
+                          COALESCE(ts.lead, 0)       AS net_new_lead
+                   FROM runs r
+                   LEFT JOIN (
+                       SELECT run_id,
+                              SUM(stored_pending) AS qa_pending,
+                              SUM(stored_lead)    AS lead
+                       FROM run_tier_stats GROUP BY run_id
+                   ) ts ON ts.run_id = r.run_id
+                   WHERE r.started_at >= ?
+                   ORDER BY r.started_at DESC LIMIT 60""",
                 (cutoff,),
             ).fetchall()
         ]
@@ -883,9 +893,19 @@ def tier_stats_rollup(since: str = "7d"):
         daily_net_new = [
             dict(r)
             for r in conn.execute(
-                """SELECT substr(started_at, 1, 10) AS day, SUM(net_new) AS net_new
-                   FROM runs WHERE started_at >= ?
-                   GROUP BY substr(started_at, 1, 10) ORDER BY day""",
+                """SELECT substr(r.started_at, 1, 10) AS day,
+                          SUM(r.net_new) AS net_new,
+                          COALESCE(SUM(ts.qa_pending), 0) AS net_new_qa_pending,
+                          COALESCE(SUM(ts.lead), 0)       AS net_new_lead
+                   FROM runs r
+                   LEFT JOIN (
+                       SELECT run_id,
+                              SUM(stored_pending) AS qa_pending,
+                              SUM(stored_lead)    AS lead
+                       FROM run_tier_stats GROUP BY run_id
+                   ) ts ON ts.run_id = r.run_id
+                   WHERE r.started_at >= ?
+                   GROUP BY substr(r.started_at, 1, 10) ORDER BY day""",
                 (cutoff,),
             ).fetchall()
         ]

@@ -7,6 +7,7 @@ process and cannot be surfaced from the job-scraper side.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import os
 import sqlite3
@@ -52,7 +53,7 @@ _FLAG_KEYS = (
 
 def _last_run_summary(db_path: str) -> dict | None:
     try:
-        with sqlite3.connect(db_path) as conn:
+        with contextlib.closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT run_id, started_at, completed_at, status, net_new, "
@@ -134,4 +135,60 @@ def system_status():
         "feature_flags": flags,
         "last_run": last_run,
     }
+
+
+def _row_to_review(row) -> dict | None:
+    import json as _json
+    if row is None:
+        return None
+    data = dict(row)
+    raw = data.pop("llm_review", None)
+    data["review"] = _json.loads(raw) if raw else None
+    members_raw = data.pop("rotation_members", None)
+    data["rotation_members"] = _json.loads(members_raw) if members_raw else None
+    return data
+
+
+def list_run_reviews(limit: int = 20):
+    """Recent completed runs with their LLM review attached (if any)."""
+    db_path = getattr(_MOD, "DB_PATH", None)
+    if not db_path:
+        return {"runs": []}
+    try:
+        with contextlib.closing(sqlite3.connect(str(db_path))) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """SELECT run_id, started_at, completed_at, status, elapsed,
+                          raw_count, dedup_count, filtered_count, net_new,
+                          gate_mode, rotation_group, rotation_members,
+                          llm_review, llm_review_at
+                   FROM runs
+                   WHERE status = 'completed'
+                   ORDER BY completed_at DESC LIMIT ?""",
+                (int(limit),),
+            ).fetchall()
+    except sqlite3.DatabaseError:
+        return {"runs": []}
+    return {"runs": [_row_to_review(r) for r in rows]}
+
+
+def regenerate_run_review(run_id: str):
+    """Force re-generate a review for the given run, bypassing the poll cadence."""
+    from services import run_reviewer
+
+    db_path = getattr(_MOD, "DB_PATH", None)
+    if not db_path:
+        return {"ok": False, "error": "DB path unavailable"}
+    # Clear any existing review so the reviewer treats this as fresh.
+    try:
+        with contextlib.closing(sqlite3.connect(str(db_path))) as conn:
+            with conn:
+                conn.execute(
+                    "UPDATE runs SET llm_review = NULL, llm_review_at = NULL WHERE run_id = ?",
+                    (run_id,),
+                )
+    except sqlite3.DatabaseError as exc:
+        return {"ok": False, "error": str(exc)}
+    review = run_reviewer.review_run(str(db_path), run_id)
+    return {"ok": review is not None, "review": review}
 

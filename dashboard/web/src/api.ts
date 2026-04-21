@@ -6,6 +6,7 @@ const API_BASE = import.meta.env.DEV ? 'http://localhost:8899/api' : '/api';
 
 export const apiClient = axios.create({
     baseURL: API_BASE,
+    timeout: 15000,
 });
 
 export const api = {
@@ -326,6 +327,11 @@ export const api = {
         return data;
     },
 
+    ingestPrepare: async (fields: Record<string, any>) => {
+        const { data } = await apiClient.post('/tailoring/ingest/prepare', fields);
+        return data;
+    },
+
     getQAPending: async (limit?: number, params?: Record<string, any>) => {
         const { data } = await apiClient.get('/tailoring/qa', { params: { limit, ...(params || {}) } });
         return data;
@@ -443,6 +449,16 @@ export const api = {
 
     getSystemStatus: async () => {
         const { data } = await apiClient.get('/scraper/system/status');
+        return data;
+    },
+
+    getScraperReviews: async (limit = 10) => {
+        const { data } = await apiClient.get(`/scraper/reviews?limit=${limit}`);
+        return data;
+    },
+
+    regenerateScraperReview: async (runId: string) => {
+        const { data } = await apiClient.post(`/scraper/reviews/${encodeURIComponent(runId)}/regenerate`);
         return data;
     },
 };

@@ -1,4 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import {
+    DollarSign, MapPin, Briefcase, ExternalLink, ChevronRight, ChevronDown,
+    CheckCircle2, Clock, Package, X, SlidersHorizontal, Layers, Search,
+} from 'lucide-react';
 import { api } from '../../../../api';
 import { fmtDate, timeAgo, sourceMeta, normalizeSource, compactHost, type SourceFilter } from '../../../../utils';
 import { CollapsibleSection } from '../../../../components/CollapsibleSection';
@@ -41,6 +45,23 @@ type ReadyBucket = 'backlog' | 'next' | 'later';
 
 const READY_BUCKETS: ReadyBucket[] = ['backlog', 'next', 'later'];
 const READY_QUEUE_PRESETS = [10, 20, 50, 100];
+const READY_GROUP_STORAGE_KEY = 'tailoring.ready.groupByCompany';
+
+function companyKey(job: ReadyJob): string {
+    const raw = (job.company || extractCompany(job.url) || '').trim().toLowerCase();
+    return raw || '__unknown__';
+}
+
+function companyDisplay(job: ReadyJob): string {
+    const raw = (job.company || extractCompany(job.url) || '').trim();
+    return raw || 'Unknown company';
+}
+
+function getInitialGroupByCompany(): boolean {
+    if (typeof window === 'undefined') return true;
+    const v = window.localStorage.getItem(READY_GROUP_STORAGE_KEY);
+    return v === null ? true : v === '1';
+}
 
 function compareText(a?: string | null, b?: string | null) {
     return (a || '').localeCompare(b || '', undefined, { sensitivity: 'base' });
@@ -85,9 +106,15 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
     const [queueBusy, setQueueBusy] = useState(false);
     const [queueError, setQueueError] = useState('');
     const [resetBusy, setResetBusy] = useState(false);
-    const [sortKey, setSortKey] = useState<ReadySortKey>('date_added');
-    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+    const [sortKey, setSortKey] = useState<ReadySortKey>('company');
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
     const [queueBatchSize, setQueueBatchSize] = useState('20');
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    const [groupByCompany, setGroupByCompany] = useState<boolean>(getInitialGroupByCompany);
+    const [collapsedCompanies, setCollapsedCompanies] = useState<Set<string>>(new Set());
+    const didInitCollapseRef = useRef(false);
+    const listRef = useRef<HTMLDivElement | null>(null);
+    const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
     const loadReadyJobs = useCallback(async () => {
         try {
@@ -128,6 +155,22 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
         const id = setInterval(loadReadyJobs, 15000);
         return () => clearInterval(id);
     }, [loadReadyJobs]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem(READY_GROUP_STORAGE_KEY, groupByCompany ? '1' : '0');
+        }
+    }, [groupByCompany]);
+
+    useEffect(() => {
+        if (didInitCollapseRef.current) return;
+        if (!groupByCompany) return;
+        if (readyJobs.length === 0) return;
+        const keys = new Set<string>();
+        for (const job of readyJobs) keys.add(companyKey(job));
+        setCollapsedCompanies(keys);
+        didInitCollapseRef.current = true;
+    }, [groupByCompany, readyJobs]);
 
     useEffect(() => {
         if (!focusedJobId) { setBriefing(null); return; }
@@ -213,10 +256,6 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
         }
     };
 
-    const toggleFocusedJob = (id: number) => {
-        setFocusedJobId(prev => prev === id ? 0 : id);
-    };
-
     const sourceOptions: SourceFilter[] = Array.from(new Set(readyJobs.map(job => normalizeSource(job.source))));
     if (sourceFilter && !sourceOptions.includes(sourceFilter)) sourceOptions.push(sourceFilter);
     sourceOptions.sort((a, b) => a.localeCompare(b));
@@ -232,15 +271,6 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
     };
 
     const parsedQueueBatchSize = Number.parseInt(queueBatchSize, 10);
-
-    const toggleSort = (key: ReadySortKey) => {
-        if (sortKey === key) {
-            setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
-            return;
-        }
-        setSortKey(key);
-        setSortDir(key === 'date_added' ? 'desc' : 'asc');
-    };
 
     const untailoredCount = readyJobs.reduce(
         (acc, job) => acc + (Number(job.tailoring_run_count || 0) === 0 ? 1 : 0),
@@ -277,35 +307,93 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
     const queueFirstCount = Number.isFinite(parsedQueueBatchSize) ? Math.max(0, parsedQueueBatchSize) : 0;
     const queueFirstIds = selectableSortedReadyJobs.slice(0, queueFirstCount).map((job) => job.id);
 
-    const SortHeader = ({ label, sort }: { label: string; sort: ReadySortKey }) => {
-        const active = sortKey === sort;
-        return (
-            <button
-                type="button"
-                onClick={() => toggleSort(sort)}
-                style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    border: 'none',
-                    background: 'transparent',
-                    padding: 0,
-                    cursor: 'pointer',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '.64rem',
-                    color: active ? 'var(--text)' : 'var(--text-secondary)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '.08em',
-                    fontWeight: active ? 700 : 500,
-                }}
-            >
-                <span>{label}</span>
-                <span style={{ opacity: active ? 1 : 0.45 }}>
-                    {active ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
-                </span>
-            </button>
-        );
-    };
+    const companyGroups = useMemo(() => {
+        const groups = new Map<string, { key: string; display: string; jobs: ReadyJob[] }>();
+        for (const job of sortedReadyJobs) {
+            const key = companyKey(job);
+            let bucket = groups.get(key);
+            if (!bucket) {
+                bucket = { key, display: companyDisplay(job), jobs: [] };
+                groups.set(key, bucket);
+            }
+            bucket.jobs.push(job);
+        }
+        return Array.from(groups.values());
+    }, [sortedReadyJobs]);
+
+    const displayedReadyJobs = useMemo(() => {
+        if (!groupByCompany) return sortedReadyJobs;
+        const out: ReadyJob[] = [];
+        for (const group of companyGroups) {
+            if (collapsedCompanies.has(group.key)) continue;
+            out.push(...group.jobs);
+        }
+        return out;
+    }, [groupByCompany, sortedReadyJobs, companyGroups, collapsedCompanies]);
+
+    type ListEntry =
+        | { kind: 'header'; group: { key: string; display: string; jobs: ReadyJob[] } }
+        | { kind: 'job'; job: ReadyJob };
+
+    const listEntries: ListEntry[] = useMemo(() => {
+        if (!groupByCompany) {
+            return sortedReadyJobs.map((job) => ({ kind: 'job' as const, job }));
+        }
+        const out: ListEntry[] = [];
+        for (const group of companyGroups) {
+            out.push({ kind: 'header', group });
+            if (!collapsedCompanies.has(group.key)) {
+                for (const job of group.jobs) out.push({ kind: 'job', job });
+            }
+        }
+        return out;
+    }, [groupByCompany, sortedReadyJobs, companyGroups, collapsedCompanies]);
+
+    const toggleCompanyCollapsed = useCallback((key: string) => {
+        setCollapsedCompanies((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    }, []);
+
+    const focusedJob = sortedReadyJobs.find((j) => j.id === focusedJobId) || null;
+
+    const moveFocus = useCallback((direction: 1 | -1) => {
+        if (displayedReadyJobs.length === 0) return;
+        const currentIdx = displayedReadyJobs.findIndex((j) => j.id === focusedJobId);
+        let nextIdx: number;
+        if (currentIdx < 0) {
+            nextIdx = direction === 1 ? 0 : displayedReadyJobs.length - 1;
+        } else {
+            nextIdx = Math.max(0, Math.min(displayedReadyJobs.length - 1, currentIdx + direction));
+        }
+        const nextJob = displayedReadyJobs[nextIdx];
+        if (!nextJob) return;
+        setFocusedJobId(nextJob.id);
+        const node = cardRefs.current.get(nextJob.id);
+        if (node) node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, [displayedReadyJobs, focusedJobId]);
+
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            const tgt = e.target as HTMLElement | null;
+            const tag = tgt?.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tgt?.isContentEditable) return;
+            if (e.metaKey || e.ctrlKey || e.altKey) return;
+            if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); moveFocus(1); return; }
+            if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); moveFocus(-1); return; }
+            if (e.key === ' ' && focusedJobId) { e.preventDefault(); toggleSelection(focusedJobId); return; }
+            if (e.key === 'Escape') { setFocusedJobId(0); return; }
+            if ((e.key === 'o' || e.key === 'O') && focusedJob?.url) {
+                e.preventDefault();
+                window.open(focusedJob.url, '_blank', 'noopener,noreferrer');
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [moveFocus, focusedJobId, focusedJob]);
 
     return (
         <div style={{ height: '100%', overflow: 'hidden', background: 'var(--surface)' }}>
@@ -334,6 +422,58 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                             {resetBusy ? 'Resetting...' : 'Reset to QA'}
                         </button>
                     )}
+                </div>
+
+                {/* Quick search — always visible */}
+                <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <Search
+                            size={14}
+                            style={{
+                                position: 'absolute',
+                                left: 10,
+                                color: 'var(--text-secondary)',
+                                pointerEvents: 'none',
+                            }}
+                        />
+                        <input
+                            type="search"
+                            value={searchFilter}
+                            onChange={(e) => setSearchFilter(e.target.value)}
+                            placeholder="Search company, title, URL..."
+                            aria-label="Search ready jobs"
+                            style={{
+                                width: '100%',
+                                padding: '8px 34px 8px 32px',
+                                borderRadius: '8px',
+                                border: `1px solid ${searchFilter ? 'var(--accent)' : 'var(--border)'}`,
+                                background: 'var(--bg)',
+                                color: 'var(--text)',
+                                fontSize: '.78rem',
+                                outline: 'none',
+                            }}
+                        />
+                        {searchFilter && (
+                            <button
+                                type="button"
+                                onClick={() => setSearchFilter('')}
+                                aria-label="Clear search"
+                                title="Clear search"
+                                style={{
+                                    position: 'absolute',
+                                    right: 6,
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    padding: 4,
+                                    display: 'inline-flex',
+                                }}
+                            >
+                                <X size={13} />
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Queue controls */}
@@ -373,23 +513,45 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                         >
                             Untailored ({untailoredCount})
                         </button>
+                        <span style={{ flex: 1 }} />
+                        {(() => {
+                            const activeFilterCount =
+                                (searchFilter ? 1 : 0)
+                                + (boardFilter.length > 0 ? 1 : 0)
+                                + (sourceFilter ? 1 : 0)
+                                + (seniorityFilter ? 1 : 0)
+                                + (locationFilter ? 1 : 0);
+                            return (
+                                <button
+                                    className={`btn btn-sm${filtersOpen || activeFilterCount > 0 ? ' btn-primary' : ' btn-ghost'}`}
+                                    onClick={() => setFiltersOpen(prev => !prev)}
+                                    style={{ fontSize: '.68rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                    title={filtersOpen ? 'Hide filters' : 'Show filters'}
+                                >
+                                    <SlidersHorizontal size={12} />
+                                    Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+                                </button>
+                            );
+                        })()}
+                        {(searchFilter || boardFilter.length > 0 || sourceFilter || seniorityFilter || locationFilter) && (
+                            <button
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => {
+                                    setSearchFilter('');
+                                    setBoardFilter([]);
+                                    setSourceFilter('');
+                                    setSeniorityFilter('');
+                                    setLocationFilter('');
+                                }}
+                                style={{ fontSize: '.68rem', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}
+                                title="Clear all filter values"
+                            >
+                                <X size={11} /> Clear
+                            </button>
+                        )}
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, .9fr) minmax(0, .9fr) minmax(0, 1fr) auto', gap: '8px', alignItems: 'center' }}>
-                        <input
-                            type="text"
-                            value={searchFilter}
-                            onChange={e => setSearchFilter(e.target.value)}
-                            placeholder="Search title, company, URL..."
-                            style={{
-                                minWidth: 0,
-                                padding: '8px 10px',
-                                borderRadius: '8px',
-                                border: '1px solid var(--border)',
-                                background: 'var(--bg)',
-                                color: 'var(--text)',
-                                fontSize: '.78rem',
-                            }}
-                        />
+                    {filtersOpen && (<>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, .9fr) minmax(0, .9fr) minmax(0, 1fr) auto', gap: '8px', alignItems: 'center' }}>
                         <select value={sourceFilter} onChange={e => setSourceFilter((e.target.value || '') as '' | SourceFilter)} style={{ minWidth: 0 }}>
                             <option value="">All Sources</option>
                             {sourceOptions.map(source => <option key={source} value={source}>{sourceMeta(source).label}</option>)}
@@ -478,6 +640,7 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                             {untailoredOnly ? <span>untailored only</span> : null}
                         </div>
                     )}
+                    </>)}
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <button
                             className="btn btn-primary btn-sm"
@@ -498,7 +661,10 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                         <button
                             className="btn btn-ghost btn-sm"
                             onClick={() => {
-                                const selectableIds = selectableSortedReadyJobs.map((job) => job.id);
+                                const pool = groupByCompany ? displayedReadyJobs : sortedReadyJobs;
+                                const selectableIds = pool
+                                    .filter((job) => job.queue_item?.status !== 'queued' && job.queue_item?.status !== 'running')
+                                    .map((job) => job.id);
                                 if (selectedIds.size === selectableIds.length) setSelectedIds(new Set());
                                 else setSelectedIds(new Set(selectableIds));
                             }}
@@ -701,332 +867,527 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                     {queueError && <div style={{ fontSize: '.72rem', color: 'var(--red)', fontFamily: 'var(--font-mono)' }}>{queueError}</div>}
                 </div>
 
-                <div style={{ flex: 1, overflowY: 'auto' }}>
+                <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
                     {readyJobs.length === 0 ? (
-                        <div style={{ padding: '24px 14px', textAlign: 'center', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: '.78rem' }}>
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: '.82rem' }}>
                             No QA-approved jobs are ready for tailoring
                         </div>
                     ) : (
-                        <div>
+                        <>
+                            {/* ═════ LEFT: Candidate cards ═════ */}
                             <div
+                                ref={listRef}
                                 style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: '44px minmax(300px, 2fr) minmax(210px, 1.1fr) minmax(180px, 1fr) 110px 42px',
-                                    gap: '12px',
-                                    alignItems: 'center',
-                                    padding: '10px 14px',
-                                    borderBottom: '1px solid var(--border)',
-                                    background: 'var(--surface-2)',
-                                    position: 'sticky',
-                                    top: 0,
-                                    zIndex: 1,
+                                    width: 'clamp(380px, 40%, 520px)',
+                                    flexShrink: 0,
+                                    borderRight: '1px solid var(--border)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    minHeight: 0,
                                 }}
                             >
-                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.64rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.08em' }}>Pick</span>
-                                <SortHeader label="Job" sort="job" />
-                                <SortHeader label="Company + Source" sort="company" />
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <SortHeader label="Meta" sort="context" />
-                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.56rem', color: 'var(--text-secondary)', opacity: 0.6 }}>·</span>
-                                    <SortHeader label="Runs" sort="history" />
-                                </div>
-                                <SortHeader label="Added" sort="date_added" />
-                                <span />
-                            </div>
-                            {sortedReadyJobs.map((j) => {
-                        const isFocused = focusedJobId === j.id;
-                        const isChecked = selectedIds.has(j.id);
-                        const queueState = j.queue_item?.status;
-                        const isUnavailable = queueState === 'queued' || queueState === 'running';
-                        const priorRunCount = Number(j.tailoring_run_count || 0);
-                        const hasPriorRun = Boolean(j.has_tailoring_runs || priorRunCount > 0);
-                        const applied = j.applied;
-                        const source = sourceMeta(normalizeSource(j.source));
-                        const reviewBucket = normalizeReadyBucket(j.ready_bucket);
-                        const reviewMeta = readyBucketMeta(reviewBucket);
-                        const company = j.company?.trim() || extractCompany(j.url) || '';
-                        const host = compactHost(j.url);
-                        const logistics = [j.location, j.seniority, j.salary_k ? `$${Math.round(j.salary_k / 1000)}K` : ''].filter(Boolean);
-                        return (
-                            <div key={j.id} style={{ borderBottom: '1px solid var(--border)' }}>
                                 <div
                                     style={{
-                                        display: 'grid',
-                                        gridTemplateColumns: '44px minmax(300px, 2fr) minmax(210px, 1.1fr) minmax(180px, 1fr) 110px 42px',
-                                        gap: '12px',
-                                        alignItems: 'start',
-                                        padding: '12px 14px',
-                                        cursor: 'pointer',
-                                        borderLeft: isFocused ? '2px solid var(--accent)' : '2px solid transparent',
-                                        background: isFocused ? 'var(--accent-light)' : isChecked ? 'rgba(var(--accent-rgb, 100,150,255), 0.06)' : 'transparent',
-                                        transition: 'background .08s',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '8px',
+                                        padding: '8px 12px',
+                                        borderBottom: '1px solid var(--border)',
+                                        background: 'var(--surface-2)',
+                                        position: 'sticky',
+                                        top: 0,
+                                        zIndex: 2,
                                     }}
-                                    onClick={() => toggleFocusedJob(j.id)}
-                                    onMouseEnter={e => { if (!isFocused && !isChecked) e.currentTarget.style.background = 'var(--surface-2)'; }}
-                                    onMouseLeave={e => { if (!isFocused && !isChecked) e.currentTarget.style.background = 'transparent'; }}
                                 >
-                                    {/* ── Col 1: Pick ── */}
-                                    <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '4px' }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={isChecked}
-                                            disabled={isUnavailable}
-                                            onChange={() => toggleSelection(j.id)}
-                                            onClick={e => e.stopPropagation()}
-                                            style={{ accentColor: 'var(--accent)' }}
-                                        />
-                                    </div>
-
-                                    {/* ── Col 2: Job ── */}
-                                    <div style={{ minWidth: 0 }}>
-                                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.7rem', color: 'var(--text-secondary)', flexShrink: 0 }}>#{j.id}</span>
-                                            <span style={{ fontWeight: 600, fontSize: '.88rem', lineHeight: 1.35, color: 'var(--text)' }}>
-                                                {j.title || 'Untitled'}
-                                            </span>
-                                            <span style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                borderRadius: '999px',
-                                                border: `1px solid ${reviewMeta.border}`,
-                                                background: reviewMeta.background,
-                                                color: reviewMeta.color,
-                                                padding: '1px 8px',
-                                                fontFamily: 'var(--font-mono)',
-                                                fontSize: '.6rem',
-                                                fontWeight: 700,
-                                                letterSpacing: '.03em',
-                                                flexShrink: 0,
-                                            }}>
-                                                {reviewMeta.label}
-                                            </span>
-                                        </div>
-                                        {j.snippet && (
-                                            <div
-                                                style={{
-                                                    fontSize: '.76rem',
-                                                    color: 'var(--text-secondary)',
-                                                    lineHeight: 1.5,
-                                                    display: '-webkit-box',
-                                                    WebkitLineClamp: 2,
-                                                    WebkitBoxOrient: 'vertical',
-                                                    overflow: 'hidden',
-                                                    marginBottom: '6px',
-                                                }}
-                                            >
-                                                {j.snippet}
-                                            </div>
-                                        )}
-                                        {host && (
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.66rem', color: 'var(--text-secondary)' }}>
-                                                {host}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* ── Col 3: Company + Source ── */}
-                                    <div style={{ minWidth: 0 }}>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '6px' }}>
-                                            {company ? (
-                                                <span style={{
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    borderRadius: '999px',
-                                                    border: '1px solid rgba(42, 184, 204, 0.25)',
-                                                    background: 'rgba(42, 184, 204, 0.08)',
-                                                    color: 'var(--cyan, #2ab8cc)',
-                                                    padding: '1px 8px',
-                                                    fontFamily: 'var(--font-mono)',
-                                                    fontSize: '.62rem',
-                                                    fontWeight: 600,
-                                                }}>
-                                                    {company}
-                                                </span>
-                                            ) : null}
-                                            {j.board ? <span className={`pill pill-${j.board}`} style={{ fontSize: '.66rem' }}>{j.board}</span> : null}
-                                            <span style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                borderRadius: '999px',
-                                                border: `1px solid ${source.border}`,
-                                                background: source.background,
-                                                color: source.color,
-                                                padding: '1px 8px',
-                                                fontFamily: 'var(--font-mono)',
-                                                fontSize: '.62rem',
-                                                fontWeight: 600,
-                                            }}>
-                                                {source.label}
-                                            </span>
-                                            {queueState ? (
-                                                <span style={{
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    borderRadius: '999px',
-                                                    border: `1px solid ${queueState === 'running' ? 'rgba(75, 142, 240, 0.35)' : 'rgba(60, 179, 113, 0.32)'}`,
-                                                    background: queueState === 'running' ? 'rgba(75, 142, 240, 0.10)' : 'rgba(60, 179, 113, 0.10)',
-                                                    color: queueState === 'running' ? 'var(--accent)' : 'var(--green)',
-                                                    padding: '1px 8px',
-                                                    fontFamily: 'var(--font-mono)',
-                                                    fontSize: '.62rem',
-                                                    fontWeight: 700,
-                                                }}>
-                                                    {queueState}
-                                                </span>
-                                            ) : null}
-                                        </div>
-                                        <div
-                                            style={{
-                                                fontFamily: 'var(--font-mono)',
-                                                fontSize: '.66rem',
-                                                color: 'var(--text-secondary)',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap',
-                                            }}
-                                            title={j.url || undefined}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-mono)', fontSize: '.62rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.08em' }}>
+                                        <span>Sort</span>
+                                        <select
+                                            value={sortKey}
+                                            onChange={(e) => setSortKey(e.target.value as ReadySortKey)}
+                                            style={{ padding: '3px 6px', fontSize: '.7rem', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px' }}
                                         >
-                                            {j.url || 'No source URL'}
-                                        </div>
-                                    </div>
-
-                                    {/* ── Col 4: Meta (context + history merged) ── */}
-                                    <div style={{ minWidth: 0, display: 'flex', flexWrap: 'wrap', gap: '6px', alignContent: 'flex-start' }}>
-                                        {logistics.map(item => (
-                                            <span key={item} style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                borderRadius: '999px',
-                                                border: '1px solid var(--border)',
-                                                background: 'var(--surface-2)',
-                                                color: 'var(--text-secondary)',
-                                                padding: '1px 8px',
-                                                fontFamily: 'var(--font-mono)',
-                                                fontSize: '.62rem',
-                                                fontWeight: 600,
-                                            }}>
-                                                {item}
-                                            </span>
-                                        ))}
-                                        {hasPriorRun && (
-                                            <span style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                borderRadius: '999px',
-                                                border: '1px solid rgba(224, 160, 48, 0.45)',
-                                                background: 'rgba(224, 160, 48, 0.10)',
-                                                color: 'var(--amber, #e0a030)',
-                                                padding: '1px 8px',
-                                                fontFamily: 'var(--font-mono)',
-                                                fontSize: '.62rem',
-                                                fontWeight: 700,
-                                            }}>
-                                                {priorRunCount} pkg
-                                            </span>
-                                        )}
-                                        {applied && (
-                                            <span style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                borderRadius: '999px',
-                                                border: '1px solid rgba(75, 142, 240, 0.35)',
-                                                background: 'rgba(75, 142, 240, 0.10)',
-                                                color: 'var(--accent)',
-                                                padding: '1px 8px',
-                                                fontFamily: 'var(--font-mono)',
-                                                fontSize: '.62rem',
-                                                fontWeight: 700,
-                                            }}>
-                                                Applied
-                                            </span>
-                                        )}
-                                        {logistics.length === 0 && !hasPriorRun && !applied && (
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.64rem', color: 'var(--text-secondary)', opacity: 0.7 }}>
-                                                —
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* ── Col 5: Added ── */}
-                                    <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.72rem', color: 'var(--text)', fontWeight: 600 }}>
-                                            {j.created_at ? timeAgo(j.created_at) : '—'}
-                                        </span>
-                                        {j.created_at && (
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.6rem', color: 'var(--text-secondary)' }}>
-                                                {fmtDate(j.created_at)}
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* ── Col 6: Actions ── */}
-                                    <div style={{
-                                        display: 'flex', flexDirection: 'column',
-                                        alignItems: 'center', gap: '6px',
-                                        paddingTop: '2px',
-                                    }}>
-                                        {j.url && (
-                                            <a
-                                                href={j.url}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                onClick={e => e.stopPropagation()}
-                                                title="Open job description in new tab"
-                                                style={{
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    width: '26px',
-                                                    height: '26px',
-                                                    borderRadius: '6px',
-                                                    border: '1px solid rgba(75, 142, 240, 0.35)',
-                                                    background: 'rgba(75, 142, 240, 0.10)',
-                                                    color: 'var(--accent)',
-                                                    fontFamily: 'var(--font-mono)',
-                                                    fontSize: '.72rem',
-                                                    fontWeight: 700,
-                                                    textDecoration: 'none',
-                                                    lineHeight: 1,
+                                            <option value="date_added">Date added</option>
+                                            <option value="job">Title</option>
+                                            <option value="company">Company</option>
+                                            <option value="context">Location / Pay</option>
+                                            <option value="history">Prior runs</option>
+                                        </select>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSortDir(prev => prev === 'asc' ? 'desc' : 'asc')}
+                                            title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+                                            style={{ padding: '2px 8px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--bg)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '.72rem', fontFamily: 'var(--font-mono)' }}
+                                        >
+                                            {sortDir === 'asc' ? '▲' : '▼'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setGroupByCompany(prev => !prev)}
+                                            title={groupByCompany ? 'Ungroup company clusters' : 'Group jobs by company'}
+                                            style={{
+                                                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                padding: '2px 8px',
+                                                border: `1px solid ${groupByCompany ? 'var(--accent)' : 'var(--border)'}`,
+                                                borderRadius: '6px',
+                                                background: groupByCompany ? 'var(--accent-light)' : 'var(--bg)',
+                                                color: groupByCompany ? 'var(--accent)' : 'var(--text-secondary)',
+                                                cursor: 'pointer', fontSize: '.7rem', fontFamily: 'var(--font-mono)',
+                                                fontWeight: groupByCompany ? 700 : 500, letterSpacing: '.04em',
+                                            }}
+                                        >
+                                            <Layers size={11} />
+                                            Group
+                                        </button>
+                                        {groupByCompany && companyGroups.length > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const allCollapsed = collapsedCompanies.size >= companyGroups.length;
+                                                    if (allCollapsed) setCollapsedCompanies(new Set());
+                                                    else setCollapsedCompanies(new Set(companyGroups.map((g) => g.key)));
                                                 }}
-                                                aria-label="Open JD in new tab"
+                                                title={collapsedCompanies.size >= companyGroups.length ? 'Expand all companies' : 'Collapse all companies'}
+                                                style={{
+                                                    padding: '2px 6px', border: '1px solid var(--border)', borderRadius: '6px',
+                                                    background: 'var(--bg)', color: 'var(--text-secondary)', cursor: 'pointer',
+                                                    fontSize: '.68rem', fontFamily: 'var(--font-mono)',
+                                                }}
                                             >
-                                                ↗
-                                            </a>
+                                                {collapsedCompanies.size >= companyGroups.length ? 'Expand' : 'Collapse'} all
+                                            </button>
                                         )}
-                                        <span style={{
-                                            fontFamily: 'var(--font-mono)',
-                                            fontSize: '.82rem',
-                                            color: isFocused ? 'var(--accent)' : 'var(--text-secondary)',
-                                            transform: isFocused ? 'rotate(180deg)' : 'rotate(0deg)',
-                                            transition: 'transform .15s ease',
-                                            lineHeight: 1,
-                                        }}>
-                                            ▾
-                                        </span>
                                     </div>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.6rem', color: 'var(--text-secondary)', opacity: 0.8, whiteSpace: 'nowrap' }}>
+                                        {groupByCompany
+                                            ? `${companyGroups.length} cos · ${sortedReadyJobs.length} jobs · ↑↓ j/k · space pick`
+                                            : `${sortedReadyJobs.length} shown · ↑↓ j/k navigate · space pick · enter open`}
+                                    </span>
                                 </div>
 
-                                {isFocused && (
-                                    <div style={{ background: 'rgba(75, 142, 240, 0.05)', borderTop: '1px solid var(--border)' }}>
-                                        {detailLoading ? (
-                                            <div className="loading" style={{ minHeight: '220px' }}><div className="spinner" /></div>
-                                        ) : !briefing ? (
-                                            <div style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: '.8rem', textAlign: 'center', padding: '32px' }}>
-                                                Job not found
+                                <div style={{ flex: 1, overflowY: 'auto', padding: '10px', background: 'var(--bg)' }}>
+                                    {listEntries.map((entry) => {
+                                        if (entry.kind === 'header') {
+                                            const group = entry.group;
+                                            const isCollapsed = collapsedCompanies.has(group.key);
+                                            const selectableIds = group.jobs
+                                                .filter((jj) => jj.queue_item?.status !== 'queued' && jj.queue_item?.status !== 'running')
+                                                .map((jj) => jj.id);
+                                            const appliedCount = group.jobs.filter((jj) => !!jj.applied).length;
+                                            const priorCount = group.jobs.filter((jj) => Number(jj.tailoring_run_count || 0) > 0).length;
+                                            return (
+                                                <div
+                                                    key={`__group_${group.key}`}
+                                                    onClick={() => toggleCompanyCollapsed(group.key)}
+                                                    style={{
+                                                        position: 'sticky',
+                                                        top: 0,
+                                                        zIndex: 1,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '8px',
+                                                        padding: '8px 10px',
+                                                        marginBottom: '6px',
+                                                        borderRadius: '8px',
+                                                        border: '1px solid rgba(139, 124, 246, 0.32)',
+                                                        background: 'linear-gradient(90deg, rgba(139, 124, 246, 0.16), rgba(139, 124, 246, 0.04))',
+                                                        backdropFilter: 'blur(6px)',
+                                                        WebkitBackdropFilter: 'blur(6px)',
+                                                        cursor: 'pointer',
+                                                        userSelect: 'none',
+                                                    }}
+                                                    title={isCollapsed ? 'Expand company group' : 'Collapse company group'}
+                                                >
+                                                    <ChevronDown
+                                                        size={13}
+                                                        style={{
+                                                            color: 'var(--purple, #8b7cf6)',
+                                                            transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                                                            transition: 'transform .12s ease',
+                                                            flexShrink: 0,
+                                                        }}
+                                                    />
+                                                    <Layers size={12} style={{ color: 'var(--purple, #8b7cf6)', opacity: 0.85, flexShrink: 0 }} />
+                                                    <span
+                                                        style={{
+                                                            fontWeight: 700,
+                                                            fontSize: '.8rem',
+                                                            color: 'var(--text)',
+                                                            letterSpacing: '.02em',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            whiteSpace: 'nowrap',
+                                                            minWidth: 0,
+                                                        }}
+                                                    >
+                                                        {group.display}
+                                                    </span>
+                                                    <span
+                                                        style={{
+                                                            fontFamily: 'var(--font-mono)',
+                                                            fontSize: '.6rem',
+                                                            fontWeight: 700,
+                                                            color: 'var(--purple, #8b7cf6)',
+                                                            background: 'rgba(139, 124, 246, 0.14)',
+                                                            border: '1px solid rgba(139, 124, 246, 0.28)',
+                                                            padding: '1px 7px',
+                                                            borderRadius: '999px',
+                                                            letterSpacing: '.04em',
+                                                            flexShrink: 0,
+                                                        }}
+                                                    >
+                                                        {group.jobs.length} {group.jobs.length === 1 ? 'job' : 'jobs'}
+                                                    </span>
+                                                    {appliedCount > 0 && (
+                                                        <span
+                                                            title={`${appliedCount} already applied`}
+                                                            style={{
+                                                                display: 'inline-flex', alignItems: 'center', gap: '3px',
+                                                                fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 700,
+                                                                color: 'var(--accent)',
+                                                            }}
+                                                        >
+                                                            <CheckCircle2 size={10} />
+                                                            {appliedCount}
+                                                        </span>
+                                                    )}
+                                                    {priorCount > 0 && (
+                                                        <span
+                                                            title={`${priorCount} with prior tailoring runs`}
+                                                            style={{
+                                                                display: 'inline-flex', alignItems: 'center', gap: '3px',
+                                                                fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 700,
+                                                                color: 'var(--amber, #e0a030)',
+                                                            }}
+                                                        >
+                                                            <Package size={10} />
+                                                            {priorCount}
+                                                        </span>
+                                                    )}
+                                                    <span style={{ flex: 1 }} />
+                                                    {selectableIds.length > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => { e.stopPropagation(); queueJobIds(selectableIds); }}
+                                                            disabled={queueBusy}
+                                                            className="btn btn-ghost btn-sm"
+                                                            title={`Queue every selectable job at ${group.display}`}
+                                                            style={{ fontSize: '.64rem', padding: '2px 8px', color: 'var(--accent)', whiteSpace: 'nowrap' }}
+                                                        >
+                                                            Queue {selectableIds.length}
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const ids = group.jobs
+                                                                .filter((jj) => jj.queue_item?.status !== 'queued' && jj.queue_item?.status !== 'running')
+                                                                .map((jj) => jj.id);
+                                                            setSelectedIds((prev) => {
+                                                                const next = new Set(prev);
+                                                                const allPicked = ids.every((id) => next.has(id));
+                                                                if (allPicked) ids.forEach((id) => next.delete(id));
+                                                                else ids.forEach((id) => next.add(id));
+                                                                return next;
+                                                            });
+                                                        }}
+                                                        className="btn btn-ghost btn-sm"
+                                                        title="Pick / unpick every job in this company"
+                                                        style={{ fontSize: '.64rem', padding: '2px 8px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
+                                                    >
+                                                        Pick
+                                                    </button>
+                                                </div>
+                                            );
+                                        }
+                                        const j = entry.job;
+                                        const isFocused = focusedJobId === j.id;
+                                        const isChecked = selectedIds.has(j.id);
+                                        const queueState = j.queue_item?.status;
+                                        const isUnavailable = queueState === 'queued' || queueState === 'running';
+                                        const priorRunCount = Number(j.tailoring_run_count || 0);
+                                        const hasPriorRun = Boolean(j.has_tailoring_runs || priorRunCount > 0);
+                                        const applied = j.applied;
+                                        const source = sourceMeta(normalizeSource(j.source));
+                                        const reviewBucket = normalizeReadyBucket(j.ready_bucket);
+                                        const reviewMeta = readyBucketMeta(reviewBucket);
+                                        const company = j.company?.trim() || extractCompany(j.url) || '';
+                                        const host = compactHost(j.url);
+                                        const salaryLabel = j.salary_k ? `$${Math.round(j.salary_k / 1000)}K` : null;
+                                        const locationLabel = (j.location || '').trim() || null;
+                                        const seniorityLabel = (j.seniority || '').trim() || null;
+                                        return (
+                                            <div
+                                                key={j.id}
+                                                ref={(el) => {
+                                                    if (el) cardRefs.current.set(j.id, el);
+                                                    else cardRefs.current.delete(j.id);
+                                                }}
+                                                onClick={() => setFocusedJobId(j.id)}
+                                                style={{
+                                                    marginBottom: '8px',
+                                                    marginLeft: groupByCompany ? '14px' : 0,
+                                                    padding: '12px 14px',
+                                                    borderRadius: '10px',
+                                                    border: `1px solid ${isFocused ? 'var(--accent)' : isChecked ? 'rgba(75, 142, 240, 0.35)' : 'var(--border)'}`,
+                                                    borderLeft: groupByCompany
+                                                        ? (isFocused
+                                                            ? '3px solid var(--accent)'
+                                                            : '3px solid rgba(139, 124, 246, 0.28)')
+                                                        : `1px solid ${isFocused ? 'var(--accent)' : isChecked ? 'rgba(75, 142, 240, 0.35)' : 'var(--border)'}`,
+                                                    background: isFocused ? 'var(--accent-light)' : isChecked ? 'rgba(75, 142, 240, 0.05)' : 'var(--surface)',
+                                                    cursor: 'pointer',
+                                                    transition: 'all .12s ease',
+                                                    boxShadow: isFocused ? '0 0 0 1px var(--accent), 0 2px 8px rgba(75, 142, 240, 0.15)' : 'none',
+                                                    opacity: isUnavailable ? 0.78 : 1,
+                                                }}
+                                            >
+                                                {/* Top row: id · bucket · applied/queue · checkbox · open */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChecked}
+                                                        disabled={isUnavailable}
+                                                        onChange={() => toggleSelection(j.id)}
+                                                        onClick={e => e.stopPropagation()}
+                                                        style={{ accentColor: 'var(--accent)', margin: 0, cursor: isUnavailable ? 'not-allowed' : 'pointer' }}
+                                                        aria-label={`Select job ${j.id}`}
+                                                    />
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.66rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                                        #{j.id}
+                                                    </span>
+                                                    <span style={{
+                                                        display: 'inline-flex', alignItems: 'center',
+                                                        borderRadius: '999px',
+                                                        border: `1px solid ${reviewMeta.border}`,
+                                                        background: reviewMeta.background,
+                                                        color: reviewMeta.color,
+                                                        padding: '1px 8px',
+                                                        fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 700,
+                                                        letterSpacing: '.04em', textTransform: 'uppercase',
+                                                    }}>
+                                                        {reviewMeta.label}
+                                                    </span>
+                                                    {queueState && (
+                                                        <span style={{
+                                                            display: 'inline-flex', alignItems: 'center',
+                                                            borderRadius: '999px',
+                                                            border: `1px solid ${queueState === 'running' ? 'rgba(75, 142, 240, 0.35)' : 'rgba(60, 179, 113, 0.32)'}`,
+                                                            background: queueState === 'running' ? 'rgba(75, 142, 240, 0.10)' : 'rgba(60, 179, 113, 0.10)',
+                                                            color: queueState === 'running' ? 'var(--accent)' : 'var(--green)',
+                                                            padding: '1px 8px',
+                                                            fontFamily: 'var(--font-mono)', fontSize: '.58rem', fontWeight: 700,
+                                                        }}>
+                                                            {queueState}
+                                                        </span>
+                                                    )}
+                                                    <span style={{ flex: 1 }} />
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.62rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }} title={j.created_at ? fmtDate(j.created_at) : ''}>
+                                                        <Clock size={10} style={{ verticalAlign: '-1px', marginRight: '3px', opacity: 0.7 }} />
+                                                        {j.created_at ? timeAgo(j.created_at) : '—'}
+                                                    </span>
+                                                    {j.url && (
+                                                        <a
+                                                            href={j.url}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            onClick={e => e.stopPropagation()}
+                                                            title="Open JD in new tab (o)"
+                                                            style={{
+                                                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                                                width: '22px', height: '22px', borderRadius: '5px',
+                                                                border: '1px solid rgba(75, 142, 240, 0.28)',
+                                                                background: 'rgba(75, 142, 240, 0.08)',
+                                                                color: 'var(--accent)',
+                                                            }}
+                                                            aria-label="Open JD in new tab"
+                                                        >
+                                                            <ExternalLink size={11} />
+                                                        </a>
+                                                    )}
+                                                </div>
+
+                                                {/* Title */}
+                                                <div style={{
+                                                    fontWeight: 600, fontSize: '.92rem', lineHeight: 1.35, color: 'var(--text)',
+                                                    marginBottom: '8px',
+                                                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                                                    overflow: 'hidden',
+                                                }}>
+                                                    {j.title || 'Untitled'}
+                                                </div>
+
+                                                {/* Headline facts: PAY · LOCATION · SENIORITY */}
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                                                    <FactChip
+                                                        icon={<DollarSign size={12} />}
+                                                        label={salaryLabel || 'Salary N/A'}
+                                                        color={salaryLabel ? 'var(--green)' : 'var(--text-secondary)'}
+                                                        background={salaryLabel ? 'rgba(60, 179, 113, 0.12)' : 'var(--surface-2)'}
+                                                        border={salaryLabel ? 'rgba(60, 179, 113, 0.35)' : 'var(--border)'}
+                                                        dim={!salaryLabel}
+                                                    />
+                                                    <FactChip
+                                                        icon={<MapPin size={12} />}
+                                                        label={locationLabel || 'Location N/A'}
+                                                        color={locationLabel ? 'var(--cyan, #2ab8cc)' : 'var(--text-secondary)'}
+                                                        background={locationLabel ? 'rgba(42, 184, 204, 0.10)' : 'var(--surface-2)'}
+                                                        border={locationLabel ? 'rgba(42, 184, 204, 0.32)' : 'var(--border)'}
+                                                        dim={!locationLabel}
+                                                    />
+                                                    {seniorityLabel && (
+                                                        <FactChip
+                                                            icon={<Briefcase size={12} />}
+                                                            label={seniorityLabel}
+                                                            color="var(--amber, #e0a030)"
+                                                            background="rgba(224, 160, 48, 0.10)"
+                                                            border="rgba(224, 160, 48, 0.32)"
+                                                        />
+                                                    )}
+                                                </div>
+
+                                                {/* Company / source row */}
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: j.snippet ? '8px' : '6px' }}>
+                                                    {company && (
+                                                        <span style={{
+                                                            display: 'inline-flex', alignItems: 'center',
+                                                            borderRadius: '999px',
+                                                            border: '1px solid rgba(139, 124, 246, 0.32)',
+                                                            background: 'rgba(139, 124, 246, 0.08)',
+                                                            color: 'var(--purple, #8b7cf6)',
+                                                            padding: '1px 8px',
+                                                            fontFamily: 'var(--font-mono)', fontSize: '.62rem', fontWeight: 600,
+                                                        }}>
+                                                            {company}
+                                                        </span>
+                                                    )}
+                                                    {j.board && (
+                                                        <span className={`pill pill-${j.board}`} style={{ fontSize: '.62rem' }}>
+                                                            {j.board}
+                                                        </span>
+                                                    )}
+                                                    <span style={{
+                                                        display: 'inline-flex', alignItems: 'center',
+                                                        borderRadius: '999px',
+                                                        border: `1px solid ${source.border}`,
+                                                        background: source.background,
+                                                        color: source.color,
+                                                        padding: '1px 8px',
+                                                        fontFamily: 'var(--font-mono)', fontSize: '.62rem', fontWeight: 600,
+                                                    }}>
+                                                        {source.label}
+                                                    </span>
+                                                </div>
+
+                                                {j.snippet && (
+                                                    <div style={{
+                                                        fontSize: '.74rem', color: 'var(--text-secondary)', lineHeight: 1.5,
+                                                        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                                                        overflow: 'hidden', marginBottom: '6px',
+                                                    }}>
+                                                        {j.snippet}
+                                                    </div>
+                                                )}
+
+                                                {/* Footer: host + history badges */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    {host && (
+                                                        <span style={{
+                                                            fontFamily: 'var(--font-mono)', fontSize: '.62rem',
+                                                            color: 'var(--text-secondary)', opacity: 0.7,
+                                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                            flex: 1, minWidth: 0,
+                                                        }}>
+                                                            {host}
+                                                        </span>
+                                                    )}
+                                                    {hasPriorRun && (
+                                                        <span title={`${priorRunCount} prior tailoring run(s)`} style={{
+                                                            display: 'inline-flex', alignItems: 'center', gap: '3px',
+                                                            fontFamily: 'var(--font-mono)', fontSize: '.6rem', fontWeight: 700,
+                                                            color: 'var(--amber, #e0a030)',
+                                                        }}>
+                                                            <Package size={10} />
+                                                            {priorRunCount}
+                                                        </span>
+                                                    )}
+                                                    {applied && (
+                                                        <span title="Applied" style={{
+                                                            display: 'inline-flex', alignItems: 'center', gap: '3px',
+                                                            fontFamily: 'var(--font-mono)', fontSize: '.6rem', fontWeight: 700,
+                                                            color: 'var(--accent)',
+                                                        }}>
+                                                            <CheckCircle2 size={10} />
+                                                            Applied
+                                                        </span>
+                                                    )}
+                                                    {isFocused && (
+                                                        <ChevronRight size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                                                    )}
+                                                </div>
                                             </div>
-                                        ) : (
-                                            <BriefingPanel briefing={briefing} compact />
-                                        )}
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* ═════ RIGHT: Briefing detail ═════ */}
+                            <div style={{ flex: 1, minWidth: 0, overflow: 'auto', background: 'var(--surface)' }}>
+                                {!focusedJobId ? (
+                                    <div style={{
+                                        height: '100%', display: 'flex', flexDirection: 'column',
+                                        alignItems: 'center', justifyContent: 'center', gap: '10px',
+                                        color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: '.82rem',
+                                        padding: '40px',
+                                    }}>
+                                        <ChevronRight size={28} style={{ opacity: 0.35, transform: 'rotate(180deg)' }} />
+                                        <div style={{ textAlign: 'center', maxWidth: '320px', lineHeight: 1.5 }}>
+                                            Select a candidate on the left to see the tailoring briefing, requirements mapping, and strategy.
+                                        </div>
+                                        <div style={{ fontSize: '.66rem', opacity: 0.7, marginTop: '8px' }}>
+                                            ↑↓ / j k navigate · space pick · enter expand · o open JD
+                                        </div>
                                     </div>
+                                ) : detailLoading ? (
+                                    <div className="loading" style={{ minHeight: '320px' }}><div className="spinner" /></div>
+                                ) : !briefing ? (
+                                    <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>
+                                        Job not found
+                                    </div>
+                                ) : (
+                                    <BriefingPanel briefing={briefing} />
                                 )}
                             </div>
-                        );
-                    })}
-                        </div>
+                        </>
                     )}
                 </div>
             </div>
         </div>
+    );
+}
+
+/* ─── Fact chip for headline facts (pay/location/seniority) ─── */
+function FactChip({
+    icon, label, color, background, border, dim,
+}: { icon: React.ReactNode; label: string; color: string; background: string; border: string; dim?: boolean }) {
+    return (
+        <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '4px',
+            padding: '3px 9px',
+            borderRadius: '999px',
+            border: `1px solid ${border}`,
+            background,
+            color,
+            fontFamily: 'var(--font-mono)',
+            fontSize: '.7rem',
+            fontWeight: 600,
+            fontStyle: dim ? 'italic' : 'normal',
+            opacity: dim ? 0.75 : 1,
+        }}>
+            {icon}
+            {label}
+        </span>
     );
 }
 

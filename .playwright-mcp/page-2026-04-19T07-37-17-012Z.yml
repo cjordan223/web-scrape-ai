@@ -1,0 +1,61 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: Job
+      - text: Forge
+    - generic [ref=e6]:
+      - link "Pipeline" [ref=e7] [cursor=pointer]:
+        - /url: /pipeline
+        - img [ref=e8]
+        - text: Pipeline
+      - link "Ops" [ref=e12] [cursor=pointer]:
+        - /url: /ops
+        - img [ref=e13]
+        - text: Ops
+    - generic [ref=e15]: v5.0 · Pipeline
+  - generic [ref=e16]:
+    - complementary [ref=e17]:
+      - navigation [ref=e18]:
+        - link "Editor Visual pipeline control" [ref=e20] [cursor=pointer]:
+          - /url: /pipeline/editor
+          - img [ref=e21]
+          - generic [ref=e25]:
+            - generic [ref=e26]: Editor
+            - generic [ref=e27]: Visual pipeline control
+        - link "Ingest" [ref=e29] [cursor=pointer]:
+          - /url: /pipeline/ingest
+          - img [ref=e30]
+          - generic [ref=e36]: Ingest
+        - link "QA Approve, reject, LLM review" [ref=e38] [cursor=pointer]:
+          - /url: /pipeline/qa
+          - img [ref=e39]
+          - generic [ref=e42]:
+            - generic [ref=e43]: QA
+            - generic [ref=e44]: Approve, reject, LLM review
+        - link "Leads HN finds — browse & ingest" [ref=e46] [cursor=pointer]:
+          - /url: /pipeline/leads
+          - img [ref=e47]
+          - generic [ref=e49]:
+            - generic [ref=e50]: Leads
+            - generic [ref=e51]: HN finds — browse & ingest
+        - link "Ready QA-approved backlog" [ref=e53] [cursor=pointer]:
+          - /url: /pipeline/ready
+          - img [ref=e54]
+          - generic [ref=e57]:
+            - generic [ref=e58]: Ready
+            - generic [ref=e59]: QA-approved backlog
+        - link "Packages" [ref=e61] [cursor=pointer]:
+          - /url: /pipeline/packages
+          - img [ref=e62]
+          - generic [ref=e67]: Packages
+        - link "Applied" [ref=e69] [cursor=pointer]:
+          - /url: /pipeline/applied
+          - img [ref=e70]
+          - generic [ref=e75]: Applied
+      - generic [ref=e78]: ...
+    - main [ref=e79]:
+      - generic [ref=e81]:
+        - generic [ref=e82]:
+          - text: Pipeline
+          - generic [ref=e83]: /
+        - generic [ref=e84]: Ready

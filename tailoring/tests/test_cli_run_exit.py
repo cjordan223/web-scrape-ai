@@ -62,6 +62,55 @@ class TestCliRunExit(unittest.TestCase):
             finally:
                 cfg.DB_PATH = old_db
 
+    def test_select_job_uses_stored_company_for_ingest_urls(self):
+        with tempfile.TemporaryDirectory() as td:
+            db_path = Path(td) / "jobs.db"
+            conn = sqlite3.connect(db_path)
+            conn.execute(
+                """
+                CREATE TABLE jobs (
+                    id INTEGER PRIMARY KEY,
+                    url TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    company TEXT NOT NULL DEFAULT '',
+                    board TEXT,
+                    seniority TEXT,
+                    jd_text TEXT,
+                    snippet TEXT,
+                    status TEXT
+                )
+                """
+            )
+            conn.execute(
+                """
+                INSERT INTO jobs (id, url, title, company, board, seniority, jd_text, snippet, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    1,
+                    "mobile://ingest/1234",
+                    "Mobile Platform Engineer",
+                    "ExampleCo",
+                    "mobile",
+                    "senior",
+                    "Role details",
+                    "Summary",
+                    "qa_approved",
+                ),
+            )
+            conn.commit()
+            conn.close()
+
+            old_db = cfg.DB_PATH
+            cfg.DB_PATH = db_path
+            try:
+                job = select_job(1)
+            finally:
+                cfg.DB_PATH = old_db
+
+            self.assertEqual(job.company, "ExampleCo")
+            self.assertNotEqual(job.company.lower(), "ingest")
+
     def test_run_exits_nonzero_when_resume_never_passes(self):
         job = SelectedJob(
             id=999,
