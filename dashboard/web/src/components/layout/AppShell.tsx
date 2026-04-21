@@ -15,6 +15,7 @@ import {
   BarChart3,
   Gauge,
   Activity,
+  ClipboardCheck,
 } from 'lucide-react';
 
 type NavItem = {
@@ -71,6 +72,7 @@ const domains: Domain[] = [
       { label: 'LLM', to: '/ops/llm', icon: Cpu, desc: 'Provider keys & models' },
       { label: 'Metrics', to: '/ops/metrics', icon: BarChart3, desc: 'Tailoring performance' },
       { label: 'Scraper', to: '/ops/scraper', icon: Activity, desc: 'Tier-aware scrape metrics' },
+      { label: 'QA Reports', to: '/ops/qa-reports', icon: ClipboardCheck, desc: 'LLM review audit trail' },
       { label: 'System', to: '/ops/system', icon: Gauge, desc: 'Scheduler & config snapshot' },
       { label: 'Admin', to: '/ops/admin', icon: Terminal, desc: 'SQL console & bulk ops' },
     ],
@@ -92,6 +94,7 @@ const labelBySegment: Record<string, string> = {
   traces: 'Traces',
   llm: 'LLM',
   metrics: 'Metrics',
+  'qa-reports': 'QA Reports',
   system: 'System',
   admin: 'Admin',
 };

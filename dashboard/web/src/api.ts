@@ -362,6 +362,16 @@ export const api = {
         return data;
     },
 
+    getQALlmReviewReports: async (limit = 50) => {
+        const { data } = await apiClient.get('/tailoring/qa/llm-review/reports', { params: { limit } });
+        return data;
+    },
+
+    getQALlmReviewReport: async (batchId: number) => {
+        const { data } = await apiClient.get(`/tailoring/qa/llm-review/reports/${batchId}`);
+        return data;
+    },
+
     cancelQAReview: async () => {
         const { data } = await apiClient.delete('/tailoring/qa/llm-review');
         return data;

@@ -28,6 +28,7 @@ const LlmProvidersView = lazy(() => import('./views/domains/ops/LlmProvidersView
 const MetricsView = lazy(() => import('./views/domains/ops/MetricsView'));
 const SystemStatusView = lazy(() => import('./views/domains/ops/SystemStatusView'));
 const ScraperMetricsView = lazy(() => import('./views/domains/ops/ScraperMetricsView'));
+const QaReviewReportsView = lazy(() => import('./views/domains/ops/QaReviewReportsView'));
 const MobileShell = lazy(() => import('./components/layout/MobileShell'));
 const MobileQAView = lazy(() => import('./views/mobile/MobileQAView'));
 const MobileDocsView = lazy(() => import('./views/mobile/MobileDocsView'));
@@ -166,6 +167,7 @@ function App() {
           <Route path="/ops/llm" element={<LazyRoute><LlmProvidersView /></LazyRoute>} />
           <Route path="/ops/metrics" element={<LazyRoute><MetricsView /></LazyRoute>} />
           <Route path="/ops/scraper" element={<LazyRoute><ScraperMetricsView /></LazyRoute>} />
+          <Route path="/ops/qa-reports" element={<LazyRoute><QaReviewReportsView /></LazyRoute>} />
           <Route path="/ops/system" element={<LazyRoute><SystemStatusView /></LazyRoute>} />
           <Route path="/ops/admin" element={<LazyRoute><SqlConsoleView /></LazyRoute>} />
 
