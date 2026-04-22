@@ -60,6 +60,10 @@ class HardFilterConfig(BaseModel):
     min_salary_k: int = 100
     target_salary_k: int = 150
     require_us_location: bool = True
+    require_remote: bool = True
+    require_explicit_remote: bool = False
+    allow_canada: bool = False
+    max_experience_years: int = 5
 
 
 class RemoteOKConfig(BaseModel):
@@ -200,6 +204,10 @@ def load_config(path: str | Path | None = None) -> ScraperConfig:
         min_salary_k=filter_raw.get("min_salary_k", 100),
         target_salary_k=filter_raw.get("target_salary_k", 150),
         require_us_location=bool(filter_raw.get("require_us_location", True)),
+        require_remote=bool(filter_raw.get("require_remote", True)),
+        require_explicit_remote=bool(filter_raw.get("require_explicit_remote", False)),
+        allow_canada=bool(filter_raw.get("allow_canada", False)),
+        max_experience_years=int(filter_raw.get("max_experience_years", 5)),
     )
 
     remoteok_raw = raw.get("remoteok", {})

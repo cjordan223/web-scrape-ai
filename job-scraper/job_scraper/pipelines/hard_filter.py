@@ -1,7 +1,8 @@
-"""Pipeline: hard filters — domain blocklist, title blocklist, salary floor, content blocklist, geo."""
+"""Pipeline: hard filters — domain blocklist, title blocklist, salary floor, content blocklist, geo, remote, experience, company sanity."""
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from urllib.parse import urlparse
@@ -70,6 +71,12 @@ _NON_US_PATTERN = re.compile(
     r")\b", re.I
 )
 
+# Canada-only tokens — used when allow_canada=true to exempt these from the
+# non-US denylist (but still reject other countries).
+_CANADA_PATTERN = re.compile(
+    r"\b(canada|toronto|vancouver|montreal|ottawa|calgary)\b", re.I
+)
+
 # US location signals — only match against location field, not JD text,
 # to avoid false positives from 2-letter state codes in prose.
 _US_LOCATION_PATTERN = re.compile(
@@ -87,18 +94,60 @@ _US_LOCATION_PATTERN = re.compile(
     r")\b", re.I
 )
 
+# Remote / distributed / work-from-home markers.
+_REMOTE_PATTERN = re.compile(
+    r"\b(remote|work from home|work-from-home|wfh|distributed|"
+    r"fully remote|100% remote|remote[- ]?first|anywhere)\b",
+    re.I,
+)
 
-def _is_non_us_only(location: str, jd_text: str, require_us: bool = True) -> str | None:
-    """Return rejection reason if job is clearly non-US, or None if OK.
+# Explicit in-office / hybrid markers that disqualify when require_remote is strict.
+_ONSITE_PATTERN = re.compile(
+    r"\b(onsite|on-site|on site|in[- ]?office|in[- ]?person|"
+    r"hybrid|relocation required|must relocate)\b",
+    re.I,
+)
 
-    When `require_us=True` (strict mode) we additionally reject postings whose
-    location field is set but contains no US signal and no bare "remote". This
-    plugs the denylist-coverage gap: any new country not enumerated in
-    `_NON_US_PATTERN` still gets caught.
-    """
+# Aggregator path segments that leak into company when URL parsing fails.
+_BAD_COMPANY_TOKENS = {
+    "jobs", "job", "careers", "career", "companies", "company",
+    "hiring", "apply", "listings", "listing", "browse", "view",
+    "positions", "position", "unknown", "",
+}
+
+# Experience-years regex: captures "7+ years", "8-10 years", "minimum of 10 years", etc.
+_EXPERIENCE_PATTERNS = [
+    re.compile(r"\b(\d{1,2})\s*\+\s*years?\b", re.I),
+    re.compile(r"\bminimum\s+of\s+(\d{1,2})\s+years?\b", re.I),
+    re.compile(r"\bat\s+least\s+(\d{1,2})\s+years?\b", re.I),
+    re.compile(r"\b(\d{1,2})\s*-\s*\d{1,2}\s+years?\b", re.I),
+    re.compile(r"\b(\d{1,2})\s+or\s+more\s+years?\b", re.I),
+]
+
+
+def _extract_experience_years(jd_text: str) -> int | None:
+    """Pull the highest experience-year requirement mentioned in the JD body."""
+    if not jd_text:
+        return None
+    candidates: list[int] = []
+    for pattern in _EXPERIENCE_PATTERNS:
+        for match in pattern.finditer(jd_text):
+            try:
+                value = int(match.group(1))
+            except (ValueError, IndexError):
+                continue
+            if 0 < value <= 30:
+                candidates.append(value)
+    if not candidates:
+        return None
+    # Use the maximum — a posting saying "5-10 years" should count as 10.
+    return max(candidates)
+
+
+def _is_non_us_only(location: str, jd_text: str, require_us: bool = True, allow_canada: bool = False) -> str | None:
+    """Return rejection reason if job is clearly non-US, or None if OK."""
     normalized_location = location.strip()
     if normalized_location:
-        # Explicit "international/worldwide/global" location labels are not US-only.
         if re.search(r"\b(international|worldwide)\b", normalized_location, re.I):
             if not _US_LOCATION_PATTERN.search(normalized_location):
                 return f"Non-US location: {normalized_location}"
@@ -106,21 +155,18 @@ def _is_non_us_only(location: str, jd_text: str, require_us: bool = True) -> str
             if not _US_LOCATION_PATTERN.search(normalized_location):
                 return f"Non-US location: {normalized_location}"
 
-    # Primary: check location field for non-US signals
     loc_matches = _NON_US_PATTERN.findall(location)
     if loc_matches:
-        # Check for US signals in location field
         if _US_LOCATION_PATTERN.search(location):
+            # Has US signal — location pairs US with another region (e.g. "US | Canada"). Accept.
             return None
-        # Bare "remote" without a region qualifier implies US eligibility
-        if re.search(r"\bremote\b", location, re.I) and not re.search(
-            r"\b(europe|emea|eu\b|apac|uk\b|only)", location, re.I
-        ):
-            return None
+        # allow_canada=true and every matched token is Canadian → accept.
+        if allow_canada:
+            non_canada_matches = [m for m in loc_matches if not _CANADA_PATTERN.search(m)]
+            if not non_canada_matches:
+                return None
         return f"Non-US location: {', '.join(set(loc_matches[:3]))}"
 
-    # Strict mode: require a positive US signal when the location field is set
-    # but no denylist entry matched. Bare "remote" still counts as US-eligible.
     if require_us and normalized_location:
         if _US_LOCATION_PATTERN.search(normalized_location):
             return None
@@ -130,9 +176,6 @@ def _is_non_us_only(location: str, jd_text: str, require_us: bool = True) -> str
             return None
         return f"Non-US location (no US signal): {normalized_location}"
 
-    # Secondary: if no location field, scan the full JD for strong
-    # location-constraint phrases. Offshore restrictions often appear deep in
-    # the posting body, so a head-only scan is too weak.
     if not location.strip() and jd_text:
         for located_match in re.finditer(
             r"(?:located?\s+in|based\s+in|position\s+(?:is\s+)?in|office\s+in|"
@@ -146,6 +189,38 @@ def _is_non_us_only(location: str, jd_text: str, require_us: bool = True) -> str
                 return f"Non-US location (JD): {', '.join(set(non_us[:3]))}"
 
     return None
+
+
+def _check_remote(location: str, jd_text: str, require_explicit: bool) -> str | None:
+    """Return rejection reason if the posting is clearly non-remote, or None if OK."""
+    loc = location or ""
+    jd = jd_text or ""
+
+    if _REMOTE_PATTERN.search(loc):
+        # Explicit remote in the location field — accept even if JD mentions hybrid elsewhere.
+        return None
+
+    if _ONSITE_PATTERN.search(loc):
+        match = _ONSITE_PATTERN.search(loc)
+        return f"Non-remote location: {match.group(0)}"
+
+    jd_has_remote = bool(_REMOTE_PATTERN.search(jd))
+    jd_has_onsite_strict = bool(re.search(r"\b(in[- ]?office [1-5] days?|must be on[- ]?site|no remote|onsite only|on-site only|in-office only)\b", jd, re.I))
+
+    if jd_has_onsite_strict:
+        return "Non-remote (JD asserts in-office / onsite)"
+
+    if require_explicit:
+        if not jd_has_remote and not _REMOTE_PATTERN.search(loc):
+            return "Remote not explicitly stated"
+
+    if loc and not _REMOTE_PATTERN.search(loc) and not jd_has_remote:
+        # Location set to a specific city with no remote mention anywhere.
+        return f"No remote signal (location: {loc[:80]})"
+
+    return None
+
+
 class HardFilterPipeline:
     def __init__(self, config: HardFilterConfig | None = None, tier_stats=None):
         self._config = config or HardFilterConfig()
@@ -166,10 +241,24 @@ class HardFilterPipeline:
         cfg = load_config()
         return cls(config=cfg.hard_filters, tier_stats=_get_shared_stats(crawler))
 
-    def _reject(self, item, stage: str, reason: str, spider=None):
+    def _persist_verdicts(self, item, verdicts: list[dict]) -> None:
+        existing = item.get("filter_verdicts")
+        if isinstance(existing, str) and existing:
+            try:
+                prior = json.loads(existing)
+                if isinstance(prior, list):
+                    verdicts = prior + verdicts
+            except (ValueError, TypeError):
+                pass
+        item["filter_verdicts"] = json.dumps(verdicts, ensure_ascii=False)
+
+    def _reject(self, item, stage: str, reason: str, spider=None, verdicts: list[dict] | None = None):
         item["status"] = "rejected"
         item["rejection_stage"] = stage
         item["rejection_reason"] = reason
+        if verdicts is not None:
+            verdicts.append({"rule": stage, "pass": False, "reason": reason})
+            self._persist_verdicts(item, verdicts)
         if self._tier_stats is not None and spider is not None:
             from job_scraper.tiers import spider_tier
             self._tier_stats.bump(spider.name, spider_tier(spider.name), "filter_drops")
@@ -178,20 +267,30 @@ class HardFilterPipeline:
     def process_item(self, item, spider):
         url = item["url"]
         title = item.get("title", "")
+        verdicts: list[dict] = []
 
         host = urlparse(url).netloc.lower()
         for domain in self._config.domain_blocklist:
             if domain in host:
-                return self._reject(item, "domain_blocklist", f"Blocked domain: {domain}", spider=spider)
+                return self._reject(item, "domain_blocklist", f"Blocked domain: {domain}", spider=spider, verdicts=verdicts)
+        verdicts.append({"rule": "domain_blocklist", "pass": True})
+
+        # Company sanity — reject URL-path-leak company names.
+        company_value = (item.get("company") or "").strip().lower()
+        if company_value in _BAD_COMPANY_TOKENS:
+            return self._reject(item, "company_sanity", f"Bad company value: {company_value or '(empty)'}", spider=spider, verdicts=verdicts)
+        verdicts.append({"rule": "company_sanity", "pass": True})
 
         for pattern in self._title_patterns:
             if pattern.search(title):
-                return self._reject(item, "title_blocklist", f"Blocked title word: {pattern.pattern}", spider=spider)
+                return self._reject(item, "title_blocklist", f"Blocked title word: {pattern.pattern}", spider=spider, verdicts=verdicts)
+        verdicts.append({"rule": "title_blocklist", "pass": True})
 
         jd_text = item.get("jd_text") or ""
         for pattern in self._content_patterns:
             if pattern.search(jd_text):
-                return self._reject(item, "content_blocklist", f"Blocked content: {pattern.pattern}", spider=spider)
+                return self._reject(item, "content_blocklist", f"Blocked content: {pattern.pattern}", spider=spider, verdicts=verdicts)
+        verdicts.append({"rule": "content_blocklist", "pass": True})
 
         salary_verdict = evaluate_salary_policy(
             min_salary_k=self._config.min_salary_k,
@@ -200,13 +299,38 @@ class HardFilterPipeline:
             salary_k=item.get("salary_k"),
         )
         if salary_verdict.hard_reject:
-            return self._reject(item, "salary_floor", salary_verdict.reason or "Salary below floor", spider=spider)
+            return self._reject(item, "salary_floor", salary_verdict.reason or "Salary below floor", spider=spider, verdicts=verdicts)
+        verdicts.append({"rule": "salary_floor", "pass": True})
 
         location = item.get("location") or ""
         geo_reason = _is_non_us_only(
-            location, jd_text, require_us=self._config.require_us_location
+            location, jd_text,
+            require_us=self._config.require_us_location,
+            allow_canada=self._config.allow_canada,
         )
         if geo_reason:
-            return self._reject(item, "geo_non_us", geo_reason, spider=spider)
+            return self._reject(item, "geo_non_us", geo_reason, spider=spider, verdicts=verdicts)
+        verdicts.append({"rule": "geo_non_us", "pass": True})
 
+        if self._config.require_remote:
+            remote_reason = _check_remote(location, jd_text, self._config.require_explicit_remote)
+            if remote_reason:
+                return self._reject(item, "not_remote", remote_reason, spider=spider, verdicts=verdicts)
+            verdicts.append({"rule": "not_remote", "pass": True})
+
+        experience_years = item.get("experience_years")
+        if experience_years is None:
+            experience_years = _extract_experience_years(jd_text)
+            if experience_years is not None:
+                item["experience_years"] = experience_years
+        if experience_years is not None and self._config.max_experience_years > 0:
+            if experience_years > self._config.max_experience_years:
+                return self._reject(
+                    item, "experience_years",
+                    f"Requires {experience_years}+ years (max {self._config.max_experience_years})",
+                    spider=spider, verdicts=verdicts,
+                )
+        verdicts.append({"rule": "experience_years", "pass": True, "value": experience_years})
+
+        self._persist_verdicts(item, verdicts)
         return item

@@ -176,17 +176,32 @@ class SearXNGSpider(scrapy.Spider):
         return company, board
 
     def _extract_company(self, board: str, host: str, path_parts: list[str]) -> str:
+        _aggregator_segments = {
+            "jobs", "job", "careers", "career", "companies", "company",
+            "hiring", "apply", "listings", "listing", "browse", "view",
+            "positions", "position",
+        }
+
+        def _first_valid_segment(parts: list[str]) -> str | None:
+            for segment in parts:
+                normalized = segment.strip().lower()
+                if normalized and normalized not in _aggregator_segments:
+                    return segment
+            return None
+
         if board in {"ashby", "greenhouse", "lever"} and path_parts:
-            return path_parts[0]
+            return _first_valid_segment(path_parts) or "unknown"
         if board == "workday":
             if path_parts:
-                return path_parts[0]
+                first = _first_valid_segment(path_parts)
+                if first:
+                    return first
             host_parts = [part for part in host.split(".") if part not in {"www", "wd1", "wd5"}]
             return host_parts[0] if host_parts else "unknown"
         if board in {"jobvite", "smartrecruiters"} and path_parts:
-            return path_parts[0]
+            return _first_valid_segment(path_parts) or "unknown"
         if board == "applytojob" and path_parts:
-            return path_parts[0]
+            return _first_valid_segment(path_parts) or "unknown"
         host_parts = [part for part in host.split(".") if part != "www"]
         return host_parts[0] if host_parts else "unknown"
 

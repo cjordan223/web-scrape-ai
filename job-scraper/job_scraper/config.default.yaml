@@ -59,6 +59,11 @@ filter:
   - principal
   - manager
   - director
+  - head of
+  - vp
+  - vice president
+  - tech lead
+  - engineering lead
   max_experience_years: 5
   min_salary_k: 100
   target_salary_k: 150
@@ -95,9 +100,18 @@ filter:
   - youtube.com
   - medium.com
   - usajobs.gov
+  - novaedge.page.gd
+  - hireza.wuaze.com
+  - jaabz.com
+  - virtualvocations.com
+  - aijobs.com
+  - join.com
+  - jobgether.com
+  - jobright.ai
   require_remote: true
   require_explicit_remote: false
   require_us_location: true
+  allow_canada: false
   require_known_board: false
   fetch_jd: true
   min_jd_chars: 50
