@@ -65,10 +65,86 @@ type SystemStatus = {
   last_run: RunRow | null;
 };
 
+type ScraperReportSummary = {
+  raw?: number;
+  dedup?: number;
+  filtered?: number;
+  net_new?: number;
+  errors?: number;
+  accepted?: number;
+  rejected?: number;
+  jobs?: number;
+};
+
+type ScraperReportItem = {
+  run_id: string;
+  started_at: string;
+  completed_at: string | null;
+  status: string;
+  elapsed: number | null;
+  raw_count: number | null;
+  dedup_count: number | null;
+  filtered_count: number | null;
+  error_count: number | null;
+  trigger_source: string | null;
+  net_new: number | null;
+  gate_mode: string | null;
+  rotation_group: number | null;
+  rotation_members?: string[] | null;
+  llm_review_at: string | null;
+  review: RunReview | null;
+  review_health?: ReviewHealth | null;
+  source_count: number;
+  job_status_counts: Record<string, number>;
+  summary: ScraperReportSummary;
+};
+
+type ScraperReportJob = {
+  id: number;
+  title: string;
+  company: string;
+  url: string;
+  board: string;
+  source: string;
+  status: string;
+  rejection_stage: string | null;
+  rejection_reason: string | null;
+  seniority: string | null;
+  experience_years: number | null;
+  salary_k: number | null;
+  score: number | null;
+  created_at: string | null;
+};
+
+type ScraperTierStat = {
+  tier: string;
+  source: string;
+  raw_hits: number;
+  dedup_drops: number;
+  filter_drops: number;
+  llm_rejects: number;
+  llm_uncertain_low: number;
+  llm_overflow: number;
+  stored_pending: number;
+  stored_lead: number;
+  duration_ms: number | null;
+};
+
+type ScraperReportDetail = ScraperReportItem & {
+  errors: string[];
+  tier_stats: ScraperTierStat[];
+  jobs: ScraperReportJob[];
+};
+
 export default function ScraperMetricsView() {
   const [stats, setStats] = useState<TierStats | null>(null);
   const [sys, setSys] = useState<SystemStatus | null>(null);
   const [reviews, setReviews] = useState<ReviewedRun[]>([]);
+  const [reports, setReports] = useState<ScraperReportItem[]>([]);
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [reportDetail, setReportDetail] = useState<ScraperReportDetail | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [jobStatusFilter, setJobStatusFilter] = useState('all');
   const [regenerating, setRegenerating] = useState<string | null>(null);
   const [since, setSince] = useState<'7d' | '14d' | '30d'>('7d');
   const [error, setError] = useState<string | null>(null);
@@ -77,14 +153,18 @@ export default function ScraperMetricsView() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [a, b, c] = await Promise.all([
+      const [a, b, c, d] = await Promise.all([
         api.getTierStatsRollup(since),
         api.getSystemStatus(),
         api.getScraperReviews(10),
+        api.getScraperReports(100),
       ]);
       setStats(a);
       setSys(b);
       setReviews(c.runs ?? []);
+      const reportItems = d.items ?? [];
+      setReports(reportItems);
+      setSelectedReportId((prev) => prev ?? reportItems[0]?.run_id ?? null);
       setError(null);
     } catch (e) {
       setError(String(e));
@@ -95,18 +175,46 @@ export default function ScraperMetricsView() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  useEffect(() => {
+    if (!selectedReportId) {
+      setReportDetail(null);
+      return;
+    }
+    let cancelled = false;
+    setReportLoading(true);
+    api.getScraperReport(selectedReportId)
+      .then((res) => {
+        if (!cancelled) setReportDetail(res.report ?? null);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setReportLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [selectedReportId]);
+
   const handleRegenerate = useCallback(async (runId: string) => {
     setRegenerating(runId);
     try {
       await api.regenerateScraperReview(runId);
-      const c = await api.getScraperReviews(10);
+      const [c, d] = await Promise.all([
+        api.getScraperReviews(10),
+        api.getScraperReports(100),
+      ]);
       setReviews(c.runs ?? []);
+      setReports(d.items ?? []);
+      if (selectedReportId === runId) {
+        const detail = await api.getScraperReport(runId);
+        setReportDetail(detail.report ?? null);
+      }
     } catch (e) {
       setError(String(e));
     } finally {
       setRegenerating(null);
     }
-  }, []);
+  }, [selectedReportId]);
 
   const target = sys?.profile.target_net_new_per_run ?? 13;
   const rotationGroups = sys?.profile.rotation_groups ?? 4;
@@ -156,6 +264,18 @@ export default function ScraperMetricsView() {
 
       <LatestReviewPanel
         reviews={reviews}
+        onRegenerate={handleRegenerate}
+        regenerating={regenerating}
+      />
+
+      <ScraperReportsPanel
+        reports={reports}
+        selectedId={selectedReportId}
+        detail={reportDetail}
+        loading={reportLoading}
+        statusFilter={jobStatusFilter}
+        onStatusFilter={setJobStatusFilter}
+        onSelect={setSelectedReportId}
         onRegenerate={handleRegenerate}
         regenerating={regenerating}
       />
@@ -214,6 +334,225 @@ export default function ScraperMetricsView() {
         />
         <SourceTable rows={stats.by_source} />
       </section>
+    </div>
+  );
+}
+
+function runDuration(start?: string | null, end?: string | null, elapsed?: number | null) {
+  if (elapsed != null && Number.isFinite(elapsed)) {
+    const seconds = Math.round(elapsed);
+    return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
+  }
+  if (!start || !end) return '--';
+  const ms = new Date(end).getTime() - new Date(start).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return '--';
+  const seconds = Math.round(ms / 1000);
+  return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
+}
+
+function ScraperReportsPanel({
+  reports,
+  selectedId,
+  detail,
+  loading,
+  statusFilter,
+  onStatusFilter,
+  onSelect,
+  onRegenerate,
+  regenerating,
+}: {
+  reports: ScraperReportItem[];
+  selectedId: string | null;
+  detail: ScraperReportDetail | null;
+  loading: boolean;
+  statusFilter: string;
+  onStatusFilter: (status: string) => void;
+  onSelect: (runId: string) => void;
+  onRegenerate: (runId: string) => void;
+  regenerating: string | null;
+}) {
+  const filteredJobs = (detail?.jobs ?? []).filter((job) => statusFilter === 'all' || job.status === statusFilter);
+  const statusOptions = Array.from(new Set((detail?.jobs ?? []).map((job) => job.status).filter(Boolean))).sort();
+  const selectedSummary = detail?.summary ?? reports.find((report) => report.run_id === selectedId)?.summary ?? {};
+  const review = detail?.review;
+  const health = (detail?.review_health || review?.health || 'unknown') as ReviewHealth;
+  const healthStyle = HEALTH_STYLE[health] ?? HEALTH_STYLE.unknown;
+  const isRegenerating = selectedId ? regenerating === selectedId : false;
+
+  return (
+    <section style={{ ...card, padding: 0, overflow: 'hidden' }}>
+      <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <SectionHeader
+          title="Scrape Reports"
+          subtitle="One report per completed scrape, with reviewer findings, tier-source stats, and the jobs produced by that run."
+        />
+        <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '.72rem', whiteSpace: 'nowrap' }}>{reports.length} reports</span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '340px minmax(0, 1fr)', minHeight: 520 }}>
+        <aside style={{ borderRight: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+          <div style={{ maxHeight: 520, overflow: 'auto' }}>
+            {reports.length === 0 ? <div style={{ padding: 16, color: 'var(--text-muted)' }}>No scraper reports yet.</div> : null}
+            {reports.map((report) => {
+              const active = report.run_id === selectedId;
+              const healthKey = (report.review_health || report.review?.health || 'unknown') as ReviewHealth;
+              const style = HEALTH_STYLE[healthKey] ?? HEALTH_STYLE.unknown;
+              return (
+                <button
+                  key={report.run_id}
+                  type="button"
+                  onClick={() => onSelect(report.run_id)}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    border: 0,
+                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                    background: active ? 'rgba(96,165,250,0.14)' : 'transparent',
+                    color: 'var(--text-primary)',
+                    padding: '13px 14px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <strong style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{report.run_id.slice(0, 12)}</strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{runDuration(report.started_at, report.completed_at, report.elapsed)}</span>
+                  </div>
+                  <div style={{ marginTop: 5, color: 'var(--text-secondary)', fontSize: 12 }}>
+                    {report.completed_at ? fmtDate(report.completed_at) : fmtDate(report.started_at)}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 9, flexWrap: 'wrap', fontFamily: 'var(--font-mono)', fontSize: '.7rem' }}>
+                    <span style={{ color: style.text }}>{style.label}</span>
+                    <span style={{ color: 'rgb(134, 239, 172)' }}>{report.summary?.net_new ?? 0} net</span>
+                    <span style={{ color: 'var(--text-muted)' }}>{report.summary?.jobs ?? 0} jobs</span>
+                    <span style={{ color: 'var(--text-muted)' }}>{report.source_count} sources</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        <main style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: 16, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 18 }}>{detail ? `Run ${detail.run_id}` : 'Select a Report'}</h2>
+                <div style={{ color: 'var(--text-muted)', marginTop: 5, fontSize: 12 }}>
+                  {loading ? 'Loading report...' : detail ? `${detail.trigger_source || 'scheduled'} · ${detail.gate_mode || 'no gate'} · ${runDuration(detail.started_at, detail.completed_at, detail.elapsed)}` : '--'}
+                </div>
+              </div>
+              {detail ? (
+                <button
+                  style={{ ...btn, minWidth: 110 }}
+                  onClick={() => onRegenerate(detail.run_id)}
+                  disabled={isRegenerating}
+                >
+                  {isRegenerating ? 'Regenerating...' : 'Regenerate'}
+                </button>
+              ) : null}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 10, marginTop: 16 }}>
+              <MiniMetric label="Raw" value={selectedSummary.raw ?? 0} />
+              <MiniMetric label="Dedup" value={selectedSummary.dedup ?? 0} />
+              <MiniMetric label="Filtered" value={selectedSummary.filtered ?? 0} />
+              <MiniMetric label="Net New" value={selectedSummary.net_new ?? 0} tone="rgb(134, 239, 172)" />
+              <MiniMetric label="Accepted" value={selectedSummary.accepted ?? 0} />
+              <MiniMetric label="Rejected" value={selectedSummary.rejected ?? 0} tone="rgb(252, 165, 165)" />
+            </div>
+          </div>
+
+          <div style={{ padding: 16, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: healthStyle.dot }} />
+              <strong style={{ color: healthStyle.text }}>{healthStyle.label}</strong>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                Reviewed {detail?.llm_review_at ? fmtDate(detail.llm_review_at) : '--'}
+              </span>
+            </div>
+            <p style={{ margin: '8px 0 0', color: review?.summary ? 'var(--text-primary)' : 'var(--text-muted)', lineHeight: 1.5, fontSize: 13 }}>
+              {review?.summary || 'No reviewer summary has been generated for this scrape yet.'}
+            </p>
+            {review?.flags?.length ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                {review.flags.map((flag) => (
+                  <span key={flag} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, background: 'rgba(239,68,68,0.12)', color: 'rgb(252,165,165)', fontFamily: 'var(--font-mono)' }}>{flag}</span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, .55fr) minmax(0, 1fr)', minHeight: 260 }}>
+            <section style={{ padding: 16, borderRight: '1px solid rgba(255,255,255,0.08)', overflow: 'auto' }}>
+              <SectionHeader title="Source Stats" />
+              {!detail?.tier_stats?.length ? <Empty>No tier-source stats captured.</Empty> : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ color: 'var(--text-muted)', textAlign: 'left' }}>
+                      <th style={th}>Source</th>
+                      <th style={{ ...th, textAlign: 'right' }}>Raw</th>
+                      <th style={{ ...th, textAlign: 'right' }}>Stored</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.tier_stats.map((row) => (
+                      <tr key={`${row.tier}-${row.source}`} style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={td}>
+                          <div style={{ fontFamily: 'var(--font-mono)' }}>{row.source}</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>{row.tier}</div>
+                        </td>
+                        <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{row.raw_hits}</td>
+                        <td style={{ ...td, textAlign: 'right', color: 'rgb(134,239,172)', fontVariantNumeric: 'tabular-nums' }}>{row.stored_pending + row.stored_lead}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </section>
+
+            <section style={{ minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ padding: 16, borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                <SectionHeader title="Jobs From This Scrape" />
+                <select
+                  value={statusFilter}
+                  onChange={(e) => onStatusFilter(e.target.value)}
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-primary)', borderRadius: 6, padding: '6px 10px', fontSize: 12 }}
+                >
+                  <option value="all">All statuses</option>
+                  {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                </select>
+              </div>
+              <div style={{ overflow: 'auto', maxHeight: 360 }}>
+                {!detail ? <Empty>Select a report to see its jobs.</Empty> : null}
+                {detail && filteredJobs.length === 0 ? <div style={{ padding: 16, color: 'var(--text-muted)' }}>No jobs match this status.</div> : null}
+                {filteredJobs.map((job) => (
+                  <div key={job.id} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 650, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{job.title || `Job #${job.id}`}</div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 3 }}>{job.company || 'Unknown'} · {job.board || job.source || '--'}</div>
+                      </div>
+                      <span style={{ color: job.status === 'rejected' ? 'rgb(252,165,165)' : 'rgb(134,239,172)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{job.status}</span>
+                    </div>
+                    {job.rejection_reason ? <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 6 }}>{job.rejection_stage}: {job.rejection_reason}</div> : null}
+                    {job.url ? <a href={job.url} target="_blank" rel="noreferrer" style={{ color: 'rgb(147,197,253)', fontSize: 12, marginTop: 6, display: 'inline-block' }}>Open JD</a> : null}
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+        </main>
+      </div>
+    </section>
+  );
+}
+
+function MiniMetric({ label, value, tone = 'var(--text-primary)' }: { label: string; value: number | string; tone?: string }) {
+  return (
+    <div style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '10px 12px', background: 'rgba(255,255,255,0.025)' }}>
+      <div style={{ color: 'var(--text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0, fontFamily: 'var(--font-mono)' }}>{label}</div>
+      <div style={{ color: tone, fontSize: 20, fontWeight: 650, marginTop: 4 }}>{value}</div>
     </div>
   );
 }
@@ -323,7 +662,7 @@ function LatestReviewPanel({
 
       {review?.recommendations && review.recommendations.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)', marginBottom: 6 }}>
+          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0, color: 'var(--text-muted)', marginBottom: 6 }}>
             Recommendations
           </div>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
@@ -526,7 +865,7 @@ function SourceTable({ rows }: { rows: SourceRow[] }) {
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
       <thead>
-        <tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        <tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0 }}>
           <th style={th}>Source</th>
           <th style={th}>Tier</th>
           <th style={{ ...th, textAlign: 'right' }}>Raw</th>
@@ -607,7 +946,7 @@ function KpiTile({ label, value, unit, tone, footer }: { label: string; value: s
   };
   return (
     <div style={{ ...card, padding: 16 }}>
-      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)' }}>{label}</div>
+      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0, color: 'var(--text-muted)' }}>{label}</div>
       <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <div style={{ fontSize: 28, fontWeight: 600, color: accent[tone], fontVariantNumeric: 'tabular-nums' }}>{value}</div>
         {unit && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{unit}</div>}

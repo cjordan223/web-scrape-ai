@@ -111,6 +111,7 @@ Load with `launchctl load ...`.
 | `JOB_SCRAPER_DB` | `~/.local/share/job_scraper/jobs.db` | Override DB file |
 | `DASHBOARD_PORT` | `8899` | Dashboard port |
 | `DASHBOARD_ENABLE_DB_ADMIN` | `0` | Enable destructive DB admin actions in SQL Console |
+| `TEXTAILOR_AUTO_QA_REVIEW` | `0` | Set to `1` for production dashboard runs that should automatically queue `qa_pending` jobs for QA LLM review after scrape/ingest |
 
 ## Troubleshooting
 
@@ -118,3 +119,4 @@ Load with `launchctl load ...`.
 - **launchd not running**: check plist paths and `launchctl list` exit status.
 - **dashboard missing DB**: confirm `JOB_SCRAPER_DB` and file existence.
 - **SQL admin actions disabled**: set `DASHBOARD_ENABLE_DB_ADMIN=1` before starting backend.
+- **QA LLM backlog not draining**: confirm the dashboard backend was started with `TEXTAILOR_AUTO_QA_REVIEW=1`, then check `GET /api/tailoring/qa/auto-review` for enabled state, pending count, in-flight count, last skip reason, and last enqueue result.

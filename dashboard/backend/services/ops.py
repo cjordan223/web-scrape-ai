@@ -808,6 +808,161 @@ def tailoring_metrics_get():
         conn.close()
 
 
+# ── Persona inventory ────────────────────────────────────────────────
+
+import json as _json
+import re as _re
+from pathlib import Path as _Path
+
+
+_FRONTMATTER_RE = _re.compile(r"\A---\s*\n(.*?\n)---\s*\n(.*)\Z", _re.DOTALL)
+_LEADING_COMMENT_RE = _re.compile(r"\A(\s*<!--.*?-->\s*)+", _re.DOTALL)
+
+
+def _parse_frontmatter(text: str) -> tuple[dict, str]:
+    text = _LEADING_COMMENT_RE.sub("", text)
+    m = _FRONTMATTER_RE.match(text)
+    if not m:
+        return {}, text.strip()
+    raw = m.group(1)
+    body = m.group(2).strip()
+    meta: dict = {}
+    for line in raw.strip().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        k, _, v = line.partition(":")
+        k = k.strip()
+        v = v.strip()
+        bracket = _re.match(r"^\[(.*)\]$", v)
+        if bracket:
+            meta[k] = [x.strip().strip("'\"") for x in bracket.group(1).split(",") if x.strip()]
+        else:
+            meta[k] = v
+    return meta, body
+
+
+def persona_inventory_get():
+    """Return persona content + vignette metadata + skills inventory for the Ops UI."""
+    _sync_app_state()
+    tailoring_root: _Path = TAILORING_ROOT  # from app globals
+    persona_dir = tailoring_root / "persona"
+    skills_path = tailoring_root / "skills.json"
+
+    # ── Persona section files ──────────────────────────────────────
+    sections: dict[str, dict] = {}
+    for name in ("identity", "contributions", "voice", "evidence", "interests", "motivation"):
+        p = persona_dir / f"{name}.md"
+        if not p.exists():
+            sections[name] = {"body": "", "chars": 0, "exists": False}
+            continue
+        meta, body = _parse_frontmatter(p.read_text())
+        sections[name] = {
+            "body": body,
+            "chars": len(body),
+            "tags": meta.get("tags", []),
+            "exists": True,
+            "path": str(p.relative_to(tailoring_root)),
+        }
+
+    # ── Vignettes ──────────────────────────────────────────────────
+    vignettes: list[dict] = []
+    vig_dir = persona_dir / "vignettes"
+    if vig_dir.is_dir():
+        for f in sorted(vig_dir.glob("*.md")):
+            meta, body = _parse_frontmatter(f.read_text())
+            vignettes.append({
+                "name": f.stem,
+                "path": str(f.relative_to(tailoring_root)),
+                "body": body,
+                "chars": len(body),
+                "tags": meta.get("tags", []) or [],
+                "company_types": meta.get("company_types", []) or [],
+                "skill_categories": meta.get("skill_categories", []) or [],
+                "keywords": meta.get("keywords", []) or [],
+            })
+
+    # ── Stats / coverage ───────────────────────────────────────────
+    tag_counts: dict[str, int] = {}
+    category_counts: dict[str, int] = {}
+    company_counts: dict[str, int] = {}
+    keyword_counts: dict[str, int] = {}
+    total_chars = 0
+    for v in vignettes:
+        total_chars += v["chars"]
+        for t in v["tags"]:
+            tag_counts[t] = tag_counts.get(t, 0) + 1
+        for c in v["skill_categories"]:
+            category_counts[c] = category_counts.get(c, 0) + 1
+        for ct in v["company_types"]:
+            company_counts[ct] = company_counts.get(ct, 0) + 1
+        for kw in v["keywords"]:
+            keyword_counts[kw] = keyword_counts.get(kw, 0) + 1
+
+    # ── Skills inventory ───────────────────────────────────────────
+    skills_data: dict = {}
+    if skills_path.exists():
+        try:
+            skills_data = _json.loads(skills_path.read_text())
+        except Exception:
+            skills_data = {}
+
+    candidate_profile = skills_data.get("candidate_profile", {})
+    inventory = skills_data.get("skills_inventory", {})
+    core_skills = inventory.get("core_skills", []) or []
+
+    # Category → vignette mapping (for cross-linking in UI)
+    category_to_vignettes: dict[str, list[str]] = {}
+    for v in vignettes:
+        for c in v["skill_categories"]:
+            category_to_vignettes.setdefault(c, []).append(v["name"])
+
+    # Flat skill buckets
+    buckets: dict[str, list[str]] = {}
+    for key in (
+        "programming_languages",
+        "databases",
+        "frameworks_and_infrastructure",
+        "security_tooling",
+        "devops_and_cloud",
+        "ai_ml_research",
+    ):
+        val = inventory.get(key)
+        if isinstance(val, list):
+            buckets[key] = val
+
+    stages = [
+        {"stage": "strategy", "doc_type": "cover", "budget_chars": 1500, "diverse": True},
+        {"stage": "strategy", "doc_type": "resume", "budget_chars": 1500, "diverse": False},
+        {"stage": "draft", "doc_type": "cover", "budget_chars": 1500, "diverse": True},
+        {"stage": "draft", "doc_type": "resume", "budget_chars": 1500, "diverse": False},
+    ]
+
+    return {
+        "candidate_profile": candidate_profile,
+        "sections": sections,
+        "vignettes": vignettes,
+        "core_skills": core_skills,
+        "skill_buckets": buckets,
+        "category_to_vignettes": category_to_vignettes,
+        "stages": stages,
+        "stats": {
+            "vignette_count": len(vignettes),
+            "total_chars": total_chars,
+            "avg_chars": (total_chars // len(vignettes)) if vignettes else 0,
+            "unique_tags": len(tag_counts),
+            "unique_categories": len(category_counts),
+            "unique_company_types": len(company_counts),
+            "tag_counts": tag_counts,
+            "category_counts": category_counts,
+            "company_counts": company_counts,
+            "keyword_counts": keyword_counts,
+            "core_skill_count": sum(len(c.get("skills", []) or []) for c in core_skills),
+            "core_category_count": len(core_skills),
+        },
+    }
+
+
 from routers import ops as ops_routes
 from routers import scraping as scraping_routes
 from routers import tailoring as tailoring_routes

@@ -16,6 +16,7 @@ import {
   Gauge,
   Activity,
   ClipboardCheck,
+  Library,
 } from 'lucide-react';
 
 type NavItem = {
@@ -73,6 +74,7 @@ const domains: Domain[] = [
       { label: 'Metrics', to: '/ops/metrics', icon: BarChart3, desc: 'Tailoring performance' },
       { label: 'Scraper', to: '/ops/scraper', icon: Activity, desc: 'Tier-aware scrape metrics' },
       { label: 'QA Reports', to: '/ops/qa-reports', icon: ClipboardCheck, desc: 'LLM review audit trail' },
+      { label: 'Persona', to: '/ops/persona', icon: Library, desc: 'Vignettes, voice & skills dossier' },
       { label: 'System', to: '/ops/system', icon: Gauge, desc: 'Scheduler & config snapshot' },
       { label: 'Admin', to: '/ops/admin', icon: Terminal, desc: 'SQL console & bulk ops' },
     ],
@@ -95,6 +97,7 @@ const labelBySegment: Record<string, string> = {
   llm: 'LLM',
   metrics: 'Metrics',
   'qa-reports': 'QA Reports',
+  persona: 'Persona',
   system: 'System',
   admin: 'Admin',
 };
@@ -127,7 +130,7 @@ export default function AppShell({ dbSizeLabel }: { dbSizeLabel: string }) {
     <>
       <header className="top-nav">
         <div className="top-nav-brand">
-          <span>Job</span>Forge
+          <span>Tex</span>Tailor
         </div>
 
         <div className="top-nav-center">

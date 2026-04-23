@@ -15,21 +15,15 @@ import {
 import '@xyflow/react/dist/style.css';
 import '../../../../styles/pipeline-editor.css';
 import { api } from '../../../../api';
-import { fmt, timeAgo, fmtDate, fmtDuration } from '../../../../utils';
+import { fmt, timeAgo } from '../../../../utils';
 import {
   Search, Globe, Database, Filter, Fingerprint, FileText,
-  HardDrive, Settings, X,
-  Briefcase, Shield, Activity, Plus, Brain, CheckCircle, XCircle,
+  HardDrive, X, Briefcase, Shield, Activity, Plus, Brain,
   Microscope, Target, PenTool, Mail, ShieldCheck, Printer,
-  Play, Square, ChevronDown, ChevronUp,
+  Play, Square, RefreshCcw, Save, RotateCcw, ArrowRight,
 } from 'lucide-react';
-import SourcesLanePanel from './panels/SourcesLanePanel';
-import IngestionLanePanel from './panels/IngestionLanePanel';
-import TailoringLanePanel from './panels/TailoringLanePanel';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+// ─── Types ───────────────────────────────────────────────────────────
 interface BoardItem {
   url: string;
   board_type: string;
@@ -51,17 +45,6 @@ interface ScraperConfig {
   crawl: { enabled: boolean; request_delay: number; max_results_per_target: number };
 }
 
-interface QALlmReviewStatus {
-  running: boolean;
-  batch_id: number;
-  started_at: string | null;
-  ended_at: string | null;
-  resolved_model: string | null;
-  active_job: { job_id: number; title?: string; status: string } | null;
-  items?: QAReviewItem[];
-  summary: { total: number; queued: number; reviewing: number; completed: number; passed: number; failed: number; skipped: number; errors: number };
-}
-
 interface QAReviewItem {
   job_id: number;
   title?: string;
@@ -71,6 +54,14 @@ interface QAReviewItem {
   confidence?: number;
   top_matches?: string[];
   gaps?: string[];
+}
+
+interface QALlmReviewStatus {
+  running: boolean;
+  started_at: string | null;
+  resolved_model: string | null;
+  items?: QAReviewItem[];
+  summary: { total: number; queued: number; reviewing: number; completed: number; passed: number; failed: number; skipped: number; errors: number };
 }
 
 interface LiveStatus {
@@ -100,28 +91,15 @@ interface PipelineStats {
   inventory: { total: number; qa_pending: number; qa_approved: number; qa_rejected: number; rejected: number };
 }
 
-interface RunSummary {
-  run_id: string;
-  started_at: string;
-  completed_at: string | null;
-  elapsed: number | null;
-  raw_count: number;
-  dedup_count: number;
-  filtered_count: number;
-  error_count: number;
-  status: string;
-}
-
-type InspectorTab = 'overview' | 'configure' | 'activity' | 'console' | 'history';
-type PipelineEventTone = 'accent' | 'green' | 'red' | 'amber' | 'muted';
-type PipelineEventScope = 'scrape' | 'inventory' | 'qa' | 'tailor';
+type EventTone = 'accent' | 'green' | 'red' | 'amber' | 'muted';
+type EventScope = 'scrape' | 'inventory' | 'qa' | 'tailor';
 
 interface PipelineEvent {
   id: string;
   label: string;
   detail?: string;
-  tone: PipelineEventTone;
-  scope: PipelineEventScope;
+  tone: EventTone;
+  scope: EventScope;
   createdAt: number;
 }
 
@@ -133,81 +111,42 @@ interface SourceRollupStats {
   usajobs: number;
 }
 
-interface PipelineSnapshot {
-  live: LiveStatus;
-  stats: PipelineStats | null;
-}
-
-// ---------------------------------------------------------------------------
-// Source definitions
-// ---------------------------------------------------------------------------
+// ─── Static definitions ──────────────────────────────────────────────
 const SOURCE_DEFS = [
-  { id: 'searxng', label: 'SearXNG', icon: Search, countKey: 'queries' as const },
-  { id: 'ashby', label: 'Ashby', icon: Briefcase, countKey: 'boards' as const },
-  { id: 'greenhouse', label: 'Greenhouse', icon: Globe, countKey: 'boards' as const },
-  { id: 'lever', label: 'Lever', icon: Activity, countKey: 'boards' as const },
-  { id: 'usajobs', label: 'USAJobs', icon: Shield, countKey: 'usajobs' as const },
+  { id: 'searxng',    label: 'SearXNG',    icon: Search,    countLabel: 'queries' },
+  { id: 'ashby',      label: 'Ashby',      icon: Briefcase, countLabel: 'boards' },
+  { id: 'greenhouse', label: 'Greenhouse', icon: Globe,     countLabel: 'boards' },
+  { id: 'lever',      label: 'Lever',      icon: Activity,  countLabel: 'boards' },
+  { id: 'usajobs',    label: 'USAJobs',    icon: Shield,    countLabel: 'keywords' },
 ];
 
 const STAGE_DEFS = [
-  { id: 'text_extraction', label: 'Text Extraction', desc: 'Extract JD text from HTML', icon: FileText },
-  { id: 'dedup', label: 'Deduplication', desc: 'URL dedup with TTL window', icon: Fingerprint },
-  { id: 'hard_filter', label: 'Hard Filters', desc: 'Domain, seniority, salary', icon: Filter },
-  { id: 'storage', label: 'Storage', desc: 'Persist to SQLite', icon: HardDrive },
+  { id: 'text_extraction', label: 'Text Extract', desc: 'Parse JD from HTML',       icon: FileText },
+  { id: 'dedup',           label: 'Dedup',        desc: 'URL dedup (TTL window)',    icon: Fingerprint },
+  { id: 'hard_filter',     label: 'Hard Filter',  desc: 'Salary · seniority · domain', icon: Filter },
+  { id: 'storage',         label: 'Storage',      desc: 'Persist to SQLite',          icon: HardDrive },
 ];
 
 const TAILOR_STAGE_DEFS = [
-  { id: 'tailor_analysis', label: 'Analysis', desc: 'Extract JD requirements', icon: Microscope },
-  { id: 'tailor_strategy', label: 'Strategy', desc: 'Plan resume targeting', icon: Target },
-  { id: 'tailor_resume', label: 'Resume Draft', desc: 'LaTeX generation', icon: PenTool },
-  { id: 'tailor_cover', label: 'Cover Letter', desc: 'LaTeX generation', icon: Mail },
-  { id: 'tailor_validate', label: 'Validation', desc: 'Hard gates check', icon: ShieldCheck },
-  { id: 'tailor_compile', label: 'Compile', desc: 'pdflatex → PDF', icon: Printer },
+  { id: 'tailor_analysis', label: 'Analysis', desc: 'Extract JD requirements',    icon: Microscope, llm: true },
+  { id: 'tailor_strategy', label: 'Strategy', desc: 'Plan resume targeting',      icon: Target,     llm: true },
+  { id: 'tailor_resume',   label: 'Resume',   desc: 'LaTeX resume draft',         icon: PenTool,    llm: true },
+  { id: 'tailor_cover',    label: 'Cover',    desc: 'LaTeX cover letter',         icon: Mail,       llm: true },
+  { id: 'tailor_validate', label: 'Validate', desc: 'Hard gate checks',           icon: ShieldCheck, llm: false },
+  { id: 'tailor_compile',  label: 'Compile',  desc: 'pdflatex → PDF',             icon: Printer,    llm: false },
 ];
 
-const SEARCH_PROVIDER_KEYS = new Set([
-  'google',
-  'startpage',
-  'duckduckgo',
-  'brave',
-  'bing',
-  'searxng',
-  'qwant',
-  'yahoo',
-]);
+const SEARCH_PROVIDER_KEYS = new Set(['google','startpage','duckduckgo','brave','bing','searxng','qwant','yahoo']);
 
-const EMPTY_SOURCE_STATS: SourceRollupStats = {
-  searxng: 0,
-  ashby: 0,
-  greenhouse: 0,
-  lever: 0,
-  usajobs: 0,
-};
+const EMPTY_SOURCE_STATS: SourceRollupStats = { searxng: 0, ashby: 0, greenhouse: 0, lever: 0, usajobs: 0 };
 
 const INITIAL_LIVE_STATUS: LiveStatus = {
-  scrapeRunning: false,
-  scrapeStartedAt: null,
-  scrapeLogTail: '',
-  qaReviewRunning: false,
-  qaReviewModel: null,
-  qaReviewProgress: null,
-  qaReviewItems: [],
-  tailoringRunning: false,
-  tailoringJob: null,
-  tailoringQueue: 0,
-  tailoringLogTail: '',
+  scrapeRunning: false, scrapeStartedAt: null, scrapeLogTail: '',
+  qaReviewRunning: false, qaReviewModel: null, qaReviewProgress: null, qaReviewItems: [],
+  tailoringRunning: false, tailoringJob: null, tailoringQueue: 0, tailoringLogTail: '',
 };
 
-function toneForDelta(delta: number): PipelineEventTone {
-  if (delta > 0) return 'green';
-  if (delta < 0) return 'amber';
-  return 'muted';
-}
-
-function pluralize(value: number, label: string) {
-  return `${fmt(value)} ${label}${value === 1 ? '' : 's'}`;
-}
-
+// ─── Helpers ─────────────────────────────────────────────────────────
 function timeSince(ts: number | null) {
   if (!ts) return 'waiting';
   return timeAgo(new Date(ts).toISOString());
@@ -227,248 +166,221 @@ function aggregateSourceStats(perSource: Record<string, number> | undefined): So
   return next;
 }
 
-function pushEvent(
-  bucket: PipelineEvent[],
-  {
-    label,
-    detail,
-    tone,
-    scope,
-    now,
-  }: {
-    label: string;
-    detail?: string;
-    tone: PipelineEventTone;
-    scope: PipelineEventScope;
-    now: number;
-  },
-) {
-  bucket.push({
-    id: `${scope}-${label}-${now}-${bucket.length}`,
-    label,
-    detail,
-    tone,
-    scope,
-    createdAt: now,
-  });
+function toneForDelta(delta: number): EventTone {
+  if (delta > 0) return 'green';
+  if (delta < 0) return 'amber';
+  return 'muted';
 }
 
-function buildPipelineEvents(prev: PipelineSnapshot | null, next: PipelineSnapshot): PipelineEvent[] {
+function buildPipelineEvents(
+  prev: { live: LiveStatus; stats: PipelineStats | null } | null,
+  next: { live: LiveStatus; stats: PipelineStats | null },
+): PipelineEvent[] {
   if (!prev) return [];
   const events: PipelineEvent[] = [];
   const now = Date.now();
+  const push = (label: string, detail: string | undefined, tone: EventTone, scope: EventScope) =>
+    events.push({ id: `${scope}-${label}-${now}-${events.length}`, label, detail, tone, scope, createdAt: now });
 
   if (prev.live.scrapeRunning !== next.live.scrapeRunning) {
-    pushEvent(events, {
-      label: next.live.scrapeRunning ? 'Scrape started' : 'Scrape stopped',
-      detail: next.live.scrapeRunning ? 'Source-to-storage lane is active.' : 'Waiting for the next run.',
-      tone: next.live.scrapeRunning ? 'accent' : 'muted',
-      scope: 'scrape',
-      now,
-    });
+    push(next.live.scrapeRunning ? 'Scrape started' : 'Scrape stopped',
+      next.live.scrapeRunning ? 'Discovery lane active.' : 'Awaiting next run.',
+      next.live.scrapeRunning ? 'accent' : 'muted', 'scrape');
   }
 
   if (prev.live.qaReviewRunning !== next.live.qaReviewRunning) {
-    pushEvent(events, {
-      label: next.live.qaReviewRunning ? 'QA review started' : 'QA review stopped',
-      detail: next.live.qaReviewRunning ? 'Review queue is being processed.' : 'LLM review lane is idle.',
-      tone: next.live.qaReviewRunning ? 'accent' : 'muted',
-      scope: 'qa',
-      now,
-    });
+    push(next.live.qaReviewRunning ? 'QA review started' : 'QA review stopped',
+      next.live.qaReviewRunning ? 'Review queue processing.' : 'Review lane idle.',
+      next.live.qaReviewRunning ? 'accent' : 'muted', 'qa');
   }
 
   if (prev.live.tailoringRunning !== next.live.tailoringRunning) {
-    pushEvent(events, {
-      label: next.live.tailoringRunning ? 'Tailoring started' : 'Tailoring stopped',
-      detail: next.live.tailoringRunning ? (next.live.tailoringJob || 'Package generation is active.') : 'No package is currently rendering.',
-      tone: next.live.tailoringRunning ? 'accent' : 'muted',
-      scope: 'tailor',
-      now,
-    });
+    push(next.live.tailoringRunning ? 'Tailoring started' : 'Tailoring stopped',
+      next.live.tailoringRunning ? (next.live.tailoringJob || 'Package in progress.') : 'No active package.',
+      next.live.tailoringRunning ? 'accent' : 'muted', 'tailor');
   }
 
   if (prev.live.tailoringQueue !== next.live.tailoringQueue) {
-    pushEvent(events, {
-      label: `Tailoring queue ${prev.live.tailoringQueue} -> ${next.live.tailoringQueue}`,
-      detail: next.live.tailoringQueue > prev.live.tailoringQueue ? 'More approved jobs were queued.' : 'Queue is draining.',
-      tone: toneForDelta(prev.live.tailoringQueue - next.live.tailoringQueue),
-      scope: 'tailor',
-      now,
-    });
+    push(`Tailor queue ${prev.live.tailoringQueue} → ${next.live.tailoringQueue}`,
+      next.live.tailoringQueue > prev.live.tailoringQueue ? 'More approved jobs queued.' : 'Queue draining.',
+      toneForDelta(prev.live.tailoringQueue - next.live.tailoringQueue), 'tailor');
   }
 
-  const prevCompleted = prev.live.qaReviewProgress?.completed ?? 0;
-  const nextCompleted = next.live.qaReviewProgress?.completed ?? 0;
-  if (nextCompleted > prevCompleted) {
-    pushEvent(events, {
-      label: `QA reviewed +${nextCompleted - prevCompleted}`,
-      detail: `${nextCompleted}/${next.live.qaReviewProgress?.total ?? nextCompleted} completed in the current batch.`,
-      tone: 'green',
-      scope: 'qa',
-      now,
-    });
+  const prevDone = prev.live.qaReviewProgress?.completed ?? 0;
+  const nextDone = next.live.qaReviewProgress?.completed ?? 0;
+  if (nextDone > prevDone) {
+    push(`QA reviewed +${nextDone - prevDone}`,
+      `${nextDone}/${next.live.qaReviewProgress?.total ?? nextDone} in current batch.`, 'green', 'qa');
   }
 
-  const prevInv = prev.stats?.inventory;
-  const nextInv = next.stats?.inventory;
-  if (prevInv && nextInv) {
-    if (nextInv.qa_approved > prevInv.qa_approved) {
-      pushEvent(events, {
-        label: `QA approved +${nextInv.qa_approved - prevInv.qa_approved}`,
-        detail: `${fmt(nextInv.qa_approved)} jobs are ready for tailoring.`,
-        tone: 'green',
-        scope: 'qa',
-        now,
-      });
-    }
-    if (nextInv.qa_rejected > prevInv.qa_rejected) {
-      pushEvent(events, {
-        label: `QA rejected +${nextInv.qa_rejected - prevInv.qa_rejected}`,
-        detail: `${fmt(nextInv.qa_rejected)} jobs are now in the rejected bucket.`,
-        tone: 'red',
-        scope: 'qa',
-        now,
-      });
-    }
-    if (nextInv.qa_pending !== prevInv.qa_pending) {
-      pushEvent(events, {
-        label: `Awaiting QA ${prevInv.qa_pending} -> ${nextInv.qa_pending}`,
-        detail: nextInv.qa_pending > prevInv.qa_pending ? 'The review backlog grew.' : 'The review backlog shrank.',
-        tone: toneForDelta(prevInv.qa_pending - nextInv.qa_pending),
-        scope: 'inventory',
-        now,
-      });
-    }
-    if (nextInv.total > prevInv.total) {
-      pushEvent(events, {
-        label: `Stored jobs +${nextInv.total - prevInv.total}`,
-        detail: `${fmt(nextInv.total)} total rows are now in the results DB.`,
-        tone: 'green',
-        scope: 'inventory',
-        now,
-      });
-    }
+  const pi = prev.stats?.inventory;
+  const ni = next.stats?.inventory;
+  if (pi && ni) {
+    if (ni.qa_approved > pi.qa_approved) push(`QA approved +${ni.qa_approved - pi.qa_approved}`, `${fmt(ni.qa_approved)} ready to tailor.`, 'green', 'qa');
+    if (ni.qa_rejected > pi.qa_rejected) push(`QA rejected +${ni.qa_rejected - pi.qa_rejected}`, `${fmt(ni.qa_rejected)} now in reject bucket.`, 'red', 'qa');
+    if (ni.qa_pending !== pi.qa_pending)  push(`Review backlog ${pi.qa_pending} → ${ni.qa_pending}`,
+      ni.qa_pending > pi.qa_pending ? 'Backlog grew.' : 'Backlog shrank.',
+      toneForDelta(pi.qa_pending - ni.qa_pending), 'inventory');
+    if (ni.total > pi.total) push(`Stored +${ni.total - pi.total}`, `${fmt(ni.total)} rows in inventory.`, 'green', 'inventory');
   }
 
   return events;
 }
 
-function eventMatchesSelection(event: PipelineEvent, selectedNode: { id: string; type: string } | null) {
-  if (!selectedNode) return true;
-  if (selectedNode.type === 'source' || selectedNode.type === 'stage' || selectedNode.type === 'dbOutput') {
-    return event.scope === 'scrape' || event.scope === 'inventory';
-  }
-  if (selectedNode.type === 'qaReview') {
-    return event.scope === 'qa' || event.scope === 'inventory';
-  }
-  return event.scope === 'tailor' || event.scope === 'qa';
+function buildLiveStatus(scrape: any, qa: any, tailor: any): LiveStatus {
+  return {
+    scrapeRunning: scrape?.running ?? false,
+    scrapeStartedAt: scrape?.started_at ?? null,
+    scrapeLogTail: scrape?.log_tail ?? '',
+    qaReviewRunning: qa?.running ?? false,
+    qaReviewModel: qa?.resolved_model ?? null,
+    qaReviewProgress: qa?.summary ? { completed: qa.summary.completed, total: qa.summary.total } : null,
+    qaReviewItems: qa?.items ?? [],
+    tailoringRunning: tailor?.running ?? false,
+    tailoringJob: tailor?.job?.title ?? tailor?.active_item?.title ?? null,
+    tailoringQueue: tailor?.queue?.length ?? 0,
+    tailoringLogTail: tailor?.log_tail ?? '',
+  };
 }
 
-function getNodeDisplayName(node: { id: string; type: string } | null) {
-  if (!node) return 'Pipeline Overview';
-  if (node.type === 'lane') {
-    if (node.id === 'lane-sources') return 'Sources';
-    if (node.id === 'lane-core') return 'Ingestion & QA';
-    if (node.id === 'lane-tailor') return 'Tailoring';
-  }
-  if (node.type === 'source') return SOURCE_DEFS.find((item) => item.id === node.id)?.label || node.id;
-  if (node.type === 'stage') return STAGE_DEFS.find((item) => item.id === node.id)?.label || node.id;
-  if (node.type === 'dbOutput') return 'Results DB';
-  if (node.type === 'qaReview') return 'QA LLM Review';
-  return TAILOR_STAGE_DEFS.find((item) => item.id === node.id)?.label || node.id;
+function nodeTitle(n: { id: string; type: string } | null): string {
+  if (!n) return 'System overview';
+  if (n.type === 'source') return SOURCE_DEFS.find(s => s.id === n.id)?.label || n.id;
+  if (n.type === 'stage')  return STAGE_DEFS.find(s => s.id === n.id)?.label || n.id;
+  if (n.type === 'dbOutput') return 'Results DB';
+  if (n.type === 'qaReview') return 'QA LLM Review';
+  return TAILOR_STAGE_DEFS.find(s => s.id === n.id)?.label || n.id;
 }
 
-// ---------------------------------------------------------------------------
-// Custom Nodes
-// ---------------------------------------------------------------------------
-function SwimlaneNodeComponent({ data }: NodeProps) {
+function nodeSubtitle(n: { id: string; type: string } | null): string {
+  if (!n) return 'Live orchestration across all phases';
+  if (n.type === 'source')   return 'Source provider · configuration & throughput';
+  if (n.type === 'stage')    return 'Ingest stage · pass / drop counts';
+  if (n.type === 'dbOutput') return 'Persistent inventory · downstream handoff';
+  if (n.type === 'qaReview') return 'LLM-assisted fit review';
+  if (n.type === 'tailorStage') return 'Tailoring stage · LLM generation';
+  return '';
+}
+
+// ─── Custom nodes ────────────────────────────────────────────────────
+function PhaseLabelNode({ data }: NodeProps) {
+  const d = data as { label: string; count: string; accent: string; active: boolean };
+  return (
+    <div className={`pe-phase-label${d.active ? ' pe-phase-active' : ''}`} style={{ ['--phase' as any]: d.accent }}>
+      <div className="pe-phase-label-stripe" />
+      <div className="pe-phase-label-title">{d.label}</div>
+      <div className="pe-phase-label-count">{d.count}</div>
+    </div>
+  );
+}
+
+function SourceNode({ data, selected }: NodeProps) {
   const d = data as any;
   return (
     <div
-      className={`pn-lane pn-lane-${d.tone}${d.active ? ' pn-lane-active' : ''}${d.onSelect ? ' pn-lane-clickable' : ''}`}
-      onClick={(e: React.MouseEvent) => { e.stopPropagation(); d.onSelect?.(); }}
+      className={`pe-node pe-node-source${selected ? ' is-selected' : ''}${!d.enabled ? ' is-disabled' : ''}${d.active ? ' is-active' : ''}`}
+      onClick={d.onSelect}
     >
-      <div className="pn-lane-header">
-        <div className="pn-lane-label">{d.label}</div>
-        <div className="pn-lane-subtitle">{d.subtitle}</div>
-        {d.active && <div className="pn-lane-pill"><span className="pn-live-dot" /></div>}
+      <div className="pe-node-icon">{d.iconEl}</div>
+      <div className="pe-node-body">
+        <div className="pe-node-label">{d.label}</div>
+        <div className="pe-node-sub">{d.count} {d.countLabel}</div>
       </div>
-    </div>
-  );
-}
-
-function SourceNodeComponent({ data, selected }: NodeProps) {
-  const d = data as any;
-  return (
-    <div className={`pn-pill pn-pill-source${selected ? ' pn-selected' : ''}${d.enabled === false ? ' pn-disabled' : ''}${d.active ? ' pn-active' : ''}`} onClick={d.onSelect}>
-      <div className="pn-pill-icon">{d.iconEl}</div>
-      <div className="pn-pill-label">{d.label}</div>
-      <div className="pn-pill-badge" style={{ color: d.enabled ? 'var(--text-secondary)' : 'var(--border)' }}>
-        {d.enabled ? (d.active ? <span className="pn-live-dot" /> : d.count) : 'off'}
+      <div className="pe-node-badge">
+        {!d.enabled ? 'off' : d.active ? <span className="pe-dot pe-dot-live" /> : d.stat > 0 ? fmt(d.stat) : '—'}
       </div>
       <Handle type="source" position={Position.Right} />
     </div>
   );
 }
 
-function StageNodeComponent({ data, selected }: NodeProps) {
+function StageNode({ data, selected }: NodeProps) {
   const d = data as any;
   return (
-    <div className={`pn-pill pn-pill-stage${selected ? ' pn-selected' : ''}${d.active ? ' pn-active' : ''}`} onClick={d.onSelect}>
-      <div className="pn-pill-icon">{d.iconEl}</div>
-      <div className="pn-pill-label">{d.label}</div>
-      {d.dropCount != null && d.dropCount > 0 ? (
-        <div className="pn-pill-badge" style={{ color: 'var(--amber)' }}>-{fmt(d.dropCount)}</div>
-      ) : d.passCount != null ? (
-        <div className="pn-pill-badge" style={{ color: 'var(--text-secondary)' }}>{fmt(d.passCount)}</div>
-      ) : null}
+    <div
+      className={`pe-node pe-node-stage${selected ? ' is-selected' : ''}${d.active ? ' is-active' : ''}`}
+      onClick={d.onSelect}
+    >
+      <div className="pe-node-icon">{d.iconEl}</div>
+      <div className="pe-node-body">
+        <div className="pe-node-label">{d.label}</div>
+        <div className="pe-node-sub">{d.desc}</div>
+      </div>
+      <div className="pe-node-badge">
+        {d.dropCount != null && d.dropCount > 0
+          ? <span className="pe-badge-drop">−{fmt(d.dropCount)}</span>
+          : d.passCount != null
+            ? fmt(d.passCount)
+            : <span className="pe-node-order">{d.order}</span>}
+      </div>
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
     </div>
   );
 }
 
-function OutputNodeComponent({ data, selected }: NodeProps) {
+function OutputNode({ data, selected }: NodeProps) {
   const d = data as any;
   const inv = d.inventory;
   return (
-    <div className={`pn-pill pn-pill-output${selected ? ' pn-selected' : ''}${d.active ? ' pn-active' : ''}`} onClick={d.onSelect}>
-      <div className="pn-pill-icon"><Database size={14} /></div>
-      <div className="pn-pill-label">Results DB</div>
-      {inv && <div className="pn-pill-badge" style={{ color: 'var(--green)' }}>{fmt(inv.total)}</div>}
-      <Handle type="target" position={Position.Left} />
-      <Handle type="source" position={Position.Right} id="right" />
-      <Handle type="source" position={Position.Bottom} id="bottom" />
-    </div>
-  );
-}
-
-function QAReviewNodeComponent({ data, selected }: NodeProps) {
-  const d = data as any;
-  return (
-    <div className={`pn-pill pn-pill-qa${selected ? ' pn-selected' : ''}${d.running ? ' pn-active' : ''}`} onClick={d.onSelect}>
-      <div className="pn-pill-icon"><Brain size={14} /></div>
-      <div className="pn-pill-label">QA Review</div>
-      <div className="pn-pill-badge" style={{ color: d.running ? 'var(--cyan)' : 'var(--text-secondary)' }}>
-        {d.running ? <span className="pn-live-dot" style={{ background: 'var(--cyan)' }} /> : d.pending > 0 ? d.pending : 'ready'}
+    <div
+      className={`pe-node pe-node-output${selected ? ' is-selected' : ''}${d.active ? ' is-active' : ''}`}
+      onClick={d.onSelect}
+    >
+      <div className="pe-node-icon"><Database size={16} /></div>
+      <div className="pe-node-body">
+        <div className="pe-node-label">Results DB</div>
+        <div className="pe-node-sub">{inv ? `${fmt(inv.total)} total · ${fmt(inv.qa_pending)} pending` : 'SQLite inventory'}</div>
       </div>
-      <Handle type="target" position={Position.Top} id="top" />
-      <Handle type="source" position={Position.Bottom} id="bottom" />
+      <div className="pe-node-badge">{inv ? fmt(inv.total) : '—'}</div>
+      <Handle type="target" position={Position.Left} />
+      <Handle type="source" position={Position.Right} />
     </div>
   );
 }
 
-function TailorStageNodeComponent({ data, selected }: NodeProps) {
+function QAReviewNode({ data, selected }: NodeProps) {
   const d = data as any;
   return (
-    <div className={`pn-pill pn-pill-tailor${selected ? ' pn-selected' : ''}${d.entryActive ? ' pn-entry-active' : ''}${d.active ? ' pn-active' : ''}`} onClick={d.onSelect}>
-      <div className="pn-pill-icon">{d.iconEl}</div>
-      <div className="pn-pill-label">{d.label}</div>
-      <div className="pn-pill-badge" style={{ color: 'var(--text-secondary)' }}>
-        {d.running && d.job ? <span className="pn-live-dot" style={{ background: 'var(--orange)' }} /> :
-          d.isFirst ? (d.queue > 0 ? d.queue : 'idle') :
-            d.order}
+    <div
+      className={`pe-node pe-node-qa${selected ? ' is-selected' : ''}${d.running ? ' is-active' : ''}`}
+      onClick={d.onSelect}
+    >
+      <div className="pe-node-icon"><Brain size={16} /></div>
+      <div className="pe-node-body">
+        <div className="pe-node-label">QA LLM Review</div>
+        <div className="pe-node-sub">
+          {d.running ? `${d.progress?.completed ?? 0}/${d.progress?.total ?? 0} reviewing…` : `${fmt(d.pending)} pending · ${fmt(d.approved)} approved`}
+        </div>
+      </div>
+      <div className="pe-node-badge">
+        {d.running ? <span className="pe-dot pe-dot-live" style={{ background: 'var(--cyan)' }} /> : fmt(d.pending)}
+      </div>
+      <Handle type="target" position={Position.Left} />
+      <Handle type="source" position={Position.Right} />
+    </div>
+  );
+}
+
+function TailorStageNode({ data, selected }: NodeProps) {
+  const d = data as any;
+  return (
+    <div
+      className={`pe-node pe-node-tailor${selected ? ' is-selected' : ''}${d.active ? ' is-active' : ''}`}
+      onClick={d.onSelect}
+    >
+      <div className="pe-node-icon">{d.iconEl}</div>
+      <div className="pe-node-body">
+        <div className="pe-node-label">
+          {d.label}
+          {d.llm ? <span className="pe-llm-pip" title="LLM-backed" /> : null}
+        </div>
+        <div className="pe-node-sub">{d.desc}</div>
+      </div>
+      <div className="pe-node-badge">
+        {d.active && d.isFirst ? <span className="pe-dot pe-dot-live" style={{ background: 'var(--orange)' }} />
+          : d.isFirst ? (d.queue > 0 ? fmt(d.queue) : 'idle')
+            : <span className="pe-node-order">{d.order}</span>}
       </div>
       <Handle type="target" position={d.handleIn ?? Position.Left} id="target" />
       {!d.isLast && <Handle type="source" position={d.handleOut ?? Position.Right} id="source" />}
@@ -477,1354 +389,22 @@ function TailorStageNodeComponent({ data, selected }: NodeProps) {
 }
 
 const nodeTypes = {
-  swimlane: memo(SwimlaneNodeComponent),
-  source: memo(SourceNodeComponent),
-  stage: memo(StageNodeComponent),
-  dbOutput: memo(OutputNodeComponent),
-  qaReview: memo(QAReviewNodeComponent),
-  tailorStage: memo(TailorStageNodeComponent),
+  phaseLabel: memo(PhaseLabelNode),
+  source: memo(SourceNode),
+  stage: memo(StageNode),
+  dbOutput: memo(OutputNode),
+  qaReview: memo(QAReviewNode),
+  tailorStage: memo(TailorStageNode),
 };
 
-// ---------------------------------------------------------------------------
-// Config Sidebar Panel
-// ---------------------------------------------------------------------------
-function ConfigPanel({ nodeId, nodeType, config, stats, qaStatus, live, onChange, onClose }: {
-  nodeId: string;
-  nodeType: string;
-  config: ScraperConfig;
-  stats: PipelineStats | null;
-  qaStatus: QALlmReviewStatus | null;
-  live: LiveStatus;
-  onChange: (patch: Partial<ScraperConfig>) => void;
-  onClose: () => void;
-}) {
-  if (nodeType === 'source') return <SourcePanel sourceId={nodeId} config={config} onChange={onChange} onClose={onClose} />;
-  if (nodeType === 'stage') return <StagePanel stageId={nodeId} config={config} onChange={onChange} onClose={onClose} />;
-  if (nodeType === 'dbOutput') return <OutputPanel stats={stats} onClose={onClose} />;
-  if (nodeType === 'qaReview') return <QAReviewPanel qaStatus={qaStatus} liveItems={live.qaReviewItems} onClose={onClose} />;
-  if (nodeType === 'tailorStage') return <TailorStagePanel stageId={nodeId} live={live} onClose={onClose} />;
-  return null;
-}
-
-function SourcePanel({ sourceId, config, onChange, onClose }: {
-  sourceId: string; config: ScraperConfig; onChange: (p: Partial<ScraperConfig>) => void; onClose: () => void;
-}) {
-  if (sourceId === 'searxng') {
-    const s = config.searxng;
-    const update = (k: string, v: any) => onChange({ searxng: { ...s, [k]: v } });
-    return (
-      <div className="pipeline-sidebar">
-        <SidebarHeader title="SearXNG" onClose={onClose} />
-        <div className="ps-body">
-          <div className="ps-section">
-            <div className="ps-section-title">Settings</div>
-            <Field label="Engines" value={s.engines} onChange={v => update('engines', v)} />
-            <Field label="Time Range" value={s.time_range} onChange={v => update('time_range', v)} />
-            <NumberField label="Request Delay (s)" value={s.request_delay} step={0.5} onChange={v => update('request_delay', v)} />
-            <NumberField label="Timeout (s)" value={s.timeout} onChange={v => update('timeout', v)} />
-          </div>
-          <div className="ps-section">
-            <div className="ps-section-title">Queries ({config.queries.length})</div>
-            <div className="ps-board-list">
-              {config.queries.map((q, i) => (
-                <div key={i} className="ps-board-item">
-                  <Search size={12} style={{ opacity: .4, flexShrink: 0 }} />
-                  <div className="ps-board-name">{q.title_phrase}</div>
-                  {q.board_site && <div className="ps-board-url">{q.board_site.split('.')[0]}</div>}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (sourceId === 'usajobs') {
-    const u = config.usajobs;
-    const update = (k: string, v: any) => onChange({ usajobs: { ...u, [k]: v } });
-    return (
-      <div className="pipeline-sidebar">
-        <SidebarHeader title="USAJobs" onClose={onClose} />
-        <div className="ps-body">
-          <div className="ps-section">
-            <div className="ps-section-title">Settings</div>
-            <NumberField label="Days lookback" value={u.days} onChange={v => update('days', v)} />
-            <div className="ps-field">
-              <div className="ps-field-label">Remote only</div>
-              <div className={`pn-switch${u.remote ? ' pn-switch-on' : ''}`}
-                onClick={() => update('remote', !u.remote)} style={{ cursor: 'pointer' }} />
-            </div>
-          </div>
-          <div className="ps-section">
-            <div className="ps-section-title">Keywords</div>
-            <TagList items={u.keywords} onUpdate={v => update('keywords', v)} />
-          </div>
-          <div className="ps-section">
-            <div className="ps-section-title">Series Codes</div>
-            <TagList items={u.series} onUpdate={v => update('series', v)} />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Board sources (ashby, greenhouse, lever)
-  const boards = config.boards.filter(b => b.board_type === sourceId);
-  const toggleBoard = (idx: number) => {
-    const allBoards = [...config.boards];
-    const globalIdx = allBoards.findIndex(b => b.board_type === sourceId && b.company === boards[idx].company);
-    if (globalIdx >= 0) {
-      allBoards[globalIdx] = { ...allBoards[globalIdx], enabled: !allBoards[globalIdx].enabled };
-      onChange({ boards: allBoards });
-    }
-  };
-
-  return (
-    <div className="pipeline-sidebar">
-      <SidebarHeader title={sourceId.charAt(0).toUpperCase() + sourceId.slice(1)} onClose={onClose} />
-      <div className="ps-body">
-        <div className="ps-section">
-          <div className="ps-section-title">Boards ({boards.length})</div>
-          <div className="ps-board-list">
-            {boards.map((b, i) => (
-              <div key={i} className={`ps-board-item${!b.enabled ? ' ps-board-disabled' : ''}`}>
-                <div className={`pn-switch${b.enabled ? ' pn-switch-on' : ''}`}
-                  onClick={() => toggleBoard(i)} style={{ cursor: 'pointer', transform: 'scale(.85)' }} />
-                <div className="ps-board-name">{b.company}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        {sourceId !== 'lever' && (
-          <div className="ps-section">
-            <div className="ps-section-title">Crawl Settings</div>
-            <NumberField label="Max per board" value={config.crawl.max_results_per_target}
-              onChange={v => onChange({ crawl: { ...config.crawl, max_results_per_target: v } })} />
-            <NumberField label="Request delay (s)" value={config.crawl.request_delay} step={0.5}
-              onChange={v => onChange({ crawl: { ...config.crawl, request_delay: v } })} />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function StagePanel({ stageId, config, onChange, onClose }: {
-  stageId: string; config: ScraperConfig; onChange: (p: Partial<ScraperConfig>) => void; onClose: () => void;
-}) {
-  const stageDef = STAGE_DEFS.find(s => s.id === stageId);
-
-  if (stageId === 'dedup') {
-    return (
-      <div className="pipeline-sidebar">
-        <SidebarHeader title="Deduplication" onClose={onClose} />
-        <div className="ps-body">
-          <div className="ps-section">
-            <div className="ps-section-title">Settings</div>
-            <NumberField label="TTL (days)" value={config.seen_ttl_days}
-              onChange={v => onChange({ seen_ttl_days: v })} />
-            <div className="ps-field">
-              <div className="ps-field-label" style={{ fontSize: '.68rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-                URLs older than this re-enter the pipeline
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (stageId === 'hard_filter') {
-    const hf = config.hard_filters;
-    return (
-      <div className="pipeline-sidebar">
-        <SidebarHeader title="Hard Filters" onClose={onClose} />
-        <div className="ps-body">
-          <div className="ps-section">
-            <div className="ps-section-title">Thresholds</div>
-            <NumberField label="Min salary ($k)" value={hf.min_salary_k}
-              onChange={v => onChange({ hard_filters: { ...hf, min_salary_k: v } })} />
-            <NumberField label="Target salary ($k)" value={hf.target_salary_k}
-              onChange={v => onChange({ hard_filters: { ...hf, target_salary_k: v } })} />
-            <NumberField label="Max experience (years)" value={config.filter.max_experience_years}
-              onChange={v => onChange({ filter: { ...config.filter, max_experience_years: v } })} />
-          </div>
-          <div className="ps-section">
-            <div className="ps-section-title">Seniority Blocklist</div>
-            <TagList items={hf.title_blocklist}
-              onUpdate={v => onChange({ hard_filters: { ...hf, title_blocklist: v } })} />
-          </div>
-          <div className="ps-section">
-            <div className="ps-section-title">Content Blocklist</div>
-            <TagList items={hf.content_blocklist}
-              onUpdate={v => onChange({ hard_filters: { ...hf, content_blocklist: v } })} />
-          </div>
-          <div className="ps-section">
-            <div className="ps-section-title">Domain Blocklist</div>
-            <TagList items={hf.domain_blocklist}
-              onUpdate={v => onChange({ hard_filters: { ...hf, domain_blocklist: v } })} />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // text_extraction / storage — no params
-  return (
-    <div className="pipeline-sidebar">
-      <SidebarHeader title={stageDef?.label || stageId} onClose={onClose} />
-      <div className="ps-body">
-        <div className="ps-empty">
-          <Settings size={40} />
-          <p>No configurable parameters</p>
-          <div className="ps-empty-hint">{stageDef?.desc}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function OutputPanel({ stats, onClose }: { stats: PipelineStats | null; onClose: () => void }) {
-  return (
-    <div className="pipeline-sidebar">
-      <SidebarHeader title="Output" onClose={onClose} />
-      <div className="ps-body">
-        {stats?.run_id ? (
-          <div className="ps-section">
-            <div className="ps-section-title">Last Run</div>
-            <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)', marginBottom: 12, fontFamily: 'var(--font-mono)' }}>
-              {stats.run_id}
-            </div>
-            <div className="ps-section-title">Per Source</div>
-            <div className="ps-board-list">
-              {Object.entries(stats.per_source).map(([src, cnt]) => (
-                <div key={src} className="ps-board-item">
-                  <div className="pn-stat-dot" style={{ background: 'var(--accent)' }} />
-                  <div className="ps-board-name">{src}</div>
-                  <div className="ps-board-url">{cnt}</div>
-                </div>
-              ))}
-            </div>
-            {Object.keys(stats.per_rejection).length > 0 && (
-              <>
-                <div className="ps-section-title" style={{ marginTop: 16 }}>Rejections</div>
-                <div className="ps-board-list">
-                  {Object.entries(stats.per_rejection).map(([stage, cnt]) => (
-                    <div key={stage} className="ps-board-item">
-                      <div className="pn-stat-dot" style={{ background: 'var(--red)' }} />
-                      <div className="ps-board-name">{stage}</div>
-                      <div className="ps-board-url">{cnt}</div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="ps-empty">
-            <Database size={40} />
-            <p>No completed runs yet</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function QAReviewPanel({ qaStatus, liveItems, onClose }: { qaStatus: QALlmReviewStatus | null; liveItems: QAReviewItem[]; onClose: () => void }) {
-  const systemPrompt = `You are a job-candidate fit reviewer. Given the candidate's profile and a job description, evaluate whether this is a strong enough match to warrant tailoring application materials.
-
-Evaluation criteria:
-- Requirement coverage: do candidate skills map to core JD requirements?
-- Experience relevance: does baseline evidence support the role?
-- Seniority alignment: mid-to-senior IC roles are ideal (not staff/principal/management)
-- Domain fit: security/cloud/devops/platform engineering — not pure frontend, data science, etc.
-- Red flags: onsite-only disguised as remote, clearance required, etc.`;
-
-  const responseFormat = `{ "pass": true/false, "reason": "1-2 sentences", "confidence": 0.0-1.0, "top_matches": ["skill1"], "gaps": ["gap1"] }`;
-
-  const polishPrompt = `On pass → second LLM call cleans scraped JD text into structured brief:
-ROLE SUMMARY, CORE RESPONSIBILITIES, REQUIRED QUALIFICATIONS, PREFERRED QUALIFICATIONS, LOGISTICS
-
-Returns: { "requirements_summary": "...", "approved_jd_text": "...", "removed_noise": [...] }`;
-
-  const s = qaStatus?.summary;
-  return (
-    <div className="pipeline-sidebar">
-      <SidebarHeader title="QA LLM Review" onClose={onClose} />
-      <div className="ps-body">
-        {/* Live status */}
-        <div className="ps-section">
-          <div className="ps-section-title">Status</div>
-          <div className="ps-board-list">
-            <div className="ps-board-item">
-              <div className="pn-stat-dot" style={{ background: qaStatus?.running ? 'var(--green)' : 'var(--text-secondary)' }} />
-              <div className="ps-board-name">{qaStatus?.running ? 'Running' : 'Idle'}</div>
-            </div>
-            {qaStatus?.resolved_model && (
-              <div className="ps-board-item">
-                <Brain size={12} style={{ opacity: .4, flexShrink: 0 }} />
-                <div className="ps-board-name" style={{ fontSize: '.7rem', fontFamily: 'var(--font-mono)' }}>{qaStatus.resolved_model}</div>
-              </div>
-            )}
-          </div>
-          {s && s.total > 0 && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-              <div className="pn-badge" style={{ background: 'rgba(60, 179, 113, .12)', color: 'var(--green)' }}>
-                <CheckCircle size={10} /> {s.passed} pass
-              </div>
-              <div className="pn-badge" style={{ background: 'rgba(240, 80, 80, .12)', color: 'var(--red)' }}>
-                <XCircle size={10} /> {s.failed} fail
-              </div>
-              {s.skipped > 0 && <div className="pn-badge">{s.skipped} skip</div>}
-              {s.errors > 0 && <div className="pn-badge" style={{ color: 'var(--red)' }}>{s.errors} err</div>}
-              {s.queued > 0 && <div className="pn-badge">{s.queued} queued</div>}
-            </div>
-          )}
-        </div>
-
-        {/* Architecture */}
-        <div className="ps-section">
-          <div className="ps-section-title">Architecture</div>
-          <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            <div style={{ marginBottom: 8 }}>
-              <strong style={{ color: 'var(--text)' }}>Endpoint:</strong>{' '}
-              <code style={{ fontFamily: 'var(--font-mono)', fontSize: '.68rem' }}>localhost:11434/v1/chat/completions</code>
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <strong style={{ color: 'var(--text)' }}>Temperature:</strong> 0.2 (review) / 0.1 (polish)
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <strong style={{ color: 'var(--text)' }}>Timeout:</strong> 90s per call
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <strong style={{ color: 'var(--text)' }}>JD truncation:</strong> 12,000 chars
-            </div>
-            <div>
-              <strong style={{ color: 'var(--text)' }}>Context:</strong> soul.md + skills.json injected as profile
-            </div>
-          </div>
-        </div>
-
-        {/* System Prompt */}
-        <div className="ps-section">
-          <div className="ps-section-title">System Prompt — Fit Review</div>
-          <pre style={{
-            fontSize: '.68rem', fontFamily: 'var(--font-mono)', color: 'var(--text)',
-            background: 'var(--surface-2)', border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)', padding: '10px 12px', whiteSpace: 'pre-wrap',
-            lineHeight: 1.5, maxHeight: 200, overflowY: 'auto',
-          }}>{systemPrompt}</pre>
-        </div>
-
-        {/* Response format */}
-        <div className="ps-section">
-          <div className="ps-section-title">Response Format</div>
-          <pre style={{
-            fontSize: '.68rem', fontFamily: 'var(--font-mono)', color: 'var(--accent)',
-            background: 'var(--surface-2)', border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)', padding: '10px 12px', whiteSpace: 'pre-wrap',
-            lineHeight: 1.5,
-          }}>{responseFormat}</pre>
-        </div>
-
-        {/* Polish step */}
-        <div className="ps-section">
-          <div className="ps-section-title">Post-Pass: JD Polish</div>
-          <pre style={{
-            fontSize: '.68rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)',
-            background: 'var(--surface-2)', border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)', padding: '10px 12px', whiteSpace: 'pre-wrap',
-            lineHeight: 1.5, maxHeight: 180, overflowY: 'auto',
-          }}>{polishPrompt}</pre>
-        </div>
-
-        {/* Decision flow */}
-        <div className="ps-section">
-          <div className="ps-section-title">Decision Flow</div>
-          <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-            <div>1. Job enters DB as <code style={{ fontFamily: 'var(--font-mono)', color: 'var(--amber)' }}>qa_pending</code></div>
-            <div>2. User or batch triggers LLM review</div>
-            <div>3. System prompt + profile context + JD → LLM</div>
-            <div>4. Pass → <code style={{ fontFamily: 'var(--font-mono)', color: 'var(--green)' }}>qa_approved</code> + polish JD</div>
-            <div>5. Fail → <code style={{ fontFamily: 'var(--font-mono)', color: 'var(--red)' }}>qa_rejected</code></div>
-            <div>6. Approved jobs eligible for tailoring</div>
-          </div>
-        </div>
-
-        {/* Live LLM results feed */}
-        {liveItems.length > 0 && (
-          <div className="ps-section">
-            <div className="ps-section-title">Live Results ({liveItems.filter(i => i.status === 'pass' || i.status === 'fail').length} completed)</div>
-            <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {liveItems.filter(i => i.status !== 'queued').map((item) => (
-                <div key={item.job_id} style={{
-                  background: 'var(--surface-2)', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)', padding: '8px 10px',
-                  borderLeft: `3px solid ${item.status === 'pass' ? 'var(--green)' : item.status === 'fail' ? 'var(--red)' : item.status === 'reviewing' ? 'var(--amber)' : 'var(--border)'}`,
-                }}>
-                  <div style={{ fontSize: '.72rem', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {item.title || `Job #${item.job_id}`}
-                  </div>
-                  {item.status === 'reviewing' && (
-                    <div style={{ fontSize: '.65rem', color: 'var(--amber)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span className="pn-live-dot" style={{ background: 'var(--amber)' }} /> Reviewing...
-                    </div>
-                  )}
-                  {item.reason && (
-                    <div style={{ fontSize: '.65rem', color: 'var(--text-secondary)', marginTop: 3, lineHeight: 1.4 }}>
-                      {item.reason}
-                    </div>
-                  )}
-                  {item.confidence != null && (
-                    <div style={{ fontSize: '.62rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', marginTop: 2 }}>
-                      confidence: {(item.confidence * 100).toFixed(0)}%
-                    </div>
-                  )}
-                  {item.top_matches && item.top_matches.length > 0 && (
-                    <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 4 }}>
-                      {item.top_matches.map((m, i) => (
-                        <span key={i} style={{
-                          fontSize: '.6rem', fontFamily: 'var(--font-mono)',
-                          background: 'rgba(60, 179, 113, .12)', color: 'var(--green)',
-                          padding: '1px 5px', borderRadius: 8,
-                        }}>{m}</span>
-                      ))}
-                    </div>
-                  )}
-                  {item.gaps && item.gaps.length > 0 && (
-                    <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 3 }}>
-                      {item.gaps.map((g, i) => (
-                        <span key={i} style={{
-                          fontSize: '.6rem', fontFamily: 'var(--font-mono)',
-                          background: 'rgba(240, 80, 80, .12)', color: 'var(--red)',
-                          padding: '1px 5px', borderRadius: 8,
-                        }}>{g}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function TailorStagePanel({ stageId, live, onClose }: { stageId: string; live: LiveStatus; onClose: () => void }) {
-  const def = TAILOR_STAGE_DEFS.find(s => s.id === stageId);
-  const details: Record<string, { what: string; how: string; llm: boolean }> = {
-    tailor_analysis: {
-      what: 'Extracts structured requirements from the job description: core responsibilities, required qualifications, preferred skills, logistics.',
-      how: 'LLM parses JD text with soul.md + skills.json context. Outputs analysis.json with requirement categories and candidate-match signals.',
-      llm: true,
-    },
-    tailor_strategy: {
-      what: 'Plans which resume bullets, skills, and experiences to emphasize for this specific role.',
-      how: 'LLM takes analysis.json + baseline resume and produces a targeting strategy: what to highlight, what to add, what to downplay.',
-      llm: true,
-    },
-    tailor_resume: {
-      what: 'Generates a tailored LaTeX resume based on the strategy.',
-      how: 'LLM produces LaTeX source from baseline template, applying strategy decisions. Multiple drafts with QA self-review.',
-      llm: true,
-    },
-    tailor_cover: {
-      what: 'Generates a tailored LaTeX cover letter aligned with the resume.',
-      how: 'LLM writes cover letter using analysis + strategy context. Draws from persona/interests.md for authentic voice.',
-      llm: true,
-    },
-    tailor_validate: {
-      what: 'Runs hard gate checks on generated documents before compilation.',
-      how: 'Validates LaTeX syntax, checks for placeholder text, verifies required sections exist, confirms no hallucinated credentials.',
-      llm: false,
-    },
-    tailor_compile: {
-      what: 'Compiles LaTeX sources into final PDF documents.',
-      how: 'Runs pdflatex with error capture. Outputs resume.pdf + cover_letter.pdf to output/<slug>/.',
-      llm: false,
-    },
-  };
-  const info = details[stageId];
-  return (
-    <div className="pipeline-sidebar">
-      <SidebarHeader title={def?.label || stageId} onClose={onClose} />
-      <div className="ps-body">
-        <div className="ps-section">
-          <div className="ps-section-title">What</div>
-          <div style={{ fontSize: '.72rem', color: 'var(--text)', lineHeight: 1.6 }}>
-            {info?.what}
-          </div>
-        </div>
-        <div className="ps-section">
-          <div className="ps-section-title">How</div>
-          <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            {info?.how}
-          </div>
-        </div>
-        {info?.llm && (
-          <div className="ps-section">
-            <div className="ps-section-title">LLM Call</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Brain size={12} style={{ color: 'var(--purple)', opacity: .6 }} />
-              <span style={{ fontSize: '.72rem', color: 'var(--purple)' }}>Uses active LLM model</span>
-            </div>
-          </div>
-        )}
-        {/* Live log tail when tailoring is running */}
-        {live.tailoringRunning && live.tailoringLogTail && (
-          <div className="ps-section">
-            <div className="ps-section-title">
-              <span className="pn-live-dot" style={{ marginRight: 6 }} />
-              Live Output
-            </div>
-            <pre style={{
-              fontSize: '.62rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)',
-              background: 'var(--surface-2)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)', padding: '8px 10px', whiteSpace: 'pre-wrap',
-              lineHeight: 1.5, maxHeight: 300, overflowY: 'auto', wordBreak: 'break-word',
-            }}>{live.tailoringLogTail}</pre>
-          </div>
-        )}
-        <div className="ps-empty-hint" style={{ marginTop: 12 }}>
-          View full traces at /ops/pipeline-inspector
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Shared sub-components
-// ---------------------------------------------------------------------------
-function SidebarHeader({ title, onClose }: { title: string; onClose: () => void }) {
-  return (
-    <div className="ps-header">
-      <div className="ps-header-title">{title}</div>
-      <button className="ps-close" onClick={onClose}><X size={16} /></button>
-    </div>
-  );
-}
-
-function Field({ label, value, onChange }: { label: string; value: string | number; onChange: (v: string) => void }) {
-  return (
-    <div className="ps-field">
-      <div className="ps-field-label">{label}</div>
-      <input type="text" value={value} onChange={e => onChange(e.target.value)} />
-    </div>
-  );
-}
-
-function NumberField({ label, value, step, onChange }: { label: string; value: number; step?: number; onChange: (v: number) => void }) {
-  return (
-    <div className="ps-field">
-      <div className="ps-field-label">{label}</div>
-      <input type="number" value={value} step={step || 1}
-        onChange={e => onChange(Number(e.target.value))} />
-    </div>
-  );
-}
-
-function TagList({ items, onUpdate }: { items: string[]; onUpdate: (v: string[]) => void }) {
-  const [adding, setAdding] = useState('');
-  const add = () => {
-    const v = adding.trim();
-    if (v && !items.includes(v)) {
-      onUpdate([...items, v]);
-      setAdding('');
-    }
-  };
-  return (
-    <>
-      <div className="ps-tag-list">
-        {items.map((item, i) => (
-          <span key={i} className="ps-tag">
-            {item}
-            <button className="ps-tag-remove" onClick={() => onUpdate(items.filter((_, j) => j !== i))}>
-              <X size={10} />
-            </button>
-          </span>
-        ))}
-      </div>
-      <div style={{ display: 'flex', gap: 4 }}>
-        <input type="text" value={adding} onChange={e => setAdding(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && add()}
-          placeholder="Add..."
-          style={{
-            flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)', color: 'var(--text)', fontFamily: 'var(--font-mono)',
-            fontSize: '.72rem', padding: '5px 8px', outline: 'none'
-          }} />
-        <button onClick={add} style={{
-          background: 'var(--surface-3)', border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px 8px',
-          display: 'flex', alignItems: 'center'
-        }}>
-          <Plus size={12} />
-        </button>
-      </div>
-    </>
-  );
-}
-
-function ToolbarStatusChip({
-  label,
-  state,
-  detail,
-}: {
-  label: string;
-  state: 'running' | 'idle' | 'draft' | 'ready';
-  detail: string;
-}) {
-  return (
-    <div className={`pe-chip pe-chip-${state}`}>
-      <span className={`pe-chip-dot pe-chip-dot-${state}`} />
-      <div className="pe-chip-copy">
-        <span className="pe-chip-label">{label}</span>
-        <span className="pe-chip-detail">{detail}</span>
-      </div>
-    </div>
-  );
-}
-
-function CanvasToolbar({
-  live,
-  dirty,
-  saving,
-  refreshing,
-  lastPollAt,
-  eventCount,
-  onRefresh,
-  onReset,
-  onSave,
-  onRunScrape,
-  onTerminate,
-  onRunQAReview,
-  onCancelQAReview,
-  onRunTailoring,
-  onStopTailoring,
-  scrapeRunning,
-  readyCount,
-}: {
-  live: LiveStatus;
-  dirty: boolean;
-  saving: boolean;
-  refreshing: boolean;
-  lastPollAt: number | null;
-  eventCount: number;
-  onRefresh: () => void;
-  onReset: () => void;
-  onSave: () => void;
-  onRunScrape: (withLlm: boolean) => void;
-  onTerminate: () => void;
-  onRunQAReview: () => void;
-  onCancelQAReview: () => void;
-  onRunTailoring: () => void;
-  onStopTailoring: () => void;
-  scrapeRunning: boolean;
-  readyCount: number;
-}) {
-  const { fitView } = useReactFlow();
-
-  return (
-    <div className="pipeline-toolbar">
-      <div className="pipeline-toolbar-copy">
-        <div className="pipeline-toolbar-label">Pipeline Console</div>
-        <div className="pipeline-toolbar-title">Live orchestration view</div>
-      </div>
-      <div className="pipeline-toolbar-chips">
-        <ToolbarStatusChip
-          label="Scrape"
-          state={live.scrapeRunning ? 'running' : 'idle'}
-          detail={live.scrapeRunning && live.scrapeStartedAt ? `running ${timeAgo(live.scrapeStartedAt)}` : 'idle'}
-        />
-        <ToolbarStatusChip
-          label="QA Review"
-          state={live.qaReviewRunning ? 'running' : 'idle'}
-          detail={live.qaReviewRunning && live.qaReviewProgress
-            ? `${live.qaReviewProgress.completed}/${live.qaReviewProgress.total} complete`
-            : 'idle'}
-        />
-        <ToolbarStatusChip
-          label="Tailoring"
-          state={live.tailoringRunning ? 'running' : 'idle'}
-          detail={live.tailoringRunning ? `${fmt(live.tailoringQueue)} queued` : 'idle'}
-        />
-        <ToolbarStatusChip
-          label="Ready"
-          state={readyCount > 0 ? 'ready' : 'idle'}
-          detail={readyCount > 0 ? `${fmt(readyCount)} to tailor` : 'none'}
-        />
-        <ToolbarStatusChip
-          label="Draft"
-          state={dirty ? 'draft' : 'idle'}
-          detail={dirty ? 'unsaved changes' : 'in sync'}
-        />
-      </div>
-      <div className="pipeline-toolbar-right">
-        <div className="pipeline-toolbar-meta">
-          <span>Synced {timeSince(lastPollAt)}</span>
-          <span>{pluralize(eventCount, 'event')}</span>
-        </div>
-        <button className="pe-btn" onClick={onRefresh} disabled={refreshing}>
-          {refreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
-        <button className="pe-btn" onClick={() => fitView({ padding: 0.15, maxZoom: 0.72 })}>
-          Fit view
-        </button>
-        <button className="pe-btn" onClick={onReset} disabled={!dirty || saving}>
-          Reset
-        </button>
-        <button className="pe-btn pe-btn-primary" onClick={onSave} disabled={!dirty || saving}>
-          {saving ? 'Saving...' : 'Save config'}
-        </button>
-        <span className="pe-toolbar-sep" />
-        {scrapeRunning ? (
-          <button className="pe-btn pe-btn-danger" onClick={onTerminate}>
-            <Square size={12} /> Stop Scrape
-          </button>
-        ) : (
-          <button className="pe-btn pe-btn-run" onClick={() => onRunScrape(true)} disabled={dirty}>
-            <Play size={12} /> Scrape
-          </button>
-        )}
-        {live.qaReviewRunning ? (
-          <button className="pe-btn pe-btn-danger" onClick={onCancelQAReview}>
-            <Square size={12} /> Stop QA
-          </button>
-        ) : (
-          <button className="pe-btn pe-btn-run" onClick={onRunQAReview}>
-            <Play size={12} /> QA Review
-          </button>
-        )}
-        {live.tailoringRunning ? (
-          <button className="pe-btn pe-btn-danger" onClick={onStopTailoring}>
-            <Square size={12} /> Stop Tailoring
-          </button>
-        ) : (
-          <button className="pe-btn pe-btn-run" onClick={onRunTailoring}>
-            <Play size={12} /> Tailor
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function OverviewMetric({
-  label,
-  value,
-  hint,
-  tone = 'muted',
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  tone?: PipelineEventTone;
-}) {
-  return (
-    <div className={`pi-metric pi-metric-${tone}`}>
-      <div className="pi-metric-label">{label}</div>
-      <div className="pi-metric-value">{value}</div>
-      <div className="pi-metric-hint">{hint}</div>
-    </div>
-  );
-}
-
-function EventFeed({
-  events,
-  emptyLabel,
-}: {
-  events: PipelineEvent[];
-  emptyLabel: string;
-}) {
-  if (events.length === 0) {
-    return (
-      <div className="ps-empty ps-empty-compact">
-        <Activity size={24} />
-        <p>{emptyLabel}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="pi-event-list">
-      {events.map((event) => (
-        <div key={event.id} className={`pi-event pi-event-${event.tone}`}>
-          <div className="pi-event-header">
-            <span className="pi-event-title">{event.label}</span>
-            <span className="pi-event-time">{timeSince(event.createdAt)}</span>
-          </div>
-          {event.detail ? <div className="pi-event-detail">{event.detail}</div> : null}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function LogCard({ title, content }: { title: string; content: string }) {
-  if (!content) return null;
-  return (
-    <div className="ps-section">
-      <div className="ps-section-title">{title}</div>
-      <pre className="pi-log-card">{content}</pre>
-    </div>
-  );
-}
-
-function GlobalOverviewPanel({
-  stats,
-  live,
-  events,
-}: {
-  stats: PipelineStats | null;
-  live: LiveStatus;
-  events: PipelineEvent[];
-}) {
-  const inventory = stats?.inventory;
-  return (
-    <>
-      <div className="ps-section">
-        <div className="ps-section-title">Overview</div>
-        <div className="pi-metric-grid">
-          <OverviewMetric
-            label="Scrape"
-            value={live.scrapeRunning ? 'Running' : 'Idle'}
-            hint={live.scrapeRunning && live.scrapeStartedAt ? `since ${timeAgo(live.scrapeStartedAt)}` : 'Awaiting run'}
-            tone={live.scrapeRunning ? 'accent' : 'muted'}
-          />
-          <OverviewMetric
-            label="Awaiting QA"
-            value={fmt(inventory?.qa_pending)}
-            hint="Current review backlog"
-            tone={(inventory?.qa_pending ?? 0) > 0 ? 'amber' : 'muted'}
-          />
-          <OverviewMetric
-            label="Ready"
-            value={fmt(inventory?.qa_approved)}
-            hint="Approved for tailoring"
-            tone={(inventory?.qa_approved ?? 0) > 0 ? 'green' : 'muted'}
-          />
-          <OverviewMetric
-            label="Tailor Queue"
-            value={fmt(live.tailoringQueue)}
-            hint={live.tailoringRunning ? (live.tailoringJob || 'Package rendering active') : 'Idle'}
-            tone={live.tailoringRunning ? 'accent' : 'muted'}
-          />
-        </div>
-      </div>
-
-      <div className="ps-section">
-        <div className="ps-section-title">Recent activity</div>
-        <EventFeed events={events.slice(0, 8)} emptyLabel="No recent pipeline events yet" />
-      </div>
-
-      <LogCard title="Scrape output" content={live.scrapeLogTail} />
-      <LogCard title="Tailoring output" content={live.tailoringLogTail} />
-    </>
-  );
-}
-
-function SelectedOverviewPanel({
-  selectedNode,
-  config,
-  stats,
-  live,
-  qaStatus,
-  sourceStats,
-}: {
-  selectedNode: { id: string; type: string };
-  config: ScraperConfig;
-  stats: PipelineStats | null;
-  live: LiveStatus;
-  qaStatus: QALlmReviewStatus | null;
-  sourceStats: SourceRollupStats;
-}) {
-  const inventory = stats?.inventory;
-
-  if (selectedNode.type === 'source') {
-    const source = SOURCE_DEFS.find((item) => item.id === selectedNode.id);
-    const boards = config.boards.filter((board) => board.board_type === selectedNode.id);
-    const configuredCount = selectedNode.id === 'searxng'
-      ? config.queries.length
-      : selectedNode.id === 'usajobs'
-        ? config.usajobs.keywords.length
-        : boards.length;
-    const enabledCount = selectedNode.id === 'searxng'
-      ? Number(config.searxng.enabled)
-      : selectedNode.id === 'usajobs'
-        ? Number(config.usajobs.enabled)
-        : boards.filter((board) => board.enabled).length;
-
-    return (
-      <>
-        <div className="ps-section">
-          <div className="ps-section-title">Selection</div>
-          <div className="pi-selected-title">{source?.label || selectedNode.id}</div>
-          <div className="pi-selected-copy">Provider configuration and source-side activity.</div>
-        </div>
-        <div className="pi-metric-grid">
-          <OverviewMetric label="Configured" value={fmt(configuredCount)} hint="Queries / boards / keywords" />
-          <OverviewMetric label="Enabled" value={fmt(enabledCount)} hint="Currently enabled targets" tone={enabledCount > 0 ? 'green' : 'muted'} />
-          <OverviewMetric label="Last run" value={fmt(sourceStats[selectedNode.id as keyof SourceRollupStats])} hint="Items seen in last run stats" tone="accent" />
-        </div>
-      </>
-    );
-  }
-
-  if (selectedNode.type === 'stage') {
-    const stage = STAGE_DEFS.find((item) => item.id === selectedNode.id);
-    const passCount = selectedNode.id === 'dedup'
-      ? Math.max((stats?.raw_count ?? 0) - (stats?.dedup_dropped ?? 0), 0)
-      : selectedNode.id === 'storage'
-        ? (stats?.stored ?? 0)
-        : null;
-    const dropCount = selectedNode.id === 'dedup'
-      ? (stats?.dedup_dropped ?? 0)
-      : selectedNode.id === 'hard_filter'
-        ? (stats?.filter_rejected ?? 0)
-        : null;
-
-    return (
-      <>
-        <div className="ps-section">
-          <div className="ps-section-title">Selection</div>
-          <div className="pi-selected-title">{stage?.label || selectedNode.id}</div>
-          <div className="pi-selected-copy">{stage?.desc}</div>
-        </div>
-        <div className="pi-metric-grid">
-          <OverviewMetric label="Order" value={String(config.pipeline_order.indexOf(selectedNode.id) + 1)} hint="Current scrape-stage order" />
-          <OverviewMetric label="Pass" value={fmt(passCount)} hint="Latest passing count" tone="green" />
-          <OverviewMetric label="Drop" value={fmt(dropCount)} hint="Latest drop count" tone={dropCount ? 'red' : 'muted'} />
-        </div>
-      </>
-    );
-  }
-
-  if (selectedNode.type === 'dbOutput') {
-    return (
-      <>
-        <div className="ps-section">
-          <div className="ps-section-title">Selection</div>
-          <div className="pi-selected-title">Results DB</div>
-          <div className="pi-selected-copy">Persistent inventory snapshot and downstream handoff.</div>
-        </div>
-        <div className="pi-metric-grid">
-          <OverviewMetric label="Total" value={fmt(inventory?.total)} hint="Rows in inventory" />
-          <OverviewMetric label="Pending" value={fmt(inventory?.qa_pending)} hint="Awaiting QA" tone={(inventory?.qa_pending ?? 0) > 0 ? 'amber' : 'muted'} />
-          <OverviewMetric label="Ready" value={fmt(inventory?.qa_approved)} hint="Approved for tailoring" tone="green" />
-          <OverviewMetric label="Rejected" value={fmt(inventory?.rejected)} hint="Scraper-filter rejected" tone={(inventory?.rejected ?? 0) > 0 ? 'red' : 'muted'} />
-        </div>
-      </>
-    );
-  }
-
-  if (selectedNode.type === 'qaReview') {
-    return (
-      <>
-        <div className="ps-section">
-          <div className="ps-section-title">Selection</div>
-          <div className="pi-selected-title">QA LLM Review</div>
-          <div className="pi-selected-copy">Model-assisted fit review and queue progression.</div>
-        </div>
-        <div className="pi-metric-grid">
-          <OverviewMetric label="State" value={qaStatus?.running ? 'Running' : 'Idle'} hint={qaStatus?.resolved_model || 'No active model'} tone={qaStatus?.running ? 'accent' : 'muted'} />
-          <OverviewMetric label="Progress" value={live.qaReviewProgress ? `${live.qaReviewProgress.completed}/${live.qaReviewProgress.total}` : '—'} hint="Current batch progress" />
-          <OverviewMetric label="Approved" value={fmt(inventory?.qa_approved)} hint="Approved by QA" tone="green" />
-          <OverviewMetric label="Rejected" value={fmt(inventory?.qa_rejected)} hint="Rejected by QA" tone={(inventory?.qa_rejected ?? 0) > 0 ? 'red' : 'muted'} />
-        </div>
-      </>
-    );
-  }
-
-  const stage = TAILOR_STAGE_DEFS.find((item) => item.id === selectedNode.id);
-  return (
-    <>
-      <div className="ps-section">
-        <div className="ps-section-title">Selection</div>
-        <div className="pi-selected-title">{stage?.label || selectedNode.id}</div>
-        <div className="pi-selected-copy">{stage?.desc}</div>
-      </div>
-      <div className="pi-metric-grid">
-        <OverviewMetric label="State" value={live.tailoringRunning ? 'Running' : 'Idle'} hint={live.tailoringRunning ? (live.tailoringJob || 'Package in progress') : 'Awaiting run'} tone={live.tailoringRunning ? 'accent' : 'muted'} />
-        <OverviewMetric label="Queue" value={fmt(live.tailoringQueue)} hint="Queued tailoring jobs" />
-        <OverviewMetric label="Ready pool" value={fmt(inventory?.qa_approved)} hint="Jobs ready for tailoring" tone="green" />
-      </div>
-    </>
-  );
-}
-
-function InspectorActivityPanel({
-  selectedNode,
-  live,
-  qaStatus,
-  events,
-}: {
-  selectedNode: { id: string; type: string } | null;
-  live: LiveStatus;
-  qaStatus: QALlmReviewStatus | null;
-  events: PipelineEvent[];
-}) {
-  const scopedEvents = selectedNode ? events.filter((event) => eventMatchesSelection(event, selectedNode)) : events;
-  const qaItems = (qaStatus?.items || []).filter((item) => item.status !== 'queued').slice(0, 5);
-
-  return (
-    <>
-      <div className="ps-section">
-        <div className="ps-section-title">Recent activity</div>
-        <EventFeed
-          events={scopedEvents.slice(0, 10)}
-          emptyLabel={selectedNode ? 'No recent activity for this selection yet' : 'No recent pipeline activity yet'}
-        />
-      </div>
-
-      {selectedNode?.type === 'qaReview' && qaItems.length > 0 ? (
-        <div className="ps-section">
-          <div className="ps-section-title">Live results</div>
-          <div className="pi-qa-results">
-            {qaItems.map((item) => (
-              <div key={item.job_id} className={`pi-qa-result pi-qa-result-${item.status}`}>
-                <div className="pi-qa-result-title">{item.title || `Job #${item.job_id}`}</div>
-                <div className="pi-qa-result-meta">{item.reason || item.status}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {(selectedNode?.type === 'source' || selectedNode?.type === 'stage') ? (
-        <LogCard title="Scrape output" content={live.scrapeLogTail} />
-      ) : null}
-
-      {selectedNode?.type === 'tailorStage' ? (
-        <LogCard title="Tailoring output" content={live.tailoringLogTail} />
-      ) : null}
-
-      {!selectedNode ? <LogCard title="Tailoring output" content={live.tailoringLogTail} /> : null}
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Console panel — live scrape output
-// ---------------------------------------------------------------------------
-function InspectorConsolePanel({
-  live,
-  activeRun,
-  consoleLines,
-}: {
-  live: LiveStatus;
-  activeRun: any;
-  consoleLines: string;
-}) {
-  const logText = consoleLines || live.scrapeLogTail;
-  const lines = logText ? logText.split('\n').filter(Boolean) : [];
-
-  // Derive simple metrics from log text
-  let itemsScraped = 0;
-  let itemsDropped = 0;
-  let spidersOpened = 0;
-  let spidersClosed = 0;
-  for (const line of lines) {
-    let m = line.match(/'item_scraped_count': (\d+)/) || line.match(/Scraped (\d+) items/);
-    if (m) itemsScraped = Math.max(itemsScraped, Number(m[1]));
-    m = line.match(/'item_dropped_count': (\d+)/);
-    if (m) itemsDropped = Math.max(itemsDropped, Number(m[1]));
-    if (/opened spider|Spider opened/i.test(line)) spidersOpened++;
-    if (/closed spider|Spider closed/i.test(line)) spidersClosed++;
-  }
-
-  const isActive = live.scrapeRunning || activeRun?.status === 'running';
-
-  if (!isActive && !logText) {
-    return (
-      <div className="ps-section" style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px 0' }}>
-        No active scrape run. Use the toolbar to start one.
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <div className="ps-section">
-        <div className="ps-section-title">
-          {isActive ? (
-            <><span className="pn-live-dot" /> Pipeline running</>
-          ) : 'Last run output'}
-        </div>
-        {live.scrapeStartedAt && (
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-            Started {timeAgo(live.scrapeStartedAt)}
-          </div>
-        )}
-        <div className="pi-metric-grid" style={{ marginBottom: '12px' }}>
-          <OverviewMetric label="Items" value={itemsScraped > 0 ? fmt(itemsScraped) : '—'} hint="scraped" />
-          <OverviewMetric label="Dropped" value={itemsDropped > 0 ? fmt(itemsDropped) : '—'} hint="filtered" />
-          <OverviewMetric label="Spiders" value={spidersOpened > 0 ? `${spidersClosed}/${spidersOpened}` : '—'} hint="closed/opened" />
-          <OverviewMetric
-            label="Duration"
-            value={activeRun?.elapsed ? fmtDuration(activeRun.elapsed) : (live.scrapeStartedAt ? timeAgo(live.scrapeStartedAt) : '—')}
-            hint={isActive ? 'running' : 'elapsed'}
-          />
-        </div>
-      </div>
-      <LogCard title="Output" content={logText} />
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// History panel — run history cards
-// ---------------------------------------------------------------------------
-function InspectorHistoryPanel({
-  runs,
-  stats: runStats,
-  page,
-  pages,
-  loading,
-  onPageChange,
-}: {
-  runs: RunSummary[];
-  stats: { avg_duration: number; success_rate: number; avg_stored: number; total: number } | null;
-  page: number;
-  pages: number;
-  loading: boolean;
-  onPageChange: (p: number) => void;
-}) {
-  const [expanded, setExpanded] = useState<string | null>(null);
-
-  if (loading && runs.length === 0) {
-    return <div className="ps-section" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>Loading run history...</div>;
-  }
-
-  if (runs.length === 0) {
-    return <div className="ps-section" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>No runs recorded yet.</div>;
-  }
-
-  const statusColor = (s: string) => s === 'completed' ? 'var(--green)' : s === 'running' ? 'var(--accent)' : 'var(--red)';
-
-  return (
-    <>
-      {runStats && (
-        <div className="ps-section">
-          <div className="pi-metric-grid">
-            <OverviewMetric label="Avg Duration" value={runStats.avg_duration > 0 ? fmtDuration(runStats.avg_duration) : '—'} hint="per run" />
-            <OverviewMetric label="Success" value={`${Math.round(runStats.success_rate * 100)}%`} hint="completion" tone={runStats.success_rate >= 0.9 ? 'green' : 'amber'} />
-            <OverviewMetric label="Avg Stored" value={fmt(Math.round(runStats.avg_stored))} hint="per run" />
-            <OverviewMetric label="Total Runs" value={fmt(runStats.total)} hint="all time" />
-          </div>
-        </div>
-      )}
-      <div className="ps-section">
-        <div className="ps-section-title">Run History</div>
-        <div className="pi-history-list">
-          {runs.map((run) => {
-            const isExpanded = expanded === run.run_id;
-            const stored = run.dedup_count - run.filtered_count;
-            return (
-              <div key={run.run_id} className="pi-history-card">
-                <div className="pi-history-card-header" onClick={() => setExpanded(isExpanded ? null : run.run_id)}>
-                  <span className="pi-history-dot" style={{ background: statusColor(run.status) }} />
-                  <span className="pi-history-date">{fmtDate(run.started_at)}</span>
-                  <span className="pi-history-sep">·</span>
-                  <span className="pi-history-duration">{run.elapsed ? fmtDuration(run.elapsed) : '—'}</span>
-                  <span className="pi-history-sep">·</span>
-                  <span className="pi-history-stored">{stored} stored</span>
-                  <span style={{ marginLeft: 'auto' }}>{isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</span>
-                </div>
-                {isExpanded && (
-                  <div className="pi-history-detail">
-                    <div className="pi-history-funnel">
-                      <span>Raw {fmt(run.raw_count)}</span>
-                      <span>→</span>
-                      <span>Dedup {fmt(run.dedup_count)}</span>
-                      <span>→</span>
-                      <span>Filtered {fmt(run.filtered_count)}</span>
-                      <span>→</span>
-                      <span style={{ color: 'var(--green)', fontWeight: 600 }}>Stored {stored}</span>
-                    </div>
-                    {run.error_count > 0 && (
-                      <div style={{ fontSize: '0.72rem', color: 'var(--red)', marginTop: '4px' }}>
-                        {run.error_count} error{run.error_count !== 1 ? 's' : ''}
-                      </div>
-                    )}
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '4px', fontFamily: 'var(--font-mono)' }}>
-                      {run.run_id}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        {pages > 1 && (
-          <div className="pi-history-pagination">
-            <button className="pe-btn" onClick={() => onPageChange(page - 1)} disabled={page <= 1}>Prev</button>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{page} / {pages}</span>
-            <button className="pe-btn" onClick={() => onPageChange(page + 1)} disabled={page >= pages}>Next</button>
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-function PipelineInspector({
-  selectedNode,
-  inspectorTab,
-  onTabChange,
-  onClearSelection,
-  config,
-  stats,
-  qaStatus,
-  live,
-  events,
-  sourceStats,
-  onConfigChange,
-  activeRun,
-  consoleLines,
-  historyRuns,
-  historyStats,
-  historyPage,
-  historyPages,
-  historyLoading,
-  onHistoryPageChange,
-}: {
-  selectedNode: { id: string; type: string } | null;
-  inspectorTab: InspectorTab;
-  onTabChange: (tab: InspectorTab) => void;
-  onClearSelection: () => void;
-  config: ScraperConfig;
-  stats: PipelineStats | null;
-  qaStatus: QALlmReviewStatus | null;
-  live: LiveStatus;
-  events: PipelineEvent[];
-  sourceStats: SourceRollupStats;
-  onConfigChange: (patch: Partial<ScraperConfig>) => void;
-  activeRun: any;
-  consoleLines: string;
-  historyRuns: RunSummary[];
-  historyStats: { avg_duration: number; success_rate: number; avg_stored: number; total: number } | null;
-  historyPage: number;
-  historyPages: number;
-  historyLoading: boolean;
-  onHistoryPageChange: (p: number) => void;
-}) {
-  const tabs: InspectorTab[] = selectedNode?.type === 'lane'
-    ? ['overview', 'activity']
-    : selectedNode
-      ? ['overview', 'configure', 'activity']
-      : ['overview', 'console', 'history', 'activity'];
-  const title = getNodeDisplayName(selectedNode);
-  const subtitle = selectedNode ? 'Selected node context and controls' : 'Live summary and recent activity';
-
-  return (
-    <div className="pipeline-sidebar pipeline-inspector">
-      <div className="ps-header">
-        <div>
-          <div className="ps-header-title">{title}</div>
-          <div className="pi-header-subtitle">{subtitle}</div>
-        </div>
-        {selectedNode ? (
-          <button className="ps-close" onClick={onClearSelection}><X size={16} /></button>
-        ) : null}
-      </div>
-
-      <div className="pi-tab-row">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            className={`pi-tab${inspectorTab === tab ? ' pi-tab-active' : ''}`}
-            onClick={() => onTabChange(tab)}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      <div className="ps-body">
-        {inspectorTab === 'overview' ? (
-          selectedNode?.type === 'lane' ? (
-            selectedNode.id === 'lane-sources' ? <SourcesLanePanel /> :
-            selectedNode.id === 'lane-core' ? <IngestionLanePanel /> :
-            selectedNode.id === 'lane-tailor' ? <TailoringLanePanel /> : null
-          ) : selectedNode ? (
-            <SelectedOverviewPanel
-              selectedNode={selectedNode}
-              config={config}
-              stats={stats}
-              live={live}
-              qaStatus={qaStatus}
-              sourceStats={sourceStats}
-            />
-          ) : (
-            <GlobalOverviewPanel stats={stats} live={live} events={events} />
-          )
-        ) : null}
-
-        {inspectorTab === 'configure' && selectedNode ? (
-          <div className="pi-embedded">
-            <ConfigPanel
-              nodeId={selectedNode.id}
-              nodeType={selectedNode.type}
-              config={config}
-              stats={stats}
-              qaStatus={qaStatus}
-              live={live}
-              onChange={onConfigChange}
-              onClose={onClearSelection}
-            />
-          </div>
-        ) : null}
-
-        {inspectorTab === 'console' && !selectedNode ? (
-          <InspectorConsolePanel live={live} activeRun={activeRun} consoleLines={consoleLines} />
-        ) : null}
-
-        {inspectorTab === 'history' && !selectedNode ? (
-          <InspectorHistoryPanel
-            runs={historyRuns}
-            stats={historyStats}
-            page={historyPage}
-            pages={historyPages}
-            loading={historyLoading}
-            onPageChange={onHistoryPageChange}
-          />
-        ) : null}
-
-        {inspectorTab === 'activity' ? (
-          <InspectorActivityPanel selectedNode={selectedNode} live={live} qaStatus={qaStatus} events={events} />
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Layout helpers — DAG topology
-// ---------------------------------------------------------------------------
-// Sources fan-in left column
-const SRC_X = 40;
-const SRC_Y = 80;
-const SRC_GAP = 66;
-const SRC_LANE_W = 230;
-
-// Ingestion stages — horizontal row
-const STAGE_X = 330;
-const STAGE_Y = 220;
-const STAGE_GAP = 280;
-
-// Results DB — hub node right of stages
-const DB_GAP = 80;
-
-// QA Review — below Results DB
-const QA_DROP = 130;
-
-// Tailoring — S-curve snake (flows right-to-left)
-const TAILOR_GAP = 270;
+// ─── Layout ──────────────────────────────────────────────────────────
+const COL_SOURCES = 40;
+const COL_INGEST  = 330;
+const COL_REVIEW  = 660;
+const COL_TAILOR_START = 980;
+const ROW_Y0 = 120;
+const ROW_GAP = 84;
+const TAILOR_GAP = 210;
 
 function buildNodes(
   config: ScraperConfig,
@@ -1832,194 +412,125 @@ function buildNodes(
   live: LiveStatus,
   sourceStats: SourceRollupStats,
   onSelect: (id: string, type: string) => void,
-  onToggleSource: (id: string) => void,
 ): Node[] {
   const nodes: Node[] = [];
   const inv = stats?.inventory;
 
-  // ── Computed positions ──
-  const stageCount = config.pipeline_order.length;
-  const dbX = STAGE_X + stageCount * STAGE_GAP + DB_GAP;
-  const dbY = STAGE_Y;
-  const qaX = dbX;
-  const qaY = dbY + QA_DROP;
+  const renderedStages = config.pipeline_order.filter((id) => STAGE_DEFS.some((s) => s.id === id));
 
-  // Tailoring flows right-to-left from QA Review
-  const tailorY = qaY + 160;
-
-  const srcLaneH = SRC_GAP * (SOURCE_DEFS.length - 1) + 140;
-  const coreLaneW = dbX - STAGE_X + 240;
-  const coreLaneH = qaY - STAGE_Y + 140;
-
-  const tailorLaneW = (TAILOR_STAGE_DEFS.length - 1) * TAILOR_GAP + 240;
-  const tailorLaneX = dbX - (TAILOR_STAGE_DEFS.length - 1) * TAILOR_GAP - 20;
-  const tailorLaneH = 140;
-
-  // ── Swimlanes ──
+  // Phase headers
+  const headerY = 40;
   nodes.push(
-    {
-      id: 'lane-sources',
-      type: 'swimlane',
-      position: { x: SRC_X - 24, y: SRC_Y - 64 },
-      data: { label: 'Sources', subtitle: 'Search providers & board crawlers', tone: 'source', active: live.scrapeRunning, onSelect: () => onSelect('lane-sources', 'lane') },
-      style: { width: SRC_LANE_W, height: srcLaneH },
-      draggable: false, selectable: false, focusable: false,
-    },
-    {
-      id: 'lane-core',
-      type: 'swimlane',
-      position: { x: STAGE_X - 24, y: STAGE_Y - 64 },
-      data: { label: 'Ingestion & QA', subtitle: 'Process, persist, review', tone: 'stage', active: live.scrapeRunning || live.qaReviewRunning, onSelect: () => onSelect('lane-core', 'lane') },
-      style: { width: coreLaneW, height: coreLaneH },
-      draggable: false, selectable: false, focusable: false,
-    },
-    {
-      id: 'lane-tailor',
-      type: 'swimlane',
-      position: { x: tailorLaneX, y: tailorY - 64 },
-      data: { label: 'Tailoring', subtitle: 'LLM generation → PDF compilation', tone: 'tailor', active: live.tailoringRunning, onSelect: () => onSelect('lane-tailor', 'lane') },
-      style: { width: tailorLaneW, height: tailorLaneH },
-      draggable: false, selectable: false, focusable: false,
-    },
+    { id: 'phase-discover', type: 'phaseLabel', position: { x: COL_SOURCES, y: headerY },
+      data: { label: 'Discover', count: `${SOURCE_DEFS.length} sources`, accent: 'var(--accent)', active: live.scrapeRunning },
+      draggable: false, selectable: false, focusable: false },
+    { id: 'phase-ingest', type: 'phaseLabel', position: { x: COL_INGEST, y: headerY },
+      data: { label: 'Ingest', count: `${renderedStages.length} stages`, accent: 'var(--purple)', active: live.scrapeRunning },
+      draggable: false, selectable: false, focusable: false },
+    { id: 'phase-review', type: 'phaseLabel', position: { x: COL_REVIEW, y: headerY },
+      data: { label: 'Review', count: inv ? `${fmt(inv.qa_pending)} pending` : 'QA + LLM', accent: 'var(--cyan)', active: live.qaReviewRunning },
+      draggable: false, selectable: false, focusable: false },
+    { id: 'phase-tailor', type: 'phaseLabel', position: { x: COL_TAILOR_START, y: headerY },
+      data: { label: 'Tailor', count: `${TAILOR_STAGE_DEFS.length} steps`, accent: 'var(--orange)', active: live.tailoringRunning },
+      draggable: false, selectable: false, focusable: false },
   );
 
-  // ── Source nodes ──
+  // Sources column
   SOURCE_DEFS.forEach((src, i) => {
     let count = 0;
-    let countLabel = 'items';
     let enabled = true;
-
-    if (src.id === 'searxng') {
-      count = config.queries.length;
-      countLabel = 'queries';
-      enabled = config.searxng.enabled;
-    } else if (src.id === 'usajobs') {
-      count = config.usajobs.keywords.length;
-      countLabel = 'keywords';
-      enabled = config.usajobs.enabled;
-    } else {
-      const boards = config.boards.filter((board) => board.board_type === src.id);
+    if (src.id === 'searxng') { count = config.queries.length; enabled = config.searxng.enabled; }
+    else if (src.id === 'usajobs') { count = config.usajobs.keywords.length; enabled = config.usajobs.enabled; }
+    else {
+      const boards = config.boards.filter((b) => b.board_type === src.id);
       count = boards.length;
-      countLabel = 'boards';
-      enabled = boards.some((board) => board.enabled);
+      enabled = boards.some((b) => b.enabled);
     }
-
     const Icon = src.icon;
     nodes.push({
       id: src.id,
       type: 'source',
-      position: { x: SRC_X, y: SRC_Y + i * SRC_GAP },
+      position: { x: COL_SOURCES, y: ROW_Y0 + i * ROW_GAP },
       data: {
-        label: src.label,
-        iconEl: <Icon size={16} />,
-        count,
-        countLabel,
-        enabled,
-        active: live.scrapeRunning && enabled,
+        label: src.label, iconEl: <Icon size={15} />, count, countLabel: src.countLabel,
+        enabled, active: live.scrapeRunning && enabled,
         stat: sourceStats[src.id as keyof SourceRollupStats] ?? 0,
         onSelect: () => onSelect(src.id, 'source'),
-        onToggle: () => onToggleSource(src.id),
       },
     });
   });
 
-  // ── Pipeline stages (horizontal) ──
-  config.pipeline_order.forEach((stageId, i) => {
-    const def = STAGE_DEFS.find((stage) => stage.id === stageId);
+  // Ingest column (only stages with defs — skip unknown like llm_relevance)
+  renderedStages.forEach((stageId, i) => {
+    const def = STAGE_DEFS.find((s) => s.id === stageId);
     if (!def) return;
     const Icon = def.icon;
-
     let passCount: number | null = null;
     let dropCount: number | null = null;
     if (stats) {
-      if (stageId === 'dedup') {
-        dropCount = stats.dedup_dropped;
-        passCount = stats.raw_count - stats.dedup_dropped;
-      } else if (stageId === 'hard_filter') {
-        dropCount = stats.filter_rejected;
-      } else if (stageId === 'storage') {
-        passCount = stats.stored;
-      }
+      if (stageId === 'dedup') { dropCount = stats.dedup_dropped; passCount = stats.raw_count - stats.dedup_dropped; }
+      else if (stageId === 'hard_filter') { dropCount = stats.filter_rejected; }
+      else if (stageId === 'storage') { passCount = stats.stored; }
     }
-
     nodes.push({
       id: stageId,
       type: 'stage',
-      position: { x: STAGE_X + i * STAGE_GAP, y: STAGE_Y },
+      position: { x: COL_INGEST, y: ROW_Y0 + i * ROW_GAP },
       data: {
-        label: def.label,
-        desc: def.desc,
-        iconEl: <Icon size={16} />,
-        order: i + 1,
-        passCount,
-        dropCount,
-        active: live.scrapeRunning,
+        label: def.label, desc: def.desc, iconEl: <Icon size={15} />,
+        order: i + 1, passCount, dropCount, active: live.scrapeRunning,
         onSelect: () => onSelect(stageId, 'stage'),
       },
     });
   });
 
-  // ── Results DB — hub ──
+  // Review column — DB + QA
   nodes.push({
     id: 'output',
     type: 'dbOutput',
-    position: { x: dbX, y: dbY },
-    data: {
-      inventory: inv ?? null,
-      active: live.scrapeRunning || live.qaReviewRunning,
-      onSelect: () => onSelect('output', 'dbOutput'),
-    },
+    position: { x: COL_REVIEW, y: ROW_Y0 + ROW_GAP * 0.5 },
+    data: { inventory: inv ?? null, active: live.scrapeRunning, onSelect: () => onSelect('output', 'dbOutput') },
   });
-
-  // ── QA LLM Review — below DB ──
   nodes.push({
     id: 'qaReview',
     type: 'qaReview',
-    position: { x: qaX, y: qaY },
+    position: { x: COL_REVIEW, y: ROW_Y0 + ROW_GAP * 2 },
     data: {
-      running: live.qaReviewRunning,
-      model: live.qaReviewModel ?? null,
-      pending: inv?.qa_pending ?? 0,
-      passed: inv?.qa_approved ?? 0,
-      failed: inv?.qa_rejected ?? 0,
+      running: live.qaReviewRunning, model: live.qaReviewModel,
+      pending: inv?.qa_pending ?? 0, approved: inv?.qa_approved ?? 0, rejected: inv?.qa_rejected ?? 0,
       progress: live.qaReviewProgress,
       onSelect: () => onSelect('qaReview', 'qaReview'),
     },
   });
 
-  // ── Tailoring — S-curve snake (right to left) ──
-  const tailorPositions: { x: number; y: number; handleIn: Position; handleOut: Position }[] = TAILOR_STAGE_DEFS.map((_, i) => ({
-    x: dbX - i * TAILOR_GAP,
-    y: tailorY,
-    handleIn: i === 0 ? Position.Top : Position.Right,
-    handleOut: Position.Left,
-  }));
-
+  // Tailor — serpentine S-curve:
+  //   row 0: analysis(col0) → strategy(col1) → resume(col2)  (flows right)
+  //   row 1: compile(col0) ← validate(col1) ← cover(col2)    (flows left)
+  //   wrap:  resume → cover (top-right to bottom-right)
+  const tailorRowY = [ROW_Y0 + ROW_GAP * 0.5, ROW_Y0 + ROW_GAP * 2];
   TAILOR_STAGE_DEFS.forEach((def, i) => {
     const Icon = def.icon;
-    const isFirst = i === 0;
+    const row = i < 3 ? 0 : 1;
+    const col = row === 0 ? i : (5 - i);
+    const x = COL_TAILOR_START + col * TAILOR_GAP;
+    const y = tailorRowY[row];
     const isLast = i === TAILOR_STAGE_DEFS.length - 1;
-    const pos = tailorPositions[i];
-
+    const isFirst = i === 0;
+    const isWrapSource = i === 2;   // resume: flows down to cover
+    const isWrapTarget = i === 3;   // cover: receives from above
+    const handleIn = isWrapTarget ? Position.Top : (row === 0 ? Position.Left : Position.Right);
+    const handleOut = isWrapSource ? Position.Bottom : (row === 0 ? Position.Right : Position.Left);
     nodes.push({
       id: def.id,
       type: 'tailorStage',
-      position: { x: pos.x, y: pos.y },
+      position: { x, y },
       data: {
-        label: def.label,
-        desc: def.desc,
-        iconEl: <Icon size={14} />,
-        order: i + 1,
-        isFirst,
-        isLast,
-        handleIn: pos.handleIn,
-        handleOut: pos.handleOut,
-        entryActive: live.tailoringRunning && isFirst,
+        label: def.label, desc: def.desc, iconEl: <Icon size={14} />, llm: def.llm,
+        order: i + 1, isFirst, isLast,
+        handleIn, handleOut,
         active: live.tailoringRunning,
-        running: live.tailoringRunning,
-        job: live.tailoringJob,
         queue: live.tailoringQueue,
-        approved: isFirst ? (inv?.qa_approved ?? 0) : null,
+        job: live.tailoringJob,
         onSelect: () => onSelect(def.id, 'tailorStage'),
       },
     });
@@ -2031,153 +542,731 @@ function buildNodes(
 function buildEdges(config: ScraperConfig, live: LiveStatus): Edge[] {
   const edges: Edge[] = [];
   const firstStage = config.pipeline_order[0];
-  const lastStage = config.pipeline_order[config.pipeline_order.length - 1];
-  const labelBaseStyle = {
-    fill: 'var(--text)',
-    fontSize: 12,
-    fontWeight: 500,
-    fontFamily: 'var(--font-mono)',
-  };
-  const labelBgStyle = {
-    fill: 'var(--bg)',
-    stroke: 'var(--border)',
-    strokeWidth: 1,
-  };
+  const lastStage  = config.pipeline_order[config.pipeline_order.length - 1];
 
-  const pushEdge = ({
-    id,
-    source,
-    target,
-    sourceHandle,
-    targetHandle,
-    label,
-    active,
-    tone,
-  }: {
-    id: string;
-    source: string;
-    target: string;
-    sourceHandle?: string;
-    targetHandle?: string;
-    label?: string;
-    active: boolean;
-    tone: 'source' | 'stage' | 'output' | 'qa' | 'tailor';
+  const labelStyle = { fill: 'var(--text-secondary)', fontSize: 10, fontFamily: 'var(--font-mono)', letterSpacing: 0 };
+  const labelBgStyle = { fill: 'var(--bg)', stroke: 'var(--border)', strokeWidth: 1 };
+
+  const add = (o: {
+    id: string; source: string; target: string;
+    sourceHandle?: string; targetHandle?: string;
+    label?: string; active: boolean; tone: string;
   }) => {
     edges.push({
-      id,
-      source,
-      target,
-      sourceHandle,
-      targetHandle,
+      id: o.id, source: o.source, target: o.target,
+      sourceHandle: o.sourceHandle, targetHandle: o.targetHandle,
       type: 'smoothstep',
-      animated: active,
-      className: `pn-edge ${active ? 'pn-edge-active' : 'pn-edge-idle'} pn-edge-${tone}`,
-      style: { strokeWidth: active ? 2.4 : 1.8 },
-      ...(label
-        ? {
-          label,
-          labelStyle: labelBaseStyle,
-          labelBgStyle,
-          labelBgPadding: [6, 3] as [number, number],
-          labelBgBorderRadius: 4,
-        }
-        : {}),
+      animated: o.active,
+      className: `pe-edge pe-edge-${o.tone}${o.active ? ' is-active' : ' is-idle'}`,
+      style: { strokeWidth: o.active ? 2.2 : 1.5 },
+      ...(o.label ? { label: o.label, labelStyle, labelBgStyle, labelBgPadding: [6, 3] as [number, number], labelBgBorderRadius: 4 } : {}),
     });
   };
 
-  // Sources → first pipeline stage (fan-in)
-  SOURCE_DEFS.forEach((src) => {
-    pushEdge({
-      id: `${src.id}->${firstStage}`,
-      source: src.id,
-      target: firstStage,
-      active: live.scrapeRunning,
-      tone: 'source',
-    });
-  });
+  SOURCE_DEFS.forEach((src) => add({ id: `${src.id}->${firstStage}`, source: src.id, target: firstStage, active: live.scrapeRunning, tone: 'source' }));
 
-  // Pipeline stages chained (horizontal)
   for (let i = 0; i < config.pipeline_order.length - 1; i++) {
-    pushEdge({
-      id: `${config.pipeline_order[i]}->${config.pipeline_order[i + 1]}`,
-      source: config.pipeline_order[i],
-      target: config.pipeline_order[i + 1],
-      active: live.scrapeRunning,
-      tone: 'stage',
-    });
+    add({ id: `${config.pipeline_order[i]}->${config.pipeline_order[i + 1]}`,
+      source: config.pipeline_order[i], target: config.pipeline_order[i + 1],
+      active: live.scrapeRunning, tone: 'stage' });
   }
 
-  // Last stage → Results DB
-  pushEdge({
-    id: `${lastStage}->output`,
-    source: lastStage,
-    target: 'output',
-    active: live.scrapeRunning,
-    tone: 'output',
-  });
+  add({ id: `${lastStage}->output`, source: lastStage, target: 'output', active: live.scrapeRunning, tone: 'output', label: 'stored' });
+  add({ id: 'output->qaReview', source: 'output', target: 'qaReview', active: live.qaReviewRunning, tone: 'qa', label: 'qa_pending' });
+  add({ id: 'qaReview->tailor_analysis', source: 'qaReview', target: 'tailor_analysis', active: live.tailoringRunning, tone: 'tailor', label: 'qa_approved' });
 
-  // Results DB → QA Review (drops down)
-  pushEdge({
-    id: 'output->qaReview',
-    source: 'output',
-    target: 'qaReview',
-    sourceHandle: 'bottom',
-    targetHandle: 'top',
-    label: 'qa_pending',
-    active: live.qaReviewRunning || live.tailoringRunning,
-    tone: 'qa',
-  });
-
-  // QA Review → Analysis (drops down-left to tailoring)
-  pushEdge({
-    id: 'qaReview->tailor_analysis',
-    source: 'qaReview',
-    target: 'tailor_analysis',
-    sourceHandle: 'bottom',
-    targetHandle: 'target',
-    label: 'qa_approved',
-    active: live.tailoringRunning,
-    tone: 'tailor',
-  });
-
-  // Tailoring chain — serpentine edges
-  const tailorIds = TAILOR_STAGE_DEFS.map(s => s.id);
+  const tailorIds = TAILOR_STAGE_DEFS.map((t) => t.id);
   for (let i = 0; i < tailorIds.length - 1; i++) {
-    pushEdge({
+    add({
       id: `${tailorIds[i]}->${tailorIds[i + 1]}`,
-      source: tailorIds[i],
-      target: tailorIds[i + 1],
-      sourceHandle: 'source',
-      targetHandle: 'target',
-      active: live.tailoringRunning,
-      tone: 'tailor',
+      source: tailorIds[i], target: tailorIds[i + 1],
+      active: live.tailoringRunning, tone: 'tailor',
     });
   }
 
   return edges;
 }
 
-function buildLiveStatus(scrape: any, qa: any, tailor: any): LiveStatus {
-  return {
-    scrapeRunning: scrape?.running ?? false,
-    scrapeStartedAt: scrape?.started_at ?? null,
-    scrapeLogTail: scrape?.log_tail ?? '',
-    qaReviewRunning: qa?.running ?? false,
-    qaReviewModel: qa?.resolved_model ?? null,
-    qaReviewProgress: qa?.summary
-      ? { completed: qa.summary.completed, total: qa.summary.total }
-      : null,
-    qaReviewItems: qa?.items ?? [],
-    tailoringRunning: tailor?.running ?? false,
-    tailoringJob: tailor?.job?.title ?? tailor?.active_item?.title ?? null,
-    tailoringQueue: tailor?.queue?.length ?? 0,
-    tailoringLogTail: tailor?.log_tail ?? '',
-  };
+// ─── Inspector ───────────────────────────────────────────────────────
+function Inspector({
+  selectedNode, onClear, config, stats, qaStatus, live, events, sourceStats, onConfigChange,
+}: {
+  selectedNode: { id: string; type: string } | null;
+  onClear: () => void;
+  config: ScraperConfig;
+  stats: PipelineStats | null;
+  qaStatus: QALlmReviewStatus | null;
+  live: LiveStatus;
+  events: PipelineEvent[];
+  sourceStats: SourceRollupStats;
+  onConfigChange: (patch: Partial<ScraperConfig>) => void;
+}) {
+  const title = nodeTitle(selectedNode);
+  const subtitle = nodeSubtitle(selectedNode);
+
+  return (
+    <aside className="pe-inspector">
+      <div className="pe-inspector-head">
+        <div>
+          <div className="pe-inspector-eyebrow">{selectedNode ? selectedNode.type.replace('dbOutput', 'output').replace('qaReview', 'review').replace('tailorStage', 'tailor stage') : 'overview'}</div>
+          <div className="pe-inspector-title">{title}</div>
+          <div className="pe-inspector-sub">{subtitle}</div>
+        </div>
+        {selectedNode && (
+          <button className="pe-inspector-close" onClick={onClear} aria-label="Clear selection"><X size={14} /></button>
+        )}
+      </div>
+
+      <div className="pe-inspector-body">
+        {!selectedNode && <OverviewSection stats={stats} live={live} events={events} qaStatus={qaStatus} />}
+        {selectedNode?.type === 'source' && (
+          <SourceInspector sourceId={selectedNode.id} config={config} sourceStats={sourceStats} events={events} onConfigChange={onConfigChange} />
+        )}
+        {selectedNode?.type === 'stage' && (
+          <StageInspector stageId={selectedNode.id} config={config} stats={stats} events={events} onConfigChange={onConfigChange} />
+        )}
+        {selectedNode?.type === 'dbOutput' && <DbOutputInspector stats={stats} events={events} />}
+        {selectedNode?.type === 'qaReview' && <QAInspector qaStatus={qaStatus} live={live} events={events} />}
+        {selectedNode?.type === 'tailorStage' && <TailorStageInspector stageId={selectedNode.id} live={live} events={events} />}
+      </div>
+    </aside>
+  );
 }
 
-// ---------------------------------------------------------------------------
-// Main View
-// ---------------------------------------------------------------------------
+// ─── Overview (no selection) ─────────────────────────────────────────
+function OverviewSection({ stats, live, events, qaStatus }: {
+  stats: PipelineStats | null;
+  live: LiveStatus;
+  events: PipelineEvent[];
+  qaStatus: QALlmReviewStatus | null;
+}) {
+  const inv = stats?.inventory;
+  const total = inv?.total ?? 0;
+  const pending = inv?.qa_pending ?? 0;
+  const approved = inv?.qa_approved ?? 0;
+  const rejected = inv?.qa_rejected ?? 0;
+  const scrapeRejected = inv?.rejected ?? 0;
+
+  const pct = (v: number) => total > 0 ? (v / total) * 100 : 0;
+
+  return (
+    <>
+      <SectionHead>Phase state</SectionHead>
+      <div className="pe-phase-rows">
+        <PhaseRow label="Discover" state={live.scrapeRunning ? 'running' : 'idle'}
+          detail={live.scrapeRunning && live.scrapeStartedAt ? `started ${timeAgo(live.scrapeStartedAt)}` : 'idle'}
+          color="var(--accent)" />
+        <PhaseRow label="Review" state={live.qaReviewRunning ? 'running' : 'idle'}
+          detail={live.qaReviewRunning && live.qaReviewProgress
+            ? `${live.qaReviewProgress.completed}/${live.qaReviewProgress.total}`
+            : qaStatus?.resolved_model || 'idle'}
+          color="var(--cyan)" />
+        <PhaseRow label="Tailor" state={live.tailoringRunning ? 'running' : 'idle'}
+          detail={live.tailoringRunning ? (live.tailoringJob || 'generating') : `queue: ${fmt(live.tailoringQueue)}`}
+          color="var(--orange)" />
+      </div>
+
+      <SectionHead>Inventory funnel</SectionHead>
+      <div className="pe-funnel">
+        <FunnelBar label="Total stored" value={total} color="var(--text)" pct={100} total={total} />
+        <FunnelBar label="Pending review" value={pending} color="var(--amber)" pct={pct(pending)} total={total} />
+        <FunnelBar label="QA approved" value={approved} color="var(--green)" pct={pct(approved)} total={total} />
+        <FunnelBar label="QA rejected" value={rejected} color="var(--red)" pct={pct(rejected)} total={total} />
+        {scrapeRejected > 0 && <FunnelBar label="Scraper rejected" value={scrapeRejected} color="var(--text-secondary)" pct={0} total={total} />}
+      </div>
+
+      <SectionHead>Recent activity</SectionHead>
+      <EventList events={events.slice(0, 10)} emptyLabel="No pipeline activity yet" />
+
+      {(live.scrapeRunning && live.scrapeLogTail) && (
+        <>
+          <SectionHead>Scrape log</SectionHead>
+          <LogTail content={live.scrapeLogTail} />
+        </>
+      )}
+      {(live.tailoringRunning && live.tailoringLogTail) && (
+        <>
+          <SectionHead>Tailoring log</SectionHead>
+          <LogTail content={live.tailoringLogTail} />
+        </>
+      )}
+    </>
+  );
+}
+
+function PhaseRow({ label, state, detail, color }: { label: string; state: 'running' | 'idle'; detail: string; color: string }) {
+  return (
+    <div className={`pe-phase-row pe-phase-row-${state}`}>
+      <span className="pe-phase-row-stripe" style={{ background: color }} />
+      <span className="pe-phase-row-label">{label}</span>
+      <span className="pe-phase-row-state">
+        {state === 'running' ? <span className="pe-dot pe-dot-live" style={{ background: color }} /> : <span className="pe-dot pe-dot-idle" />}
+        {state}
+      </span>
+      <span className="pe-phase-row-detail">{detail}</span>
+    </div>
+  );
+}
+
+function FunnelBar({ label, value, color, pct, total }: { label: string; value: number; color: string; pct: number; total: number }) {
+  return (
+    <div className="pe-funnel-bar">
+      <div className="pe-funnel-bar-head">
+        <span>{label}</span>
+        <span className="pe-funnel-bar-val">{fmt(value)} <span className="pe-funnel-bar-pct">{total > 0 ? `${pct.toFixed(0)}%` : ''}</span></span>
+      </div>
+      <div className="pe-funnel-bar-track"><div className="pe-funnel-bar-fill" style={{ width: `${pct}%`, background: color }} /></div>
+    </div>
+  );
+}
+
+// ─── Selection inspectors ────────────────────────────────────────────
+function SourceInspector({ sourceId, config, sourceStats, events, onConfigChange }: {
+  sourceId: string;
+  config: ScraperConfig;
+  sourceStats: SourceRollupStats;
+  events: PipelineEvent[];
+  onConfigChange: (p: Partial<ScraperConfig>) => void;
+}) {
+  const seen = sourceStats[sourceId as keyof SourceRollupStats] ?? 0;
+
+  if (sourceId === 'searxng') {
+    const s = config.searxng;
+    const update = (k: string, v: any) => onConfigChange({ searxng: { ...s, [k]: v } });
+    return (
+      <>
+        <MetricRow items={[
+          { label: 'Queries', value: fmt(config.queries.length) },
+          { label: 'Enabled', value: s.enabled ? 'on' : 'off', tone: s.enabled ? 'green' : 'muted' },
+          { label: 'Last run', value: fmt(seen) },
+        ]} />
+        <SectionHead>SearXNG settings</SectionHead>
+        <LabelInput label="Engines" value={s.engines} onChange={(v) => update('engines', v)} />
+        <LabelInput label="Time range" value={s.time_range} onChange={(v) => update('time_range', v)} />
+        <LabelInput label="Request delay (s)" value={s.request_delay} type="number" step={0.5} onChange={(v) => update('request_delay', Number(v))} />
+        <LabelInput label="Timeout (s)" value={s.timeout} type="number" onChange={(v) => update('timeout', Number(v))} />
+
+        <SectionHead>Queries ({config.queries.length})</SectionHead>
+        <div className="pe-list">
+          {config.queries.map((q, i) => (
+            <div className="pe-list-row" key={i}>
+              <Search size={11} style={{ opacity: .45 }} />
+              <span className="pe-list-row-title">{q.title_phrase}</span>
+              {q.board_site && <span className="pe-list-row-meta">{q.board_site.split('.')[0]}</span>}
+            </div>
+          ))}
+        </div>
+        <ScopedEvents events={events} scopes={['scrape', 'inventory']} />
+      </>
+    );
+  }
+
+  if (sourceId === 'usajobs') {
+    const u = config.usajobs;
+    const update = (k: string, v: any) => onConfigChange({ usajobs: { ...u, [k]: v } });
+    return (
+      <>
+        <MetricRow items={[
+          { label: 'Keywords', value: fmt(u.keywords.length) },
+          { label: 'Enabled', value: u.enabled ? 'on' : 'off', tone: u.enabled ? 'green' : 'muted' },
+          { label: 'Last run', value: fmt(seen) },
+        ]} />
+        <SectionHead>Settings</SectionHead>
+        <LabelInput label="Days lookback" value={u.days} type="number" onChange={(v) => update('days', Number(v))} />
+        <ToggleRow label="Remote only" on={u.remote} onToggle={() => update('remote', !u.remote)} />
+        <SectionHead>Keywords</SectionHead>
+        <TagList items={u.keywords} onUpdate={(v) => update('keywords', v)} />
+        <SectionHead>Series codes</SectionHead>
+        <TagList items={u.series} onUpdate={(v) => update('series', v)} />
+        <ScopedEvents events={events} scopes={['scrape']} />
+      </>
+    );
+  }
+
+  // Board sources (ashby / greenhouse / lever)
+  const boards = config.boards.filter((b) => b.board_type === sourceId);
+  const enabledCount = boards.filter((b) => b.enabled).length;
+  const toggle = (idx: number) => {
+    const next = [...config.boards];
+    const globalIdx = config.boards.findIndex((b) => b.board_type === sourceId && b.company === boards[idx].company);
+    if (globalIdx < 0) return;
+    next[globalIdx] = { ...next[globalIdx], enabled: !next[globalIdx].enabled };
+    onConfigChange({ boards: next });
+  };
+
+  return (
+    <>
+      <MetricRow items={[
+        { label: 'Boards', value: fmt(boards.length) },
+        { label: 'Enabled', value: fmt(enabledCount), tone: enabledCount > 0 ? 'green' : 'muted' },
+        { label: 'Last run', value: fmt(seen) },
+      ]} />
+      <SectionHead>Boards ({boards.length})</SectionHead>
+      <div className="pe-list">
+        {boards.map((b, i) => (
+          <div className={`pe-list-row${!b.enabled ? ' is-off' : ''}`} key={`${b.board_type}-${b.company}-${i}`}>
+            <Toggle on={b.enabled} onToggle={() => toggle(i)} />
+            <span className="pe-list-row-title">{b.company}</span>
+          </div>
+        ))}
+      </div>
+      {sourceId !== 'lever' && (
+        <>
+          <SectionHead>Crawl limits</SectionHead>
+          <LabelInput label="Max per board" value={config.crawl.max_results_per_target} type="number"
+            onChange={(v) => onConfigChange({ crawl: { ...config.crawl, max_results_per_target: Number(v) } })} />
+          <LabelInput label="Request delay (s)" value={config.crawl.request_delay} type="number" step={0.5}
+            onChange={(v) => onConfigChange({ crawl: { ...config.crawl, request_delay: Number(v) } })} />
+        </>
+      )}
+      <ScopedEvents events={events} scopes={['scrape']} />
+    </>
+  );
+}
+
+function StageInspector({ stageId, config, stats, events, onConfigChange }: {
+  stageId: string;
+  config: ScraperConfig;
+  stats: PipelineStats | null;
+  events: PipelineEvent[];
+  onConfigChange: (p: Partial<ScraperConfig>) => void;
+}) {
+  const passCount = stageId === 'dedup' ? Math.max((stats?.raw_count ?? 0) - (stats?.dedup_dropped ?? 0), 0)
+    : stageId === 'storage' ? (stats?.stored ?? 0) : null;
+  const dropCount = stageId === 'dedup' ? (stats?.dedup_dropped ?? 0)
+    : stageId === 'hard_filter' ? (stats?.filter_rejected ?? 0) : null;
+  const order = config.pipeline_order.indexOf(stageId) + 1;
+
+  return (
+    <>
+      <MetricRow items={[
+        { label: 'Order', value: String(order) },
+        { label: 'Pass', value: fmt(passCount), tone: 'green' },
+        { label: 'Drop', value: fmt(dropCount), tone: dropCount ? 'red' : 'muted' },
+      ]} />
+
+      {stageId === 'dedup' && (
+        <>
+          <SectionHead>Deduplication window</SectionHead>
+          <LabelInput label="TTL (days)" value={config.seen_ttl_days} type="number"
+            onChange={(v) => onConfigChange({ seen_ttl_days: Number(v) })} />
+          <div className="pe-hint">URLs older than this re-enter the pipeline.</div>
+        </>
+      )}
+
+      {stageId === 'hard_filter' && (
+        <>
+          <SectionHead>Thresholds</SectionHead>
+          <LabelInput label="Min salary ($k)" value={config.hard_filters.min_salary_k} type="number"
+            onChange={(v) => onConfigChange({ hard_filters: { ...config.hard_filters, min_salary_k: Number(v) } })} />
+          <LabelInput label="Target salary ($k)" value={config.hard_filters.target_salary_k} type="number"
+            onChange={(v) => onConfigChange({ hard_filters: { ...config.hard_filters, target_salary_k: Number(v) } })} />
+          <LabelInput label="Max experience (years)" value={config.filter.max_experience_years} type="number"
+            onChange={(v) => onConfigChange({ filter: { ...config.filter, max_experience_years: Number(v) } })} />
+          <SectionHead>Seniority blocklist</SectionHead>
+          <TagList items={config.hard_filters.title_blocklist}
+            onUpdate={(v) => onConfigChange({ hard_filters: { ...config.hard_filters, title_blocklist: v } })} />
+          <SectionHead>Content blocklist</SectionHead>
+          <TagList items={config.hard_filters.content_blocklist}
+            onUpdate={(v) => onConfigChange({ hard_filters: { ...config.hard_filters, content_blocklist: v } })} />
+          <SectionHead>Domain blocklist</SectionHead>
+          <TagList items={config.hard_filters.domain_blocklist}
+            onUpdate={(v) => onConfigChange({ hard_filters: { ...config.hard_filters, domain_blocklist: v } })} />
+        </>
+      )}
+
+      {(stageId === 'text_extraction' || stageId === 'storage') && (
+        <div className="pe-hint">No configurable parameters for this stage.</div>
+      )}
+
+      <ScopedEvents events={events} scopes={['scrape', 'inventory']} />
+    </>
+  );
+}
+
+function DbOutputInspector({ stats, events }: { stats: PipelineStats | null; events: PipelineEvent[] }) {
+  const inv = stats?.inventory;
+  return (
+    <>
+      <MetricRow items={[
+        { label: 'Total', value: fmt(inv?.total) },
+        { label: 'Pending', value: fmt(inv?.qa_pending), tone: (inv?.qa_pending ?? 0) > 0 ? 'amber' : 'muted' },
+        { label: 'Approved', value: fmt(inv?.qa_approved), tone: 'green' },
+      ]} />
+      <MetricRow items={[
+        { label: 'QA reject', value: fmt(inv?.qa_rejected), tone: (inv?.qa_rejected ?? 0) > 0 ? 'red' : 'muted' },
+        { label: 'Scraper reject', value: fmt(inv?.rejected), tone: 'muted' },
+      ]} />
+      {stats?.per_source && Object.keys(stats.per_source).length > 0 && (
+        <>
+          <SectionHead>Last run · per source</SectionHead>
+          <div className="pe-list">
+            {Object.entries(stats.per_source).map(([src, cnt]) => (
+              <div className="pe-list-row" key={src}>
+                <span className="pe-dot pe-dot-idle" style={{ background: 'var(--accent)' }} />
+                <span className="pe-list-row-title">{src}</span>
+                <span className="pe-list-row-meta">{fmt(cnt)}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {stats?.per_rejection && Object.keys(stats.per_rejection).length > 0 && (
+        <>
+          <SectionHead>Last run · rejections</SectionHead>
+          <div className="pe-list">
+            {Object.entries(stats.per_rejection).map(([stage, cnt]) => (
+              <div className="pe-list-row" key={stage}>
+                <span className="pe-dot pe-dot-idle" style={{ background: 'var(--red)' }} />
+                <span className="pe-list-row-title">{stage}</span>
+                <span className="pe-list-row-meta">{fmt(cnt)}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      <ScopedEvents events={events} scopes={['inventory', 'scrape']} />
+    </>
+  );
+}
+
+function QAInspector({ qaStatus, live, events }: {
+  qaStatus: QALlmReviewStatus | null;
+  live: LiveStatus;
+  events: PipelineEvent[];
+}) {
+  const s = qaStatus?.summary;
+  const items = (qaStatus?.items || []).filter((i) => i.status !== 'queued').slice(0, 8);
+  return (
+    <>
+      <MetricRow items={[
+        { label: 'State', value: qaStatus?.running ? 'Running' : 'Idle', tone: qaStatus?.running ? 'accent' : 'muted' },
+        { label: 'Progress', value: live.qaReviewProgress ? `${live.qaReviewProgress.completed}/${live.qaReviewProgress.total}` : '—' },
+      ]} />
+      {qaStatus?.resolved_model && (
+        <div className="pe-tag-line">
+          <Brain size={11} style={{ opacity: .5 }} />
+          <span className="pe-tag-line-mono">{qaStatus.resolved_model}</span>
+        </div>
+      )}
+      {s && s.total > 0 && (
+        <div className="pe-mini-pills">
+          <span className="pe-mini-pill pe-mini-pill-green">{s.passed} pass</span>
+          <span className="pe-mini-pill pe-mini-pill-red">{s.failed} fail</span>
+          {s.skipped > 0 && <span className="pe-mini-pill">{s.skipped} skip</span>}
+          {s.errors > 0 && <span className="pe-mini-pill pe-mini-pill-red">{s.errors} err</span>}
+          {s.queued > 0 && <span className="pe-mini-pill">{s.queued} queued</span>}
+        </div>
+      )}
+      {items.length > 0 && (
+        <>
+          <SectionHead>Live results</SectionHead>
+          <div className="pe-list">
+            {items.map((item) => (
+              <div key={item.job_id} className={`pe-qa-result pe-qa-${item.status}`}>
+                <div className="pe-qa-result-title">{item.title || `Job #${item.job_id}`}</div>
+                {item.reason && <div className="pe-qa-result-reason">{item.reason}</div>}
+                {(item.confidence != null) && (
+                  <div className="pe-qa-result-conf">confidence {(item.confidence * 100).toFixed(0)}%</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      <SectionHead>How it works</SectionHead>
+      <div className="pe-hint pe-hint-block">
+        Fit review: structured JSON (pass · reason · confidence · matches · gaps) from the active LLM against the candidate profile.
+        On pass, a second polish call restructures the JD into a tailored brief.
+      </div>
+      <ScopedEvents events={events} scopes={['qa', 'inventory']} />
+    </>
+  );
+}
+
+function TailorStageInspector({ stageId, live, events }: {
+  stageId: string;
+  live: LiveStatus;
+  events: PipelineEvent[];
+}) {
+  const def = TAILOR_STAGE_DEFS.find((s) => s.id === stageId);
+  return (
+    <>
+      <MetricRow items={[
+        { label: 'State', value: live.tailoringRunning ? 'Running' : 'Idle', tone: live.tailoringRunning ? 'accent' : 'muted' },
+        { label: 'Queue', value: fmt(live.tailoringQueue) },
+        { label: 'Kind', value: def?.llm ? 'LLM' : 'mechanical', tone: def?.llm ? 'accent' : 'muted' },
+      ]} />
+      {live.tailoringJob && (
+        <div className="pe-tag-line"><Target size={11} style={{ opacity: .5 }} /><span className="pe-tag-line-mono">{live.tailoringJob}</span></div>
+      )}
+      <SectionHead>Role</SectionHead>
+      <div className="pe-hint pe-hint-block">{def?.desc}</div>
+      {live.tailoringRunning && live.tailoringLogTail && (
+        <>
+          <SectionHead>Live output</SectionHead>
+          <LogTail content={live.tailoringLogTail} />
+        </>
+      )}
+      <ScopedEvents events={events} scopes={['tailor', 'qa']} />
+    </>
+  );
+}
+
+// ─── Presentational helpers ──────────────────────────────────────────
+function SectionHead({ children }: { children: React.ReactNode }) {
+  return <div className="pe-section-head">{children}</div>;
+}
+
+function MetricRow({ items }: { items: { label: string; value: string; tone?: 'green' | 'red' | 'amber' | 'accent' | 'muted' }[] }) {
+  return (
+    <div className="pe-metric-row">
+      {items.map((it, i) => (
+        <div key={i} className={`pe-metric pe-metric-${it.tone ?? 'muted'}`}>
+          <div className="pe-metric-label">{it.label}</div>
+          <div className="pe-metric-value">{it.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LabelInput({ label, value, onChange, type = 'text', step }: {
+  label: string; value: string | number; onChange: (v: string) => void; type?: 'text' | 'number'; step?: number;
+}) {
+  return (
+    <label className="pe-input">
+      <span>{label}</span>
+      <input type={type} step={step} value={value} onChange={(e) => onChange(e.target.value)} />
+    </label>
+  );
+}
+
+function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return <button className={`pe-toggle${on ? ' is-on' : ''}`} onClick={onToggle} aria-pressed={on} type="button"><span /></button>;
+}
+
+function ToggleRow({ label, on, onToggle }: { label: string; on: boolean; onToggle: () => void }) {
+  return (
+    <div className="pe-toggle-row">
+      <span>{label}</span>
+      <Toggle on={on} onToggle={onToggle} />
+    </div>
+  );
+}
+
+function TagList({ items, onUpdate }: { items: string[]; onUpdate: (v: string[]) => void }) {
+  const [draft, setDraft] = useState('');
+  const add = () => {
+    const v = draft.trim();
+    if (!v || items.includes(v)) return;
+    onUpdate([...items, v]);
+    setDraft('');
+  };
+  return (
+    <div className="pe-tags">
+      <div className="pe-tags-row">
+        {items.map((item, i) => (
+          <span key={`${item}-${i}`} className="pe-tag">
+            {item}
+            <button type="button" onClick={() => onUpdate(items.filter((_, j) => j !== i))} aria-label={`remove ${item}`}><X size={10} /></button>
+          </span>
+        ))}
+      </div>
+      <div className="pe-tags-add">
+        <input value={draft} onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+          placeholder="add tag…" />
+        <button type="button" onClick={add}><Plus size={12} /></button>
+      </div>
+    </div>
+  );
+}
+
+function EventList({ events, emptyLabel }: { events: PipelineEvent[]; emptyLabel: string }) {
+  if (events.length === 0) {
+    return <div className="pe-empty"><Activity size={16} /> <span>{emptyLabel}</span></div>;
+  }
+  return (
+    <div className="pe-events">
+      {events.map((ev) => (
+        <div key={ev.id} className={`pe-event pe-event-${ev.tone}`}>
+          <div className="pe-event-head">
+            <span className="pe-event-label">{ev.label}</span>
+            <span className="pe-event-time">{timeSince(ev.createdAt)}</span>
+          </div>
+          {ev.detail && <div className="pe-event-detail">{ev.detail}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ScopedEvents({ events, scopes }: { events: PipelineEvent[]; scopes: EventScope[] }) {
+  const filtered = events.filter((e) => scopes.includes(e.scope)).slice(0, 6);
+  return (
+    <>
+      <SectionHead>Recent activity</SectionHead>
+      <EventList events={filtered} emptyLabel="No recent activity here" />
+    </>
+  );
+}
+
+function LogTail({ content }: { content: string }) {
+  if (!content) return null;
+  return <pre className="pe-log">{content}</pre>;
+}
+
+// ─── Toolbar ─────────────────────────────────────────────────────────
+function Toolbar({
+  live, dirty, saving, refreshing, readyCount, activeRunId,
+  onRefresh, onReset, onSave, onRunScrape, onTerminate, onRunQA, onCancelQA, onRunTailor, onStopTailor,
+  onFit,
+}: {
+  live: LiveStatus; dirty: boolean; saving: boolean; refreshing: boolean; readyCount: number; activeRunId: string | null;
+  onRefresh: () => void; onReset: () => void; onSave: () => void;
+  onRunScrape: () => void; onTerminate: () => void;
+  onRunQA: () => void; onCancelQA: () => void;
+  onRunTailor: () => void; onStopTailor: () => void;
+  onFit: () => void;
+}) {
+  return (
+    <header className="pe-toolbar">
+      <div className="pe-toolbar-brand">
+        <div className="pe-toolbar-eyebrow">TexTailor · orchestration</div>
+        <h1 className="pe-toolbar-title">Pipeline console</h1>
+      </div>
+
+      <div className="pe-toolbar-phases">
+        <PhaseAction
+          label="Discover"
+          color="var(--accent)"
+          running={live.scrapeRunning}
+          detail={live.scrapeRunning && live.scrapeStartedAt ? `running ${timeAgo(live.scrapeStartedAt)}` : 'scrape sources'}
+          onRun={onRunScrape}
+          onStop={onTerminate}
+          stopDisabled={!activeRunId && !live.scrapeRunning}
+          runDisabled={dirty}
+          runTooltip={dirty ? 'Save config first' : undefined}
+        />
+        <PhaseAction
+          label="Review"
+          color="var(--cyan)"
+          running={live.qaReviewRunning}
+          detail={live.qaReviewRunning && live.qaReviewProgress
+            ? `${live.qaReviewProgress.completed}/${live.qaReviewProgress.total}`
+            : 'LLM fit review'}
+          onRun={onRunQA}
+          onStop={onCancelQA}
+        />
+        <PhaseAction
+          label="Tailor"
+          color="var(--orange)"
+          running={live.tailoringRunning}
+          detail={live.tailoringRunning
+            ? (live.tailoringJob || `queue: ${fmt(live.tailoringQueue)}`)
+            : readyCount > 0 ? `${fmt(readyCount)} ready` : 'generate packages'}
+          onRun={onRunTailor}
+          onStop={onStopTailor}
+        />
+      </div>
+
+      <div className="pe-toolbar-utilities">
+        {dirty && (
+          <>
+            <button className="pe-btn" onClick={onReset} disabled={saving}><RotateCcw size={12} /> Reset</button>
+            <button className="pe-btn pe-btn-primary" onClick={onSave} disabled={saving}>
+              <Save size={12} /> {saving ? 'Saving…' : 'Save config'}
+            </button>
+          </>
+        )}
+        <button className="pe-btn" onClick={onFit} title="Fit view">Fit</button>
+        <button className="pe-btn" onClick={onRefresh} disabled={refreshing} title="Refresh">
+          <RefreshCcw size={12} className={refreshing ? 'is-spinning' : ''} />
+        </button>
+      </div>
+    </header>
+  );
+}
+
+function PhaseAction({
+  label, color, running, detail, onRun, onStop, stopDisabled, runDisabled, runTooltip,
+}: {
+  label: string; color: string; running: boolean; detail: string;
+  onRun: () => void; onStop: () => void;
+  stopDisabled?: boolean; runDisabled?: boolean; runTooltip?: string;
+}) {
+  return (
+    <div className={`pe-phase-action${running ? ' is-running' : ''}`} style={{ ['--phase' as any]: color }}>
+      <span className="pe-phase-action-stripe" />
+      <div className="pe-phase-action-copy">
+        <div className="pe-phase-action-label">
+          {running ? <span className="pe-dot pe-dot-live" style={{ background: color }} /> : <span className="pe-dot pe-dot-idle" />}
+          {label}
+        </div>
+        <div className="pe-phase-action-detail">{detail}</div>
+      </div>
+      {running ? (
+        <button className="pe-btn pe-btn-danger" onClick={onStop} disabled={stopDisabled}>
+          <Square size={12} /> Stop
+        </button>
+      ) : (
+        <button className="pe-btn pe-btn-run" onClick={onRun} disabled={runDisabled} title={runTooltip}>
+          <Play size={12} /> Run
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Canvas ──────────────────────────────────────────────────────────
+function Canvas({ nodes, edges, onPaneClick, onNodeDragStop, onFitReady }: {
+  nodes: Node[];
+  edges: Edge[];
+  onPaneClick: () => void;
+  onNodeDragStop: (_: any, node: Node) => void;
+  onFitReady: (fn: () => void) => void;
+}) {
+  const { fitView } = useReactFlow();
+  const fitRef = useRef(fitView);
+  fitRef.current = fitView;
+  useEffect(() => {
+    onFitReady(() => fitRef.current({ padding: 0.12, maxZoom: 0.95 }));
+  }, [onFitReady]);
+
+  return (
+    <ReactFlow
+      nodes={nodes}
+      edges={edges}
+      nodeTypes={nodeTypes}
+      onPaneClick={onPaneClick}
+      onNodeDragStop={onNodeDragStop}
+      fitView
+      fitViewOptions={{ padding: 0.12, maxZoom: 0.95 }}
+      proOptions={{ hideAttribution: true }}
+      minZoom={0.35}
+      maxZoom={1.3}
+      defaultEdgeOptions={{ animated: false }}
+    >
+      <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="var(--border-bright)" />
+      <Controls showInteractive={false} />
+    </ReactFlow>
+  );
+}
+
+// ─── Top-level flow indicator (between columns) ─────────────────────
+function FlowLegend() {
+  return (
+    <div className="pe-flow-legend">
+      <span>Discover</span><ArrowRight size={12} />
+      <span>Ingest</span><ArrowRight size={12} />
+      <span>Review</span><ArrowRight size={12} />
+      <span>Tailor</span>
+    </div>
+  );
+}
+
+// ─── Main view ──────────────────────────────────────────────────────
 export default function PipelineEditorView() {
   const [config, setConfig] = useState<ScraperConfig | null>(null);
   const [origConfig, setOrigConfig] = useState<ScraperConfig | null>(null);
@@ -2185,115 +1274,63 @@ export default function PipelineEditorView() {
   const [qaStatus, setQaStatus] = useState<QALlmReviewStatus | null>(null);
   const [live, setLive] = useState<LiveStatus>(INITIAL_LIVE_STATUS);
   const [selectedNode, setSelectedNode] = useState<{ id: string; type: string } | null>(null);
-  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('overview');
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [lastPollAt, setLastPollAt] = useState<number | null>(null);
   const [events, setEvents] = useState<PipelineEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const snapshotRef = useRef<PipelineSnapshot | null>(null);
-
-  // Run controls state
   const [activeRun, setActiveRun] = useState<any>(null);
-  const [consoleLines, setConsoleLines] = useState('');
+  const snapshotRef = useRef<{ live: LiveStatus; stats: PipelineStats | null } | null>(null);
+  const fitViewRef = useRef<() => void>(() => {});
 
-  // History state (lazy-loaded)
-  const [historyRuns, setHistoryRuns] = useState<RunSummary[]>([]);
-  const [historyStats, setHistoryStats] = useState<{ avg_duration: number; success_rate: number; avg_stored: number; total: number } | null>(null);
-  const [historyPage, setHistoryPage] = useState(1);
-  const [historyPages, setHistoryPages] = useState(1);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const historyLoaded = useRef(false);
-
-  const refreshLiveSnapshot = useCallback(async (manual = false) => {
+  const refreshLive = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
     try {
-      const [nextStats, scrape, qa, tailor] = await Promise.all([
+      const [nextStats, scrape, qa, tailor, run] = await Promise.all([
         api.getScraperPipelineStats().catch(() => null),
         api.getScrapeRunnerStatus().catch(() => null),
         api.getQALlmReviewStatus().catch(() => null),
         api.getTailoringRunnerStatus().catch(() => null),
+        api.getActiveRun().catch(() => null),
       ]);
-
       const nextLive = buildLiveStatus(scrape, qa, tailor);
-      const nextSnapshot = { live: nextLive, stats: nextStats };
-
       setStats(nextStats);
       setQaStatus(qa);
       setLive(nextLive);
-      setLastPollAt(Date.now());
-
-      const freshEvents = buildPipelineEvents(snapshotRef.current, nextSnapshot);
-      if (freshEvents.length > 0) {
-        setEvents((prev) => [...freshEvents.reverse(), ...prev].slice(0, 20));
-      }
-      snapshotRef.current = nextSnapshot;
-    } catch {
-      // Keep existing resilient polling behavior.
-    } finally {
-      if (manual) setRefreshing(false);
-    }
+      setActiveRun(run);
+      const freshEvents = buildPipelineEvents(snapshotRef.current, { live: nextLive, stats: nextStats });
+      if (freshEvents.length > 0) setEvents((prev) => [...freshEvents.reverse(), ...prev].slice(0, 24));
+      snapshotRef.current = { live: nextLive, stats: nextStats };
+    } catch { /* silent */ }
+    finally { if (manual) setRefreshing(false); }
   }, []);
 
   useEffect(() => {
-    let active = true;
+    let alive = true;
     Promise.all([
       api.getScraperConfig(),
       api.getScraperPipelineStats().catch(() => null),
       api.getScrapeRunnerStatus().catch(() => null),
       api.getQALlmReviewStatus().catch(() => null),
       api.getTailoringRunnerStatus().catch(() => null),
-    ])
-      .then(([cfg, st, scrape, qa, tailor]) => {
-        if (!active) return;
-        const nextLive = buildLiveStatus(scrape, qa, tailor);
-        setConfig(cfg);
-        setOrigConfig(JSON.parse(JSON.stringify(cfg)));
-        setStats(st);
-        setQaStatus(qa);
-        setLive(nextLive);
-        setLastPollAt(Date.now());
-        snapshotRef.current = { live: nextLive, stats: st };
-      })
-      .catch(e => setError(e.message));
-    return () => { active = false; };
+      api.getActiveRun().catch(() => null),
+    ]).then(([cfg, st, scrape, qa, tailor, run]) => {
+      if (!alive) return;
+      const nextLive = buildLiveStatus(scrape, qa, tailor);
+      setConfig(cfg);
+      setOrigConfig(JSON.parse(JSON.stringify(cfg)));
+      setStats(st);
+      setQaStatus(qa);
+      setLive(nextLive);
+      setActiveRun(run);
+      snapshotRef.current = { live: nextLive, stats: st };
+    }).catch((e) => setError(e?.message || String(e)));
+    return () => { alive = false; };
   }, []);
 
   useEffect(() => {
-    const id = setInterval(() => {
-      void refreshLiveSnapshot(false);
-      // Poll active run + console lines
-      api.getActiveRun().catch(() => null).then((run) => {
-        setActiveRun(run);
-        if (run?.run_id && run?.status === 'running') {
-          api.getRunLogs(run.run_id, 80).catch(() => null).then((logs) => {
-            if (logs?.lines) setConsoleLines(logs.lines.join('\n'));
-          });
-        }
-      });
-    }, 4000);
+    const id = setInterval(() => { void refreshLive(false); }, 4000);
     return () => clearInterval(id);
-  }, [refreshLiveSnapshot]);
-
-  // Lazy-load history when tab is opened
-  const loadHistory = useCallback(async (p: number) => {
-    setHistoryLoading(true);
-    try {
-      const data = await api.getRuns({ page: p, per_page: 15 });
-      setHistoryRuns(data.runs || []);
-      setHistoryPages(data.pages || 1);
-      setHistoryPage(p);
-      if (data.stats) setHistoryStats(data.stats);
-      historyLoaded.current = true;
-    } catch { /* ignore */ }
-    setHistoryLoading(false);
-  }, []);
-
-  useEffect(() => {
-    if (inspectorTab === 'history' && !historyLoaded.current) {
-      void loadHistory(1);
-    }
-  }, [inspectorTab, loadHistory]);
+  }, [refreshLive]);
 
   const dirty = useMemo(() => {
     if (!config || !origConfig) return false;
@@ -2303,29 +1340,11 @@ export default function PipelineEditorView() {
   const sourceStats = useMemo(() => aggregateSourceStats(stats?.per_source), [stats]);
 
   const handleSelect = useCallback((id: string, type: string) => {
-    setSelectedNode(prev => prev?.id === id ? null : { id, type });
+    setSelectedNode((prev) => (prev?.id === id ? null : { id, type }));
   }, []);
 
-  const handleToggleSource = useCallback((sourceId: string) => {
-    if (!config) return;
-    setConfig(prev => {
-      if (!prev) return prev;
-      if (sourceId === 'searxng') {
-        return { ...prev, searxng: { ...prev.searxng, enabled: !prev.searxng.enabled } };
-      }
-      if (sourceId === 'usajobs') {
-        return { ...prev, usajobs: { ...prev.usajobs, enabled: !prev.usajobs.enabled } };
-      }
-      // Board sources: toggle all boards of this type
-      const boards = prev.boards.map(b =>
-        b.board_type === sourceId ? { ...b, enabled: !prev.boards.filter(x => x.board_type === sourceId).every(x => x.enabled) } : b
-      );
-      return { ...prev, boards };
-    });
-  }, [config]);
-
   const handleConfigChange = useCallback((patch: Partial<ScraperConfig>) => {
-    setConfig(prev => prev ? { ...prev, ...patch } : prev);
+    setConfig((prev) => (prev ? { ...prev, ...patch } : prev));
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -2337,9 +1356,7 @@ export default function PipelineEditorView() {
         setOrigConfig(JSON.parse(JSON.stringify(result.config)));
         setConfig(result.config);
       }
-    } catch (e: any) {
-      setError(e.message);
-    }
+    } catch (e: any) { setError(e?.message || String(e)); }
     setSaving(false);
   }, [config]);
 
@@ -2347,175 +1364,123 @@ export default function PipelineEditorView() {
     if (origConfig) setConfig(JSON.parse(JSON.stringify(origConfig)));
   }, [origConfig]);
 
-  const handleRunScrape = useCallback(async (withLlm: boolean) => {
-    try {
-      await api.runScrapeNow(withLlm);
-      void refreshLiveSnapshot(true);
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }, [refreshLiveSnapshot]);
+  const handleRunScrape = useCallback(async () => {
+    try { await api.runScrapeNow(true); void refreshLive(true); }
+    catch (e: any) { setError(e?.message || String(e)); }
+  }, [refreshLive]);
 
   const handleTerminate = useCallback(async () => {
     if (!activeRun?.run_id) return;
-    try {
-      await api.terminateRun(activeRun.run_id);
-      void refreshLiveSnapshot(true);
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }, [activeRun, refreshLiveSnapshot]);
+    try { await api.terminateRun(activeRun.run_id); void refreshLive(true); }
+    catch (e: any) { setError(e?.message || String(e)); }
+  }, [activeRun, refreshLive]);
 
-  const handleRunQAReview = useCallback(async () => {
+  const handleRunQA = useCallback(async () => {
     try {
       const pending = await api.getQAPending();
       const ids = (pending.jobs || []).map((j: any) => j.id);
       if (ids.length === 0) return;
       await api.llmReviewQA(ids);
-      void refreshLiveSnapshot(true);
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }, [refreshLiveSnapshot]);
+      void refreshLive(true);
+    } catch (e: any) { setError(e?.message || String(e)); }
+  }, [refreshLive]);
 
-  const handleCancelQAReview = useCallback(async () => {
-    try {
-      await api.cancelQAReview();
-      void refreshLiveSnapshot(true);
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }, [refreshLiveSnapshot]);
+  const handleCancelQA = useCallback(async () => {
+    try { await api.cancelQAReview(); void refreshLive(true); }
+    catch (e: any) { setError(e?.message || String(e)); }
+  }, [refreshLive]);
 
-  const handleRunTailoring = useCallback(async () => {
-    try {
-      await api.runTailoringLatest();
-      void refreshLiveSnapshot(true);
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }, [refreshLiveSnapshot]);
+  const handleRunTailor = useCallback(async () => {
+    try { await api.runTailoringLatest(); void refreshLive(true); }
+    catch (e: any) { setError(e?.message || String(e)); }
+  }, [refreshLive]);
 
-  const handleStopTailoring = useCallback(async () => {
-    try {
-      await api.stopTailoringRunner({ clear_queue: true });
-      void refreshLiveSnapshot(true);
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }, [refreshLiveSnapshot]);
+  const handleStopTailor = useCallback(async () => {
+    try { await api.stopTailoringRunner({ clear_queue: true }); void refreshLive(true); }
+    catch (e: any) { setError(e?.message || String(e)); }
+  }, [refreshLive]);
 
-  useEffect(() => {
-    setInspectorTab(selectedNode?.type === 'lane' ? 'overview' : selectedNode ? 'configure' : 'overview');
-  }, [selectedNode]);
-
-  // Build React Flow nodes/edges from config
   const nodes = useMemo(() => {
     if (!config) return [];
-    return buildNodes(config, stats, live, sourceStats, handleSelect, handleToggleSource);
-  }, [config, stats, live, sourceStats, handleSelect, handleToggleSource]);
+    return buildNodes(config, stats, live, sourceStats, handleSelect);
+  }, [config, stats, live, sourceStats, handleSelect]);
 
   const edges = useMemo(() => {
     if (!config) return [];
     return buildEdges(config, live);
   }, [config, live]);
 
-  // Handle stage reorder via drag
   const handleNodeDragStop = useCallback((_: any, node: Node) => {
     if (!config) return;
     const stageIdx = config.pipeline_order.indexOf(node.id);
-    if (stageIdx < 0) return; // not a pipeline stage
-
-    const stageNodes = config.pipeline_order.map(id => ({
+    if (stageIdx < 0) return;
+    const positions = config.pipeline_order.map((id) => ({
       id,
-      x: id === node.id ? (node.position?.x ?? 0) : (STAGE_X + config.pipeline_order.indexOf(id) * STAGE_GAP),
+      y: id === node.id ? (node.position?.y ?? 0) : ROW_Y0 + config.pipeline_order.indexOf(id) * ROW_GAP,
     }));
-    stageNodes.sort((a, b) => a.x - b.x);
-    const newOrder = stageNodes.map(n => n.id);
-
+    positions.sort((a, b) => a.y - b.y);
+    const newOrder = positions.map((p) => p.id);
     if (JSON.stringify(newOrder) !== JSON.stringify(config.pipeline_order)) {
-      setConfig(prev => prev ? { ...prev, pipeline_order: newOrder } : prev);
+      setConfig((prev) => (prev ? { ...prev, pipeline_order: newOrder } : prev));
     }
   }, [config]);
 
   if (error) {
     return (
-      <div className="view-container" style={{ padding: 40, color: 'var(--red)' }}>
-        Error loading pipeline config: {error}
-      </div>
+      <div className="view-container"><div className="pe-error">Error: {error}</div></div>
     );
   }
 
   if (!config) {
     return (
-      <div className="view-container">
-        <div className="loading"><div className="spinner" /></div>
-      </div>
+      <div className="view-container"><div className="loading"><div className="spinner" /></div></div>
     );
   }
 
   return (
-    <div className="pipeline-editor">
+    <div className="pe-root">
       <ReactFlowProvider>
-        <div className="pipeline-canvas">
-          <CanvasToolbar
-            live={live}
-            dirty={dirty}
-            saving={saving}
-            refreshing={refreshing}
-            lastPollAt={lastPollAt}
-            eventCount={events.length}
-            onRefresh={() => { void refreshLiveSnapshot(true); }}
-            onReset={handleReset}
-            onSave={() => { void handleSave(); }}
-            onRunScrape={(withLlm) => { void handleRunScrape(withLlm); }}
-            onTerminate={() => { void handleTerminate(); }}
-            onRunQAReview={() => { void handleRunQAReview(); }}
-            onCancelQAReview={() => { void handleCancelQAReview(); }}
-            onRunTailoring={() => { void handleRunTailoring(); }}
-            onStopTailoring={() => { void handleStopTailoring(); }}
-            scrapeRunning={live.scrapeRunning}
-            readyCount={stats?.inventory?.qa_approved ?? 0}
-          />
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            onNodeDragStop={handleNodeDragStop}
-            onPaneClick={() => setSelectedNode(null)}
-            fitView
-            fitViewOptions={{ padding: 0.06, maxZoom: 1 }}
-            proOptions={{ hideAttribution: true }}
-            minZoom={0.3}
-            maxZoom={1.2}
-            defaultEdgeOptions={{ animated: false }}
-          >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--border)" />
-            <Controls showInteractive={false} />
-          </ReactFlow>
-        </div>
-
-        <PipelineInspector
-          selectedNode={selectedNode}
-          inspectorTab={inspectorTab}
-          onTabChange={setInspectorTab}
-          onClearSelection={() => setSelectedNode(null)}
-          config={config}
-          stats={stats}
-          qaStatus={qaStatus}
+        <Toolbar
           live={live}
-          events={events}
-          sourceStats={sourceStats}
-          onConfigChange={handleConfigChange}
-          activeRun={activeRun}
-          consoleLines={consoleLines}
-          historyRuns={historyRuns}
-          historyStats={historyStats}
-          historyPage={historyPage}
-          historyPages={historyPages}
-          historyLoading={historyLoading}
-          onHistoryPageChange={(p) => { void loadHistory(p); }}
+          dirty={dirty}
+          saving={saving}
+          refreshing={refreshing}
+          readyCount={stats?.inventory?.qa_approved ?? 0}
+          activeRunId={activeRun?.run_id ?? null}
+          onRefresh={() => { void refreshLive(true); }}
+          onReset={handleReset}
+          onSave={() => { void handleSave(); }}
+          onRunScrape={() => { void handleRunScrape(); }}
+          onTerminate={() => { void handleTerminate(); }}
+          onRunQA={() => { void handleRunQA(); }}
+          onCancelQA={() => { void handleCancelQA(); }}
+          onRunTailor={() => { void handleRunTailor(); }}
+          onStopTailor={() => { void handleStopTailor(); }}
+          onFit={() => fitViewRef.current()}
         />
+        <div className="pe-workspace">
+          <div className="pe-canvas-wrap">
+            <FlowLegend />
+            <Canvas
+              nodes={nodes}
+              edges={edges}
+              onPaneClick={() => setSelectedNode(null)}
+              onNodeDragStop={handleNodeDragStop}
+              onFitReady={(fn) => { fitViewRef.current = fn; }}
+            />
+          </div>
+          <Inspector
+            selectedNode={selectedNode}
+            onClear={() => setSelectedNode(null)}
+            config={config}
+            stats={stats}
+            qaStatus={qaStatus}
+            live={live}
+            events={events}
+            sourceStats={sourceStats}
+            onConfigChange={handleConfigChange}
+          />
+        </div>
       </ReactFlowProvider>
     </div>
   );

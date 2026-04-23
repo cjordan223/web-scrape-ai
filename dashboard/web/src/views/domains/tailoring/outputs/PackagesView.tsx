@@ -4,7 +4,7 @@ import { MessageSquare, ChevronDown, ChevronUp, Copy, Scissors, SlidersHorizonta
 import { copyText, toLocalInputValue } from '../../../../utils';
 import PackageChatPanel from './PackageChatTab';
 import { DetailContextSection, BriefingPanel, DocumentsSideBySide, StrategyCard, JdDisplay, safePdfName } from './shared';
-import PackageDossierCarousel from './PackageDossierCarousel';
+import PackageCompanyInbox from './PackageCompanyInbox';
 
 type MainTab = 'briefing' | 'strategy' | 'documents' | 'jd' | 'diff' | 'editor';
 type RunFilter = 'all' | 'recent_reruns' | 'latest_only' | 'previous_only' | 'with_history' | 'returned';
@@ -27,6 +27,10 @@ function packageUpdatedAt(item: any) {
 
 function isTimestampedRerunSlug(slug?: string) {
     return Boolean(slug && /-\d{8}T\d{6}Z$/.test(slug));
+}
+
+function companySortKey(company?: string) {
+    return (company || '').trim().toLowerCase() || '~unknown';
 }
 
 function timelineUnitMs(unit: TimelineUnit) {
@@ -166,12 +170,29 @@ function groupPackages(items: any[]): PackageGroup[] {
         });
     }
 
-    return Array.from(groups.values())
+    const sortedGroups = Array.from(groups.values())
         .map((group) => ({
             ...group,
             items: [...group.items].sort((a, b) => packageUpdatedAt(b) - packageUpdatedAt(a)),
-        }))
-        .sort((a, b) => packageUpdatedAt(b.items[0]) - packageUpdatedAt(a.items[0]));
+        }));
+
+    const companyLatest = new Map<string, number>();
+    for (const group of sortedGroups) {
+        const companyKey = companySortKey(group.company);
+        companyLatest.set(
+            companyKey,
+            Math.max(companyLatest.get(companyKey) || 0, packageUpdatedAt(group.items[0])),
+        );
+    }
+
+    return sortedGroups.sort((a, b) => {
+        const aCompany = companySortKey(a.company);
+        const bCompany = companySortKey(b.company);
+        const companyDelta = (companyLatest.get(bCompany) || 0) - (companyLatest.get(aCompany) || 0);
+        if (companyDelta !== 0) return companyDelta;
+        if (aCompany !== bCompany) return aCompany.localeCompare(bCompany);
+        return packageUpdatedAt(b.items[0]) - packageUpdatedAt(a.items[0]);
+    });
 }
 
 type ManualEntryItem = {
@@ -408,7 +429,7 @@ export default function PackagesView() {
     const [copiedChunkIndex, setCopiedChunkIndex] = useState<number | null>(null);
     const [copiedAllChunks, setCopiedAllChunks] = useState(false);
     const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
-    const [carouselIndex, setCarouselIndex] = useState(0);
+    const [packageIndex, setPackageIndex] = useState(0);
     const [activeRunBySlug, setActiveRunBySlug] = useState<Record<string, number>>({});
     const [filtersOpen, setFiltersOpen] = useState(false);
     const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -679,13 +700,13 @@ export default function PackagesView() {
 
     useEffect(() => {
         if (groupedFilteredData.length === 0) {
-            if (carouselIndex !== 0) setCarouselIndex(0);
+            if (packageIndex !== 0) setPackageIndex(0);
             return;
         }
-        if (carouselIndex >= groupedFilteredData.length) {
-            setCarouselIndex(Math.max(0, groupedFilteredData.length - 1));
+        if (packageIndex >= groupedFilteredData.length) {
+            setPackageIndex(Math.max(0, groupedFilteredData.length - 1));
         }
-    }, [groupedFilteredData.length, carouselIndex]);
+    }, [groupedFilteredData.length, packageIndex]);
 
     const activePkg = visibleData.find(p => p.slug === activeSlug) || data.find(p => p.slug === activeSlug);
     const resumePdfKey = Object.keys(activePkg?.artifacts || {}).find(k => k.endsWith('Resume.pdf'));
@@ -731,17 +752,17 @@ export default function PackagesView() {
         );
     }
 
-    // Empty state is rendered inside the carousel itself; no separate early return needed.
+    // Empty filter states are rendered inside the inbox itself.
 
     return (
         <div style={{ display: 'flex', height: 'calc(100vh - 56px)', overflow: 'hidden', width: '100%' }}>
 
             {!activeSlug ? (
             <div style={{ flex: 1, minWidth: 0, display: 'flex', position: 'relative', overflow: 'hidden' }}>
-            <PackageDossierCarousel
+            <PackageCompanyInbox
                 groups={groupedFilteredData}
-                activeIndex={carouselIndex}
-                setActiveIndex={setCarouselIndex}
+                activeIndex={packageIndex}
+                setActiveIndex={setPackageIndex}
                 activeRunBySlug={activeRunBySlug}
                 setActiveRunBySlug={setActiveRunBySlug}
                 selectedSlugs={selectedSlugs}
@@ -766,7 +787,7 @@ export default function PackagesView() {
                             <button
                                 key={value}
                                 type="button"
-                                className={`dossier-pill ${applyFilter === value ? 'is-on' : ''}`}
+                                className={`pkg-filter-pill ${applyFilter === value ? 'is-on' : ''}`}
                                 onClick={() => setApplyFilter(value)}
                             >
                                 {label}
@@ -774,7 +795,7 @@ export default function PackagesView() {
                         ))}
                         <button
                             type="button"
-                            className={`dossier-pill ${filtersOpen ? 'is-on' : ''}`}
+                            className={`pkg-filter-pill ${filtersOpen ? 'is-on' : ''}`}
                             onClick={() => setFiltersOpen((v) => !v)}
                             title="Advanced filters"
                         >
@@ -783,11 +804,11 @@ export default function PackagesView() {
                     </>
                 }
                 bulkBar={selectedVisibleCount > 0 ? (
-                    <div className="dossier-bulk-bar">
+                    <div className="pkg-bulk-bar">
                         <span className="count"><b>{selectedVisibleCount}</b>selected</span>
                         <button
                             type="button"
-                            className="dossier-btn ghost"
+                            className="pkg-action-btn ghost"
                             disabled={deleteBusy}
                             onClick={handleBulkRequeue}
                         >
@@ -795,7 +816,7 @@ export default function PackagesView() {
                         </button>
                         <button
                             type="button"
-                            className="dossier-btn ghost"
+                            className="pkg-action-btn ghost"
                             disabled={bulkBusy}
                             onClick={async () => {
                                 const selected = visibleData.filter(d => selectedSlugs.has(d.slug) && d.meta?.job_id && !d.applied);
@@ -815,7 +836,7 @@ export default function PackagesView() {
                         </button>
                         <button
                             type="button"
-                            className="dossier-btn danger"
+                            className="pkg-action-btn danger"
                             disabled={deleteBusy}
                             onClick={handleBulkDead}
                         >
@@ -823,7 +844,7 @@ export default function PackagesView() {
                         </button>
                         <button
                             type="button"
-                            className="dossier-iconbtn"
+                            className="pkg-icon-btn"
                             title="Clear selection"
                             onClick={() => setSelectedSlugs(new Set())}
                         >
@@ -1140,6 +1161,16 @@ export default function PackagesView() {
                                 </button>
                             ))}
                             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                {activeSlug && (
+                                    <button
+                                        className={chatOpen ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'}
+                                        style={{ fontSize: '.68rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+                                        onClick={() => setChatOpen(prev => !prev)}
+                                        title="Open package chat for short application answers and targeted edits"
+                                    >
+                                        <MessageSquare size={12} /> Application Chat
+                                    </button>
+                                )}
                                 <button
                                     className="btn btn-ghost btn-sm"
                                     style={{ fontSize: '.68rem', display: 'flex', alignItems: 'center', gap: '5px' }}
@@ -1314,7 +1345,7 @@ export default function PackagesView() {
                                 <div style={{
                                     flexShrink: 0, borderTop: '1px solid var(--border)',
                                     display: 'flex', flexDirection: 'column',
-                                    height: chatOpen ? '340px' : '32px',
+                                    height: chatOpen ? '340px' : '40px',
                                     transition: 'height .15s ease',
                                     overflow: 'hidden',
                                 }}>
@@ -1323,16 +1354,16 @@ export default function PackagesView() {
                                         onClick={() => setChatOpen(prev => !prev)}
                                         style={{
                                             display: 'flex', alignItems: 'center', gap: '6px',
-                                            padding: '6px 14px', background: 'var(--surface-2)',
+                                            padding: '9px 14px', background: chatOpen ? 'var(--surface-2)' : 'var(--surface)',
                                             border: 'none', borderBottom: chatOpen ? '1px solid var(--border)' : 'none',
                                             cursor: 'pointer', flexShrink: 0,
                                             fontFamily: 'var(--font-mono)', fontSize: '.68rem', fontWeight: 600,
-                                            color: 'var(--text-secondary)', textTransform: 'uppercase',
+                                            color: chatOpen ? 'var(--text-secondary)' : 'var(--text)', textTransform: 'uppercase',
                                             letterSpacing: '.08em', width: '100%', textAlign: 'left',
                                         }}
                                     >
                                         <MessageSquare size={12} />
-                                        Chat Workspace
+                                        Application Chat
                                         <span style={{ fontSize: '.6rem', fontWeight: 400, opacity: 0.6 }}>
                                             ({packageDoc})
                                         </span>

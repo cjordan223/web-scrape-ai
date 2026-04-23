@@ -50,6 +50,21 @@ interface QALlmReviewStatus {
     };
 }
 
+interface QAAutoReviewStatus {
+    enabled: boolean;
+    scheduler_running: boolean;
+    poll_interval_seconds: number;
+    batch_cap: number;
+    pending_drain: boolean;
+    pending_qa_count: number | null;
+    in_flight_count: number | null;
+    last_tick_at?: string | null;
+    last_completed_run?: { run_id?: string; completed_at?: string } | null;
+    last_enqueue_result?: Record<string, any> | null;
+    last_skip_reason?: string | null;
+    last_error?: string | null;
+}
+
 const STATUS_LABELS: Record<QALlmReviewItem['status'], string> = {
     queued: 'Queued',
     reviewing: 'Reviewing',
@@ -69,6 +84,7 @@ const STATUS_COLORS: Record<QALlmReviewItem['status'], string> = {
 };
 
 const QUEUE_BATCH_PRESETS = [10, 25, 50, 100];
+const AUTO_REVIEW_STATUS_INTERVAL_MS = 600_000;
 const QA_ACCENT = '#d97830';
 const QA_ACCENT_SOFT = 'rgba(217, 120, 48, 0.14)';
 const QA_PANEL = 'linear-gradient(180deg, rgba(217, 120, 48, 0.10), rgba(196, 79, 79, 0.04))';
@@ -94,7 +110,7 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
             fontWeight: 600,
             color: 'var(--text-secondary)',
             textTransform: 'uppercase',
-            letterSpacing: '.08em',
+            letterSpacing: 0,
             marginBottom: '4px',
         }}>
             {children}
@@ -150,7 +166,7 @@ function QADetailPanel({
                             borderRadius: '4px',
                             padding: '2px 8px',
                             textTransform: 'uppercase',
-                            letterSpacing: '.08em',
+                            letterSpacing: 0,
                         }}>
                             Job #{detail.id}
                         </span>
@@ -313,6 +329,7 @@ export default function QAView() {
     const [scanning, setScanning] = useState(false);
     const [scanResult, setScanResult] = useState<string | null>(null);
     const [reviewStatus, setReviewStatus] = useState<QALlmReviewStatus | null>(null);
+    const [autoReviewStatus, setAutoReviewStatus] = useState<QAAutoReviewStatus | null>(null);
     const [reviewError, setReviewError] = useState<string | null>(null);
     const [scrapeEnabled, setScrapeEnabled] = useState<boolean | null>(null);
     const [scrapeToggling, setScrapeToggling] = useState(false);
@@ -322,9 +339,11 @@ export default function QAView() {
 
     const jobsIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
     const reviewIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+    const autoReviewIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
     const reviewSignatureRef = useRef<string>('');
     const jobsRequestInFlightRef = useRef(false);
     const reviewRequestInFlightRef = useRef(false);
+    const autoReviewRequestInFlightRef = useRef(false);
     const scrapeEnabledRequestInFlightRef = useRef(false);
 
     const fetchJobs = useCallback(async () => {
@@ -364,6 +383,19 @@ export default function QAView() {
         }
     }, []);
 
+    const fetchAutoReviewStatus = useCallback(async () => {
+        if (autoReviewRequestInFlightRef.current) return;
+        autoReviewRequestInFlightRef.current = true;
+        try {
+            const res = await api.getQAAutoReviewStatus();
+            setAutoReviewStatus(res);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            autoReviewRequestInFlightRef.current = false;
+        }
+    }, []);
+
     const fetchScrapeEnabled = useCallback(async () => {
         if (scrapeEnabledRequestInFlightRef.current) return;
         scrapeEnabledRequestInFlightRef.current = true;
@@ -393,14 +425,17 @@ export default function QAView() {
     useEffect(() => {
         fetchJobs();
         fetchReviewStatus();
+        fetchAutoReviewStatus();
         fetchScrapeEnabled();
         jobsIntervalRef.current = setInterval(fetchJobs, 30000);
         reviewIntervalRef.current = setInterval(fetchReviewStatus, 2500);
+        autoReviewIntervalRef.current = setInterval(fetchAutoReviewStatus, AUTO_REVIEW_STATUS_INTERVAL_MS);
         return () => {
             clearInterval(jobsIntervalRef.current);
             clearInterval(reviewIntervalRef.current);
+            clearInterval(autoReviewIntervalRef.current);
         };
-    }, [fetchJobs, fetchReviewStatus, fetchScrapeEnabled]);
+    }, [fetchAutoReviewStatus, fetchJobs, fetchReviewStatus, fetchScrapeEnabled]);
 
     useEffect(() => {
         if (!focusedId) {
@@ -536,6 +571,38 @@ export default function QAView() {
     const progressPercent = reviewStatus?.summary.total
         ? Math.round((reviewStatus.summary.completed / reviewStatus.summary.total) * 100)
         : 0;
+    const autoReviewTone = !autoReviewStatus
+        ? 'muted'
+        : autoReviewStatus.enabled && autoReviewStatus.scheduler_running && !autoReviewStatus.last_error
+            ? 'healthy'
+            : autoReviewStatus.enabled
+                ? 'blocked'
+                : 'disabled';
+    const autoReviewLabel = autoReviewTone === 'healthy'
+        ? 'Auto-review active'
+        : autoReviewTone === 'blocked'
+            ? 'Auto-review needs attention'
+            : autoReviewTone === 'disabled'
+                ? 'Auto-review disabled'
+                : 'Auto-review status unknown';
+    const autoReviewDetail = autoReviewStatus
+        ? [
+            `${autoReviewStatus.pending_qa_count ?? 'unknown'} pending`,
+            `${autoReviewStatus.in_flight_count ?? 'unknown'} in flight`,
+            autoReviewStatus.pending_drain ? 'drain pending' : null,
+            autoReviewStatus.last_skip_reason ? `last: ${autoReviewStatus.last_skip_reason.replaceAll('_', ' ')}` : null,
+        ].filter(Boolean).join(' · ')
+        : 'Waiting for backend status';
+    const autoReviewBorder = autoReviewTone === 'healthy'
+        ? 'rgba(70, 170, 110, 0.32)'
+        : autoReviewTone === 'blocked'
+            ? 'rgba(217, 120, 48, 0.38)'
+            : 'rgba(196, 79, 79, 0.28)';
+    const autoReviewBackground = autoReviewTone === 'healthy'
+        ? 'rgba(70, 170, 110, 0.08)'
+        : autoReviewTone === 'blocked'
+            ? 'rgba(217, 120, 48, 0.08)'
+            : 'rgba(196, 79, 79, 0.08)';
 
     const boardOptions = Array.from(new Set(jobs.map((job) => (job.board || '').trim()).filter(Boolean)));
     if (boardFilter && !boardOptions.includes(boardFilter)) boardOptions.push(boardFilter);
@@ -567,7 +634,7 @@ export default function QAView() {
                             fontSize: '.94rem',
                             fontWeight: 700,
                             color: '#f4ede8',
-                            letterSpacing: '.01em',
+                            letterSpacing: 0,
                         }}>
                             QA Triage
                         </span>
@@ -635,6 +702,25 @@ export default function QAView() {
                             {busy === 'reject' ? 'Rejecting...' : `Dead (${selected.size})`}
                         </button>
                     </div>
+                    <div style={{
+                        fontFamily: 'var(--font)',
+                        fontSize: '.72rem',
+                        lineHeight: 1.5,
+                        color: 'rgba(236, 228, 220, 0.72)',
+                        background: autoReviewBackground,
+                        border: `1px solid ${autoReviewBorder}`,
+                        borderRadius: '8px',
+                        padding: '8px 10px',
+                    }}>
+                        <strong style={{ color: '#f0e6de' }}>{autoReviewLabel}:</strong>{' '}
+                        {autoReviewDetail}
+                        {autoReviewStatus?.last_completed_run?.run_id ? (
+                            <span> · run {autoReviewStatus.last_completed_run.run_id}</span>
+                        ) : null}
+                        {autoReviewStatus?.last_error ? (
+                            <span style={{ color: 'var(--red)', marginLeft: 6 }}>{autoReviewStatus.last_error}</span>
+                        ) : null}
+                    </div>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <button
                             className="btn btn-sm"
@@ -656,7 +742,7 @@ export default function QAView() {
                             fontWeight: 700,
                             color: 'rgba(236, 228, 220, 0.82)',
                             textTransform: 'uppercase',
-                            letterSpacing: '.06em',
+                            letterSpacing: 0,
                             whiteSpace: 'nowrap',
                         }}>
                             First
@@ -696,7 +782,7 @@ export default function QAView() {
                             fontWeight: 700,
                             color: 'rgba(236, 228, 220, 0.76)',
                             textTransform: 'uppercase',
-                            letterSpacing: '.06em',
+                            letterSpacing: 0,
                         }}>
                             Quick queue
                         </span>
@@ -843,7 +929,7 @@ export default function QAView() {
                                     fontWeight: 700,
                                     color: '#f0e6de',
                                     textTransform: 'uppercase',
-                                    letterSpacing: '.08em',
+                                    letterSpacing: 0,
                                 }}>
                                     LLM Review Queue
                                 </span>
@@ -991,12 +1077,12 @@ export default function QAView() {
                                 top: 0,
                                 zIndex: 1,
                             }}>
-                                <span style={{ fontFamily: 'var(--font)', fontSize: '.68rem', fontWeight: 700, color: 'rgba(238,228,220,0.76)', textTransform: 'uppercase', letterSpacing: '.08em' }}>Pick</span>
-                                <span style={{ fontFamily: 'var(--font)', fontSize: '.68rem', fontWeight: 700, color: 'rgba(238,228,220,0.76)', textTransform: 'uppercase', letterSpacing: '.08em' }}>Job</span>
-                                <span style={{ fontFamily: 'var(--font)', fontSize: '.68rem', fontWeight: 700, color: 'rgba(238,228,220,0.76)', textTransform: 'uppercase', letterSpacing: '.08em' }}>Company + Source</span>
-                                <span style={{ fontFamily: 'var(--font)', fontSize: '.68rem', fontWeight: 700, color: 'rgba(238,228,220,0.76)', textTransform: 'uppercase', letterSpacing: '.08em' }}>Context</span>
-                                <span style={{ fontFamily: 'var(--font)', fontSize: '.68rem', fontWeight: 700, color: 'rgba(238,228,220,0.76)', textTransform: 'uppercase', letterSpacing: '.08em' }}>JD Link</span>
-                                <span style={{ fontFamily: 'var(--font)', fontSize: '.68rem', fontWeight: 700, color: 'rgba(238,228,220,0.76)', textTransform: 'uppercase', letterSpacing: '.08em', textAlign: 'right' }}>Open</span>
+                                <span style={{ fontFamily: 'var(--font)', fontSize: '.68rem', fontWeight: 700, color: 'rgba(238,228,220,0.76)', textTransform: 'uppercase', letterSpacing: 0 }}>Pick</span>
+                                <span style={{ fontFamily: 'var(--font)', fontSize: '.68rem', fontWeight: 700, color: 'rgba(238,228,220,0.76)', textTransform: 'uppercase', letterSpacing: 0 }}>Job</span>
+                                <span style={{ fontFamily: 'var(--font)', fontSize: '.68rem', fontWeight: 700, color: 'rgba(238,228,220,0.76)', textTransform: 'uppercase', letterSpacing: 0 }}>Company + Source</span>
+                                <span style={{ fontFamily: 'var(--font)', fontSize: '.68rem', fontWeight: 700, color: 'rgba(238,228,220,0.76)', textTransform: 'uppercase', letterSpacing: 0 }}>Context</span>
+                                <span style={{ fontFamily: 'var(--font)', fontSize: '.68rem', fontWeight: 700, color: 'rgba(238,228,220,0.76)', textTransform: 'uppercase', letterSpacing: 0 }}>JD Link</span>
+                                <span style={{ fontFamily: 'var(--font)', fontSize: '.68rem', fontWeight: 700, color: 'rgba(238,228,220,0.76)', textTransform: 'uppercase', letterSpacing: 0, textAlign: 'right' }}>Open</span>
                             </div>
 
                             {jobs.map((job) => {
@@ -1149,7 +1235,7 @@ export default function QAView() {
                                                             fontFamily: 'var(--font)',
                                                             fontSize: '.68rem',
                                                             fontWeight: 700,
-                                                            letterSpacing: '.03em',
+                                                            letterSpacing: 0,
                                                             textDecoration: 'none',
                                                             textTransform: 'uppercase',
                                                         }}

@@ -42,6 +42,7 @@ interface Props {
 
 type ReadySortKey = 'job' | 'company' | 'context' | 'date_added' | 'history';
 type ReadyBucket = 'backlog' | 'next' | 'later';
+type PackageFilter = 'all' | 'created' | 'not_created';
 
 const READY_BUCKETS: ReadyBucket[] = ['backlog', 'next', 'later'];
 const READY_QUEUE_PRESETS = [10, 20, 50, 100];
@@ -96,8 +97,8 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
     const [seniorityFilter, setSeniorityFilter] = useState('');
     const [locationFilter, setLocationFilter] = useState('');
     const [bucketFilter, setBucketFilter] = useState<'all' | ReadyBucket>('all');
+    const [packageFilter, setPackageFilter] = useState<PackageFilter>('all');
     const [searchFilter, setSearchFilter] = useState('');
-    const [untailoredOnly, setUntailoredOnly] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [focusedJobId, setFocusedJobId] = useState<number>(0);
     const [briefing, setBriefing] = useState<Briefing | null>(null);
@@ -272,13 +273,17 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
 
     const parsedQueueBatchSize = Number.parseInt(queueBatchSize, 10);
 
-    const untailoredCount = readyJobs.reduce(
-        (acc, job) => acc + (Number(job.tailoring_run_count || 0) === 0 ? 1 : 0),
+    const packageCreatedCount = readyJobs.reduce(
+        (acc, job) => acc + (Number(job.tailoring_run_count || 0) > 0 ? 1 : 0),
         0,
     );
-    const visibleReadyJobs = untailoredOnly
-        ? readyJobs.filter((job) => Number(job.tailoring_run_count || 0) === 0)
-        : readyJobs;
+    const packageNotCreatedCount = Math.max(0, readyJobs.length - packageCreatedCount);
+    const visibleReadyJobs = readyJobs.filter((job) => {
+        const hasPackage = Number(job.tailoring_run_count || 0) > 0;
+        if (packageFilter === 'created') return hasPackage;
+        if (packageFilter === 'not_created') return !hasPackage;
+        return true;
+    });
 
     const sortedReadyJobs = [...visibleReadyJobs].sort((a, b) => {
         let result = 0;
@@ -506,13 +511,20 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                             );
                         })}
                         <div style={{ width: '1px', height: '18px', background: 'var(--border-bright)' }} />
-                        <button
-                            className={`btn btn-sm${untailoredOnly ? ' btn-primary' : ' btn-ghost'}`}
-                            onClick={() => setUntailoredOnly(prev => !prev)}
-                            style={{ fontSize: '.68rem' }}
-                        >
-                            Untailored ({untailoredCount})
-                        </button>
+                        {([
+                            ['all', `Packages: All (${readyJobs.length})`],
+                            ['created', `Package created (${packageCreatedCount})`],
+                            ['not_created', `Package not created (${packageNotCreatedCount})`],
+                        ] as const).map(([value, label]) => (
+                            <button
+                                key={value}
+                                className={`btn btn-sm${packageFilter === value ? ' btn-primary' : ' btn-ghost'}`}
+                                onClick={() => setPackageFilter(value)}
+                                style={{ fontSize: '.68rem' }}
+                            >
+                                {label}
+                            </button>
+                        ))}
                         <span style={{ flex: 1 }} />
                         {(() => {
                             const activeFilterCount =
@@ -520,7 +532,8 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                                 + (boardFilter.length > 0 ? 1 : 0)
                                 + (sourceFilter ? 1 : 0)
                                 + (seniorityFilter ? 1 : 0)
-                                + (locationFilter ? 1 : 0);
+                                + (locationFilter ? 1 : 0)
+                                + (packageFilter !== 'all' ? 1 : 0);
                             return (
                                 <button
                                     className={`btn btn-sm${filtersOpen || activeFilterCount > 0 ? ' btn-primary' : ' btn-ghost'}`}
@@ -533,7 +546,7 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                                 </button>
                             );
                         })()}
-                        {(searchFilter || boardFilter.length > 0 || sourceFilter || seniorityFilter || locationFilter) && (
+                        {(searchFilter || boardFilter.length > 0 || sourceFilter || seniorityFilter || locationFilter || packageFilter !== 'all') && (
                             <button
                                 className="btn btn-ghost btn-sm"
                                 onClick={() => {
@@ -542,6 +555,7 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                                     setSourceFilter('');
                                     setSeniorityFilter('');
                                     setLocationFilter('');
+                                    setPackageFilter('all');
                                 }}
                                 style={{ fontSize: '.68rem', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}
                                 title="Clear all filter values"
@@ -584,9 +598,9 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                                 setSeniorityFilter('');
                                 setLocationFilter('');
                                 setBucketFilter('all');
-                                setUntailoredOnly(false);
+                                setPackageFilter('all');
                             }}
-                            disabled={!searchFilter && boardFilter.length === 0 && !sourceFilter && !seniorityFilter && !locationFilter && bucketFilter === 'all' && !untailoredOnly}
+                            disabled={!searchFilter && boardFilter.length === 0 && !sourceFilter && !seniorityFilter && !locationFilter && bucketFilter === 'all' && packageFilter === 'all'}
                             style={{ fontSize: '.68rem', whiteSpace: 'nowrap' }}
                         >
                             Clear filters
@@ -628,16 +642,16 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
                             })}
                         </div>
                     )}
-                    {(searchFilter || boardFilter.length > 0 || sourceFilter || seniorityFilter || locationFilter || bucketFilter !== 'all' || untailoredOnly) && (
+                    {(searchFilter || boardFilter.length > 0 || sourceFilter || seniorityFilter || locationFilter || bucketFilter !== 'all' || packageFilter !== 'all') && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontFamily: 'var(--font-mono)', fontSize: '.66rem', color: 'var(--text-secondary)' }}>
-                            <span>{untailoredOnly ? `${visibleReadyJobs.length} untailored` : `${readyTotal} matching`} jobs</span>
+                            <span>{visibleReadyJobs.length} shown · {readyTotal} matching server filters</span>
                             {boardFilter.length > 0 ? <span>boards: {boardFilter.join(', ')}</span> : null}
                             {sourceFilter ? <span>source: {sourceMeta(sourceFilter).label}</span> : null}
                             {seniorityFilter ? <span>seniority: {seniorityFilter}</span> : null}
                             {locationFilter ? <span>location: "{locationFilter}"</span> : null}
                             {bucketFilter !== 'all' ? <span>review bucket: {readyBucketMeta(bucketFilter).label}</span> : null}
                             {searchFilter ? <span>search: "{searchFilter}"</span> : null}
-                            {untailoredOnly ? <span>untailored only</span> : null}
+                            {packageFilter !== 'all' ? <span>{packageFilter === 'created' ? 'package created' : 'package not created'}</span> : null}
                         </div>
                     )}
                     </>)}

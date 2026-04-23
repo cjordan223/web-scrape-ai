@@ -3,6 +3,8 @@ import axios from 'axios';
 // During development, proxy to the FastAPI backend running on port 8899.
 // In production, the React app is served by the FastAPI backend, so relative paths work.
 const API_BASE = import.meta.env.DEV ? 'http://localhost:8899/api' : '/api';
+const LLM_REQUEST_TIMEOUT_MS = 130000;
+const PACKAGE_CHAT_TIMEOUT_MS = 610000;
 
 export const apiClient = axios.create({
     baseURL: API_BASE,
@@ -272,7 +274,7 @@ export const api = {
         return data;
     },
     llmChat: async (messages: { role: string; content: string }[], opts?: { model?: string; max_tokens?: number; temperature?: number }) => {
-        const { data } = await apiClient.post('/llm/chat', { messages, ...opts }, { timeout: 130000 });
+        const { data } = await apiClient.post('/llm/chat', { messages, ...opts }, { timeout: LLM_REQUEST_TIMEOUT_MS });
         return data;
     },
 
@@ -282,7 +284,7 @@ export const api = {
         return data;
     },
     runLlmBenchmark: async (model_id: string, provider = 'ollama') => {
-        const { data } = await apiClient.post('/llm/benchmark', { model_id, provider }, { timeout: 130000 });
+        const { data } = await apiClient.post('/llm/benchmark', { model_id, provider }, { timeout: LLM_REQUEST_TIMEOUT_MS });
         return data;
     },
 
@@ -362,6 +364,11 @@ export const api = {
         return data;
     },
 
+    getQAAutoReviewStatus: async () => {
+        const { data } = await apiClient.get('/tailoring/qa/auto-review');
+        return data;
+    },
+
     getQALlmReviewReports: async (limit = 50) => {
         const { data } = await apiClient.get('/tailoring/qa/llm-review/reports', { params: { limit } });
         return data;
@@ -413,7 +420,7 @@ export const api = {
     },
 
     packageChatSend: async (slug: string, message: string, docFocus?: string) => {
-        const { data } = await apiClient.post(`/packages/${slug}/chat`, { message, doc_focus: docFocus });
+        const { data } = await apiClient.post(`/packages/${slug}/chat`, { message, doc_focus: docFocus }, { timeout: PACKAGE_CHAT_TIMEOUT_MS });
         return data;
     },
 
@@ -452,6 +459,11 @@ export const api = {
         return data;
     },
 
+    getPersonaInventory: async () => {
+        const { data } = await apiClient.get('/ops/persona/inventory');
+        return data;
+    },
+
     getTierStatsRollup: async (since = '7d') => {
         const { data } = await apiClient.get(`/scraper/metrics/tier-stats?since=${encodeURIComponent(since)}`);
         return data;
@@ -464,6 +476,16 @@ export const api = {
 
     getScraperReviews: async (limit = 10) => {
         const { data } = await apiClient.get(`/scraper/reviews?limit=${limit}`);
+        return data;
+    },
+
+    getScraperReports: async (limit = 50) => {
+        const { data } = await apiClient.get('/scraper/reports', { params: { limit } });
+        return data;
+    },
+
+    getScraperReport: async (runId: string) => {
+        const { data } = await apiClient.get(`/scraper/reports/${encodeURIComponent(runId)}`);
         return data;
     },
 

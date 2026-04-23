@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from '../../../../api';
 import JobInventoryTab from './JobInventoryTab';
 import PipelineTab from './PipelineTab';
@@ -6,7 +7,8 @@ import RunHistoryTab from './RunHistoryTab';
 type Tab = 'jobs' | 'pipeline' | 'history';
 const TAILORING_RUNS_TAB_KEY = 'tailoring.runs.activeTab';
 
-function getInitialTab(): Tab {
+function getInitialTab(pathname?: string): Tab {
+    if (pathname === '/pipeline/ready') return 'jobs';
     if (typeof window === 'undefined') return 'history';
     const saved = window.localStorage.getItem(TAILORING_RUNS_TAB_KEY);
     if (saved === 'jobs' || saved === 'pipeline' || saved === 'history') {
@@ -22,7 +24,8 @@ const tabs: { key: Tab; label: string }[] = [
 ];
 
 export default function TailoringView() {
-    const [activeTab, setActiveTab] = useState<Tab>(getInitialTab);
+    const location = useLocation();
+    const [activeTab, setActiveTab] = useState<Tab>(() => getInitialTab(location.pathname));
 
     // --- Shared state ---
     const [runs, setRuns] = useState<any[]>([]);
@@ -104,6 +107,12 @@ export default function TailoringView() {
         }
     }, [activeTab]);
 
+    useEffect(() => {
+        if (location.pathname === '/pipeline/ready') {
+            setActiveTab('jobs');
+        }
+    }, [location.pathname]);
+
     // Fast-poll while runner active; auto-switch to pipeline tab
     useEffect(() => {
         if (!runner.running) {
@@ -111,12 +120,12 @@ export default function TailoringView() {
             prevRunningRef.current = false;
             return;
         }
-        if (!prevRunningRef.current) setActiveTab('pipeline');
+        if (!prevRunningRef.current && location.pathname !== '/pipeline/ready') setActiveTab('pipeline');
         prevRunningRef.current = true;
         const f1 = setInterval(fetchRunnerStatus, 2000);
         const f2 = setInterval(fetchRuns, 5000);
         return () => { clearInterval(f1); clearInterval(f2); };
-    }, [runner.running]);
+    }, [runner.running, location.pathname]);
 
     const onRunStarted = () => {
         fetchRunnerStatus();
