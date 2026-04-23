@@ -2,7 +2,7 @@
 ---
 tags: [identity, access_management, security_engineering]
 company_types: [enterprise_regulated, large_tech]
-skill_categories: [Identity and Access, Security Engineering, Cloud Security]
+skill_categories: [Identity and Access]
 keywords: [MFA, SAML, IAM, authentication, identity, access control, SSO, Shibboleth, Duo, AWS, ECS, Secrets Manager, certificate]
 ---
 Coraline — the asset management platform I built — originally used HTTP Basic Auth with two shared accounts, no session tracking, and no audit trail. The Deputy CISO directed me to replace it with SSO. I implemented SAML 2.0 against UCOP's Shibboleth IdP (the same infrastructure backing Rapid7, Salesforce, and other enterprise apps), with Duo MFA enforced automatically through the IdP. The implementation included SP metadata generation with signing and encryption certificates, server-side Flask sessions sourced from SAML assertion attributes, and an AUTH_MODE feature toggle so basic auth remained available for rollback. The hardest part was the AWS deployment: the SP private key was mounted locally via Docker Compose but had no corresponding entry in ECS. The error message was misleading — python3-saml reported "sp_cert_not_found" when the actual problem was a missing private key. I diagnosed it by exec-ing into the running container, inspecting cert and key lengths, and tracing the config builder logic. Resolution was storing the base64-encoded key in AWS Secrets Manager and adding a valueFrom reference in the task definition. The experience reinforced a rule I now follow: every secret in docker-compose.yml must have a corresponding Secrets Manager entry before deployment.

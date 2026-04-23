@@ -359,5 +359,139 @@ def validate(output_path: str = typer.Argument(..., help="Path to output directo
         raise typer.Exit(1)
 
 
+@app.command()
+def coverage(
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON instead of table"),
+):
+    """Audit vignette coverage vs skills.json categories.
+
+    Flags:
+    - categories declared in ``skills.json`` with zero vignettes
+    - categories that are overrepresented (>=3 vignettes) and likely anchor-bias
+    - vignette ``skill_categories`` values that do not exist in ``skills.json``
+    """
+    skills_data = json.loads(cfg.SKILLS_JSON.read_text())
+    declared = [c["name"] for c in skills_data["skills_inventory"]["core_skills"]]
+
+    from .persona import PersonaStore
+    store = PersonaStore(cfg.PERSONA_DIR)
+
+    counts: dict[str, list[str]] = {name: [] for name in declared}
+    orphans: dict[str, list[str]] = {}
+    for v in store._vignettes:
+        for cat in v.skill_categories:
+            if cat in counts:
+                counts[cat].append(v.path.stem)
+            else:
+                orphans.setdefault(cat, []).append(v.path.stem)
+
+    missing = [c for c, stems in counts.items() if not stems]
+    overrepresented = {c: stems for c, stems in counts.items() if len(stems) >= 3}
+
+    if json_output:
+        typer.echo(json.dumps({
+            "counts": counts,
+            "missing": missing,
+            "overrepresented": overrepresented,
+            "orphans": orphans,
+            "total_vignettes": len(store._vignettes),
+        }, indent=2))
+        return
+
+    typer.echo(f"Vignette coverage — {len(store._vignettes)} vignettes, {len(declared)} categories\n")
+    for cat in sorted(declared, key=lambda c: (-len(counts[c]), c)):
+        stems = counts[cat]
+        marker = "❌" if not stems else ("⚠️ " if len(stems) >= 3 else "  ")
+        typer.echo(f"  {marker} {len(stems):>2}  {cat}")
+        if stems:
+            typer.echo(f"          {', '.join(stems)}")
+
+    if missing:
+        typer.echo(f"\nMissing ({len(missing)}):")
+        for c in missing:
+            typer.echo(f"  - {c}")
+
+    if overrepresented:
+        typer.echo(f"\nOverrepresented (>=3):")
+        for c, stems in overrepresented.items():
+            typer.echo(f"  - {c}: {', '.join(stems)}")
+
+    if orphans:
+        typer.echo(f"\nOrphaned skill_categories (not in skills.json):")
+        for cat, stems in orphans.items():
+            typer.echo(f"  - {cat}: {', '.join(stems)}")
+
+
+@app.command("vignette-saturation")
+def vignette_saturation(
+    output_root: Path = typer.Option(cfg.OUTPUT_DIR, "--output-root", help="Directory containing run output folders"),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON instead of table"),
+):
+    """Aggregate vignette budget saturation from recent llm_trace.jsonl files."""
+    events: list[dict] = []
+    for trace_path in sorted(output_root.glob("*/llm_trace.jsonl")):
+        try:
+            for line in trace_path.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                event = json.loads(line)
+                if event.get("event_type") == "vignette_selection":
+                    budget = int(event.get("budget_chars") or 0)
+                    used = int(event.get("budget_used") or 0)
+                    if budget > 0:
+                        events.append({
+                            "run": trace_path.parent.name,
+                            "doc_type": event.get("doc_type"),
+                            "stage": event.get("stage") or event.get("phase"),
+                            "budget_chars": budget,
+                            "budget_used": used,
+                            "saturation": used / budget,
+                            "selected_count": len(event.get("selected") or []),
+                            "budget_skips": len([
+                                item for item in event.get("skipped") or []
+                                if item.get("reason") == "budget_exceeded"
+                            ]),
+                        })
+        except Exception as exc:
+            logger.warning("Could not read vignette saturation from %s: %s", trace_path, exc)
+
+    by_key: dict[tuple[str, str], list[dict]] = {}
+    for event in events:
+        key = (str(event.get("doc_type") or "unknown"), str(event.get("stage") or "unknown"))
+        by_key.setdefault(key, []).append(event)
+
+    summary = {}
+    for key, rows in by_key.items():
+        saturations = [row["saturation"] for row in rows]
+        summary[f"{key[0]}:{key[1]}"] = {
+            "events": len(rows),
+            "avg_saturation": sum(saturations) / len(saturations),
+            "max_saturation": max(saturations),
+            "budget_skip_events": sum(1 for row in rows if row["budget_skips"] > 0),
+        }
+
+    payload = {
+        "output_root": str(output_root),
+        "events": events,
+        "summary": summary,
+    }
+
+    if json_output:
+        typer.echo(json.dumps(payload, indent=2))
+        return
+
+    typer.echo(f"Vignette budget saturation — {len(events)} selection events\n")
+    if not events:
+        typer.echo("No vignette_selection events found.")
+        return
+    for key in sorted(summary):
+        row = summary[key]
+        typer.echo(
+            f"  {key:<18} events={row['events']:<3} "
+            f"avg={row['avg_saturation']:.0%} max={row['max_saturation']:.0%} "
+            f"budget-skip-events={row['budget_skip_events']}"
+        )
+
+
 if __name__ == "__main__":
     app()

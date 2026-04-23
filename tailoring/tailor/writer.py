@@ -56,6 +56,40 @@ _RESUME_COMPANY_HEADER_PATTERN = re.compile(
 )
 
 
+def _log_vignette_selection(
+    trace_recorder: Callable[[dict], None] | None,
+    analysis: dict,
+    doc_type: str,
+    stage: str,
+    attempt: int,
+) -> None:
+    """Emit a ``vignette_selection`` trace event for observability.
+
+    Records which vignettes were picked, their scores, skipped candidates, and
+    budget usage so selection behavior can be audited per-run without inspecting
+    PersonaStore internals.
+    """
+    if trace_recorder is None:
+        return
+    try:
+        meta = get_persona().explain_selection(analysis, doc_type, stage)
+    except Exception as exc:  # pragma: no cover - defensive, trace must never break run
+        trace_recorder({
+            "event_type": "vignette_selection_error",
+            "doc_type": doc_type,
+            "phase": stage,
+            "attempt": attempt,
+            "error": str(exc),
+        })
+        return
+    trace_recorder({
+        "event_type": "vignette_selection",
+        "phase": stage,
+        "attempt": attempt,
+        **meta,
+    })
+
+
 def _format_retry_feedback_block(previous_feedback: RetryFeedback | None) -> str:
     if not previous_feedback:
         return ""
@@ -335,10 +369,9 @@ PERSONALIZATION RULES:
 - Structure is FLEXIBLE. You choose how many body paragraphs (2-4) and what order to present experience. Lead with whichever experience is most relevant to THIS role, not chronological order.
 - You may organize paragraphs by THEME (e.g., "automation at scale" drawing from multiple roles) instead of by company.
 - The closing must connect back to the company-specific hook, not generic "thank you for your consideration."
-- Select the most relevant narrative vignettes from the candidate persona. Not every letter needs Coraline or GWR — pick what fits.
-- BREADTH OVER DEPTH: Distribute body paragraphs across 2-3 DISTINCT projects or experience areas. Do NOT anchor the entire letter on one project — the candidate's range across full-stack development, secops, infrastructure, and innovation is the story. A letter that deep-dives a single project misrepresents the candidate.
+- Use the selected narrative vignettes in the candidate persona as the authority. Not every letter needs Coraline, GWR, or an AI story — pick from what was provided because the selector already filtered for this JD.
+- BREADTH OVER DEPTH: When multiple source projects are provided, distribute body paragraphs across distinct projects or experience areas. Do not force extra stories that were not selected for this JD.
 - KEEP PROJECT SPECIFICS LIGHT: Reference projects by what they demonstrate (judgment, tradeoffs, reasoning), not by exhaustive technical detail. The resume carries the specifics; the cover letter carries the perspective.
-- Treat any single AI/LLM-tooling vignette (e.g. RAG/chatbot work) as one option among many — never the default anchor. Reach for it only when the JD explicitly calls for that exact stack.
 - Adapt voice to the company type provided in the analysis (large_tech, startup, security_focused, etc.).
 - Preserve attribution exactly. If evidence comes from a Great Wolf Resorts bullet, name Great Wolf Resorts, not a vendor or tool mentioned inside that bullet.
 - School, capstone, and personal projects must stay labeled as school, capstone, or personal. Never rewrite them as internal employer recognition or on-the-job work.
@@ -387,8 +420,9 @@ Output requirements:
 - Follow the paragraph structure from the strategy — do NOT default to a fixed 4-paragraph formula.
 - The opening paragraph MUST reference the company specifically (their product, mission, or challenge). Never start with "I am reaching out to apply for X at Y."
 - Body paragraphs may be organized by theme rather than by employer. Draw from whichever roles/projects the strategy specifies.
-- BREADTH RULE: Body paragraphs together must reference 2-3 DISTINCT projects or experience areas. Do not anchor the entire letter on a single project — the candidate's range across full-stack development, secops, infrastructure, and innovation is the story.
+- BREADTH RULE: If the persona section provides multiple source projects, body paragraphs should reference distinct projects or experience areas. If it provides one highly relevant source, use that source without inventing breadth.
 - LIGHTEN PROJECT SPECIFICS: Reference projects through the reasoning, tradeoff, or lesson they illustrate — not through exhaustive technical inventories. Resume carries the specifics; the cover letter carries the perspective. One concrete anchor per project is enough; do not enumerate stacks, metrics, and architecture.
+- SOURCE-BLOCK BOUNDARY: Each `### Source project:` block is a separate story. Bad example: "I used the RAG chatbot's vector database lessons when deploying Coraline to ECS" unless both facts appear in the same source block. Good example: keep the chatbot retrieval lesson and Coraline deployment lesson in separate sentences with separate attribution.
 - Each body paragraph must tell a STORY, not list accomplishments:
   - Lead with a goal, a question you were solving, or a technical decision — not "I built X" and not "I pushed back on Y"
   - Include what you learned, why you chose one approach over another, or how you collaborated to get there
@@ -451,8 +485,8 @@ DIFFERENTIATION CHECKS (fix if violated):
 - If the letter follows a rigid formula of opening → UCOP paragraph → GWR paragraph → closing, restructure to follow the strategy's prescribed order instead.
 
 BREADTH CHECK (fix if violated):
-- The body paragraphs together must reference 2-3 DISTINCT projects or experience areas. If two or more body paragraphs deep-dive the same project (e.g. both leaning on the RAG chatbot, or both circling Coraline), rewrite one of them to draw from a different vignette so the letter conveys range across full-stack development, secops, infrastructure, and innovation.
-- A single AI/LLM-tooling story (RAG, chatbot, vector DB) must NOT anchor the letter unless the JD explicitly demands that exact stack. If it dominates, swap it for a vignette that better reflects the candidate's broader dev/secops/innovation range.
+- If the persona section provided multiple source projects and the body paragraphs all deep-dive the same one, rewrite one paragraph to draw from another selected source. If only one source project was selected, do not invent a second source.
+- Each `### Source project:` block is a separate story. If details from two blocks have been fused into one invented causal chain, split or remove the fused claim.
 - Trim exhaustive technical inventories. One concrete anchor per project is enough — no enumerating every tool, metric, or architectural detail. The resume carries specifics; the cover letter carries perspective.
 - Fix attribution drift:
   - if a sentence starts with the wrong employer, rewrite it to match the source evidence exactly
@@ -1186,6 +1220,7 @@ def _resume_strategy(
     attempt: int,
     trace_recorder: Callable[[dict], None] | None = None,
 ) -> dict:
+    _log_vignette_selection(trace_recorder, analysis, "resume", "strategy", attempt)
     persona_text = get_persona().for_strategy(analysis, "resume")
 
     # Extract matched tools from analysis requirements for easy reference
@@ -1236,6 +1271,7 @@ def _cover_strategy(
 ) -> dict:
     from datetime import date
     today = date.today().strftime("%B %d, %Y")
+    _log_vignette_selection(trace_recorder, analysis, "cover", "strategy", attempt)
     persona_text = get_persona().for_strategy(analysis, "cover")
     company_ctx = analysis.get("company_context", {})
     user_prompt = (
@@ -1787,12 +1823,15 @@ def write_resume(
         for p in preserves:
             rewrite_block += f"  - [{p['company']}] {p['topic']}\n"
 
+    _log_vignette_selection(trace_recorder, analysis, "resume", "draft", attempt)
+    resume_draft_persona = get_persona().for_draft(analysis, "resume")
+
     draft_prompt = (
         f"## Baseline Resume Template\n```latex\n{baseline}\n```\n\n"
         f"## Analysis Mapping\n{json.dumps(analysis, indent=2)}\n\n"
         f"{grounding_prompt_block(grounding)}\n\n"
         f"## Candidate Persona (voice, contribution patterns, evidence anchors — use this to guide HOW bullets are written)\n"
-        f"{get_persona().for_draft(analysis, 'resume')}\n\n"
+        f"{resume_draft_persona}\n\n"
         f"## Skills Inventory (supplemental context — these category names are NOT resume section names)\n"
         f"Note: The resume's TECHNICAL SKILLS block is assembled deterministically in code, not authored by the model.\n"
         f"This inventory is provided only to support grounded summary and bullet wording.\n"
@@ -1990,6 +2029,8 @@ def write_cover_letter(
     target_hi = int(baseline_body_len * (1 + cfg.COVER_CHAR_TOLERANCE))
 
     company_ctx = analysis.get("company_context", {})
+    _log_vignette_selection(trace_recorder, analysis, "cover", "draft", attempt)
+    cover_draft_persona = get_persona().for_draft(analysis, "cover")
     draft_prompt = (
         f"## Length Budget (HARD)\n"
         f"Baseline cover letter body is {baseline_body_len} chars. "
@@ -2023,7 +2064,7 @@ def write_cover_letter(
         f"Engineering challenges: {company_ctx.get('engineering_challenges', 'unknown')}\n"
         f"Company type: {company_ctx.get('company_type', 'other')}\n"
         f"Cover letter hook: {company_ctx.get('cover_letter_hook', 'none')}\n\n"
-        f"## Candidate Persona\n{get_persona().for_draft(analysis, 'cover')}\n\n"
+        f"## Candidate Persona\n{cover_draft_persona}\n\n"
         f"Target Role: {analysis.get('role_title', job.title)}\n"
         f"Target Company: {analysis.get('company_name', job.company)}\n"
         f"Today's Date: {today}\n"

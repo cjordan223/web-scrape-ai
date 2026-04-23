@@ -9,12 +9,16 @@ from __future__ import annotations
 import json
 import logging
 import re
+from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import config as cfg
 
 logger = logging.getLogger(__name__)
+
+
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 
 @dataclass
@@ -61,6 +65,53 @@ def _parse_frontmatter(text: str) -> tuple[dict, str]:
     return meta, body
 
 
+_STAGE_BUDGETS: dict[tuple[str, str], tuple[int, bool]] = {
+    ("strategy", "cover"): (1500, True),
+    ("strategy", "resume"): (1500, False),
+    ("draft", "cover"): (1500, True),
+    ("draft", "resume"): (1500, False),
+}
+
+
+def _stage_budget(stage: str, doc_type: str) -> tuple[int, bool]:
+    """Return (budget_chars, diverse) for a given pipeline stage + doc_type."""
+    return _STAGE_BUDGETS.get((stage, doc_type), (1500, False))
+
+
+def _tokens(value: str) -> set[str]:
+    return set(_TOKEN_RE.findall(value.lower()))
+
+
+def _keyword_matches(keyword: str, matched_skills: set[str]) -> bool:
+    """Match exact skills plus phrase/token variants.
+
+    Analyzer output often contains normalized skill names ("AWS ECS deployments")
+    while vignette keywords are shorter ("ECS"). A small token-overlap check keeps
+    scoring robust without making every generic one-word keyword match everything.
+    """
+    kw = keyword.lower().strip()
+    if not kw:
+        return False
+    kw_tokens = _tokens(kw)
+    if not kw_tokens:
+        return False
+    for skill in matched_skills:
+        skill_norm = skill.lower().strip()
+        if kw == skill_norm or kw in skill_norm or skill_norm in kw:
+            return True
+        skill_tokens = _tokens(skill_norm)
+        if not skill_tokens:
+            continue
+        if len(kw_tokens) == 1:
+            if kw_tokens <= skill_tokens:
+                return True
+            continue
+        overlap = len(kw_tokens & skill_tokens)
+        if overlap / len(kw_tokens | skill_tokens) >= 0.5 or overlap == len(kw_tokens):
+            return True
+    return False
+
+
 class PersonaStore:
     """Loads persona/ directory, scores vignettes, assembles per-stage persona text."""
 
@@ -73,6 +124,7 @@ class PersonaStore:
         self._interests = ""
         self._motivation = ""
         self._vignettes: list[Vignette] = []
+        self._selection_cache: dict[tuple[str, int, bool], tuple[list[Vignette], dict]] = {}
         self._load()
 
     def _load(self):
@@ -126,6 +178,27 @@ class PersonaStore:
         used for cover letters, where breadth across distinct experiences matters
         more than piling on multiple stories from the same domain.
         """
+        selected, _meta = self._select_with_meta(analysis, budget_chars, diverse=diverse)
+        return selected
+
+    def _select_with_meta(
+        self,
+        analysis: dict,
+        budget_chars: int,
+        *,
+        diverse: bool = False,
+    ) -> tuple[list[Vignette], dict]:
+        """Same scoring as :meth:`select_vignettes` but also returns structured
+        metadata describing which candidates were considered, which were picked,
+        and why. Powers the ``vignette_selection`` trace event.
+        """
+        analysis_key = json.dumps(analysis, sort_keys=True, default=str)
+        cache_key = (analysis_key, budget_chars, diverse)
+        cached = self._selection_cache.get(cache_key)
+        if cached:
+            selected, meta = cached
+            return list(selected), deepcopy(meta)
+
         company_type = analysis.get("company_context", {}).get("company_type", "")
         matched_categories: set[str] = set()
         matched_skills: set[str] = set()
@@ -136,7 +209,7 @@ class PersonaStore:
             for sk in req.get("matched_skills", []):
                 matched_skills.add(sk.lower())
 
-        scored: list[tuple[int, Vignette]] = []
+        scored: list[tuple[int, float, Vignette]] = []
         for v in self._vignettes:
             score = 0
             for sc in v.skill_categories:
@@ -145,28 +218,90 @@ class PersonaStore:
             if company_type and company_type in v.company_types:
                 score += 2
             for kw in v.keywords:
-                if kw.lower() in matched_skills:
+                if _keyword_matches(kw, matched_skills):
                     score += 1
             if score > 0:
-                scored.append((score, v))
+                scored.append((score, score / max(1, len(v.body)), v))
 
-        scored.sort(key=lambda x: x[0], reverse=True)
+        scored.sort(key=lambda x: (-x[0], -x[1], len(x[2].body), x[2].path.stem))
 
         selected: list[Vignette] = []
+        skipped: list[tuple[Vignette, int, float, str]] = []
         used = 0
-        used_categories: set[str] = set()
-        for _score, v in scored:
+        used_primary_categories: set[str] = set()
+        for score, density, v in scored:
             if used + len(v.body) > budget_chars:
+                skipped.append((v, score, density, "budget_exceeded"))
                 continue
             if diverse:
-                v_cats = {sc.lower() for sc in v.skill_categories}
-                if v_cats & used_categories:
+                primary_category = v.skill_categories[0].lower() if v.skill_categories else ""
+                if primary_category and primary_category in used_primary_categories:
+                    skipped.append((v, score, density, "diverse_primary_category_collision"))
                     continue
-                used_categories |= v_cats
+                if primary_category:
+                    used_primary_categories.add(primary_category)
             selected.append(v)
             used += len(v.body)
 
-        return selected
+        selected_stems = {v.path.stem for v in selected}
+        score_by_stem = {v.path.stem: score for score, _density, v in scored}
+        density_by_stem = {v.path.stem: density for _score, density, v in scored}
+
+        meta = {
+            "budget_chars": budget_chars,
+            "diverse": diverse,
+            "budget_used": used,
+            "budget_remaining": max(0, budget_chars - used),
+            "matched_categories": sorted(matched_categories),
+            "matched_skills_count": len(matched_skills),
+            "company_type": company_type,
+            "candidates_total": len(self._vignettes),
+            "candidates_scored": len(scored),
+            "selected": [
+                {
+                    "name": v.path.stem,
+                    "score": score_by_stem.get(v.path.stem, 0),
+                    "score_density": round(density_by_stem.get(v.path.stem, 0.0), 5),
+                    "chars": len(v.body),
+                    "skill_categories": list(v.skill_categories),
+                    "primary_category": v.skill_categories[0] if v.skill_categories else None,
+                }
+                for v in selected
+            ],
+            "skipped": [
+                {
+                    "name": v.path.stem,
+                    "score": score,
+                    "score_density": round(density, 5),
+                    "chars": len(v.body),
+                    "reason": reason,
+                }
+                for v, score, density, reason in skipped
+            ],
+            "unscored": [
+                v.path.stem for v in self._vignettes
+                if v.path.stem not in score_by_stem and v.path.stem not in selected_stems
+            ],
+        }
+        self._selection_cache[cache_key] = (list(selected), deepcopy(meta))
+        return selected, meta
+
+    def explain_selection(
+        self,
+        analysis: dict,
+        doc_type: str,
+        stage: str,
+    ) -> dict:
+        """Public hook: compute selection metadata for a given stage/doc.
+
+        Returns the same shape logged by the ``vignette_selection`` trace event
+        so callers can emit it without re-implementing stage budget logic.
+        """
+        budget, diverse = _stage_budget(stage, doc_type)
+        _selected, meta = self._select_with_meta(analysis, budget, diverse=diverse)
+        meta["doc_type"] = doc_type
+        meta["stage"] = stage
+        return meta
 
     @property
     def interests(self) -> str:
@@ -193,11 +328,11 @@ class PersonaStore:
 
     def for_strategy(self, analysis: dict, doc_type: str) -> str:
         """Persona text for strategy stage."""
+        budget, diverse = _stage_budget("strategy", doc_type)
+        vigs = self.select_vignettes(analysis, budget, diverse=diverse)
+        rendered = self._render_vignettes(vigs)
         if doc_type == "cover":
-            vignette_budget = 1200
             parts = [self._identity]
-            vigs = self.select_vignettes(analysis, vignette_budget, diverse=True)
-            rendered = self._render_vignettes(vigs)
             if rendered:
                 parts.append(rendered)
             parts.append(self._voice)
@@ -205,23 +340,19 @@ class PersonaStore:
             if self._motivation:
                 parts.append(self._motivation)
             return "\n\n".join(p for p in parts if p)
-        else:  # resume
-            vignette_budget = 1500
-            parts = [self._identity]
-            vigs = self.select_vignettes(analysis, vignette_budget)
-            rendered = self._render_vignettes(vigs)
-            if rendered:
-                parts.append(rendered)
-            parts.append(self._contributions)
-            return "\n\n".join(p for p in parts if p)
+        parts = [self._identity]
+        if rendered:
+            parts.append(rendered)
+        parts.append(self._contributions)
+        return "\n\n".join(p for p in parts if p)
 
     def for_draft(self, analysis: dict, doc_type: str) -> str:
         """Persona text for draft stage."""
+        budget, diverse = _stage_budget("draft", doc_type)
+        vigs = self.select_vignettes(analysis, budget, diverse=diverse)
+        rendered = self._render_vignettes(vigs)
         if doc_type == "cover":
-            vignette_budget = 1500
             parts = [self._identity]
-            vigs = self.select_vignettes(analysis, vignette_budget, diverse=True)
-            rendered = self._render_vignettes(vigs)
             if rendered:
                 parts.append(rendered)
             parts.append(self._voice)
@@ -230,14 +361,10 @@ class PersonaStore:
             if self._interests:
                 parts.append(self._interests)
             return "\n\n".join(p for p in parts if p)
-        else:  # resume
-            vignette_budget = 1500
-            parts = [self._identity]
-            vigs = self.select_vignettes(analysis, vignette_budget)
-            rendered = self._render_vignettes(vigs)
-            if rendered:
-                parts.append(rendered)
-            return "\n\n".join(p for p in parts if p)
+        parts = [self._identity]
+        if rendered:
+            parts.append(rendered)
+        return "\n\n".join(p for p in parts if p)
 
     def for_qa(self, doc_type: str) -> str:
         """Minimal persona for QA stage — voice anti-patterns for cover, empty for resume."""
@@ -276,7 +403,10 @@ def _fallback_from_soul() -> PersonaStore | None:
             self._contributions = ""
             self._voice = ""
             self._evidence = ""
+            self._interests = ""
+            self._motivation = ""
             self._vignettes = []
+            self._selection_cache = {}
 
         def for_analysis(self) -> str:
             return self._identity

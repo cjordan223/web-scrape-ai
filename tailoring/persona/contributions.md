@@ -19,11 +19,13 @@ I am strongest at the intersection of:
 - Cloud / containerized delivery (AWS ECS, CodePipeline)
 - Data integration and correlation
 - Operational reliability
+- Supply-chain and dependency telemetry
 
 How I actually work:
 - Everything starts manual. I validate by hand before automating anything, and I build safeguards before flipping switches. I've never had a production disaster because of this discipline.
 - I communicate constantly. I work with a long leash and non-technical leadership, so I've gotten good at the "this is the problem, this is why, this is what I'm doing about it" pitch — often compressing weeks of work into a 15-minute sync.
-- I fill gaps nobody assigned. At UCOP, I'm the only one on a 6-person security team with an SWE background. Coraline, the governance framework, the automation — none of those were asked for. I saw problems and built solutions.
+- I fill gaps nobody assigned. At UCOP, I'm the only one on a 6-person security team with an SWE background, so I keep turning invisible operational problems into working systems: Coraline, AI governance, dependency telemetry, automation, and the connective tissue around them.
+- I productize security telemetry. A one-off script is rarely the finish line; I preserve raw evidence, define transport and validation contracts, normalize messy sources, and build the UI/API layer that lets operators actually use the data.
 - I learn fast when I have to. Went from zero AWS knowledge to leading ECS deployments and teaching the org's AWS engineer in about two and a half weeks.
 - I protect working relationships over credit. I'd rather learn from a stronger engineer than take kudos for their idea.
 - I build for handoff. Excessive documentation is intentional — the code needs to be readable by IAM engineers and AWS devs who aren't developers. Six months after leaving GWR, the automation was still running.
