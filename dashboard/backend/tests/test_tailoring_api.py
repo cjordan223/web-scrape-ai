@@ -1,4 +1,5 @@
 import io
+import asyncio
 import json
 import shutil
 import sqlite3
@@ -1488,6 +1489,160 @@ class TestTailoringAPI(unittest.TestCase):
                 server.DB_PATH = old_db
                 server.TAILORING_OUTPUT_DIR = old_output_dir
                 server.RUNTIME_CONTROLS_PATH = old_controls
+
+    def test_auto_qa_review_status_reports_disabled(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            db_path = root / "jobs.db"
+            self._create_results_db(db_path)
+
+            old_db = server.DB_PATH
+            server.DB_PATH = str(db_path)
+            server._ensure_workflow_schema(force=True)
+            client = TestClient(server.app)
+            try:
+                with patch.dict("os.environ", {"TEXTAILOR_AUTO_QA_REVIEW": "0"}):
+                    resp = client.get("/api/tailoring/qa/auto-review")
+                self.assertEqual(resp.status_code, 200)
+                body = resp.json()
+                self.assertFalse(body["enabled"])
+                self.assertEqual(body["pending_qa_count"], 0)
+                self.assertEqual(body["in_flight_count"], 0)
+            finally:
+                server.DB_PATH = old_db
+
+    def test_auto_qa_review_startup_backlog_queues_post_scrape_batch(self):
+        from services import auto_qa_review
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            db_path = root / "jobs.db"
+            self._create_results_db(db_path)
+            self._create_runs_table(db_path)
+            for job_id in range(1, 4):
+                self._insert_result(
+                    db_path,
+                    job_id=job_id,
+                    title=f"Security Engineer {job_id}",
+                    url=f"https://example.com/jobs/{job_id}",
+                    decision="qa_pending",
+                    jd_text="Build security automation and cloud controls.",
+                )
+            conn = sqlite3.connect(db_path)
+            conn.execute(
+                "INSERT INTO runs (run_id, started_at, completed_at, status) VALUES (?, ?, ?, ?)",
+                ("run-auto-1", "2026-04-22T06:00:00Z", "2026-04-22T07:00:00Z", "completed"),
+            )
+            conn.commit()
+            conn.close()
+
+            old_db = server.DB_PATH
+            old_last = auto_qa_review._last_processed_completed_at
+            old_pending = auto_qa_review._pending_drain
+            server.DB_PATH = str(db_path)
+            server._ensure_workflow_schema(force=True)
+            auto_qa_review._last_processed_completed_at = None
+            auto_qa_review._pending_drain = False
+            try:
+                with (
+                    patch.dict("os.environ", {"TEXTAILOR_AUTO_QA_REVIEW": "1"}),
+                    patch("services.tailoring._ensure_qa_llm_review_worker_running", return_value=None),
+                ):
+                    asyncio.run(auto_qa_review.poll_and_enqueue())
+
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                batch = conn.execute(
+                    "SELECT trigger_source, queued_count FROM qa_llm_review_batches"
+                ).fetchone()
+                item_count = conn.execute("SELECT COUNT(*) FROM qa_llm_review_items").fetchone()[0]
+                conn.close()
+                self.assertEqual(batch["trigger_source"], "auto_post_scrape")
+                self.assertEqual(batch["queued_count"], 3)
+                self.assertEqual(item_count, 3)
+            finally:
+                auto_qa_review._last_processed_completed_at = old_last
+                auto_qa_review._pending_drain = old_pending
+                server.DB_PATH = old_db
+
+    def test_auto_qa_review_defers_when_batch_in_flight(self):
+        from services import auto_qa_review
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            db_path = root / "jobs.db"
+            self._create_results_db(db_path)
+            self._insert_result(
+                db_path,
+                job_id=1,
+                title="Security Engineer",
+                url="https://example.com/jobs/1",
+                decision="qa_pending",
+                jd_text="Build security automation and cloud controls.",
+            )
+            old_db = server.DB_PATH
+            old_pending = auto_qa_review._pending_drain
+            server.DB_PATH = str(db_path)
+            server._ensure_workflow_schema(force=True)
+            conn = sqlite3.connect(db_path)
+            conn.execute(
+                "INSERT INTO qa_llm_review_batches (started_at, trigger_source, queued_count) VALUES (?, ?, ?)",
+                ("2026-04-22T07:00:00Z", "manual", 1),
+            )
+            batch_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            conn.execute(
+                """
+                INSERT INTO qa_llm_review_items (
+                    batch_id, job_id, title, status, queued_at, top_matches, gaps
+                ) VALUES (?, ?, ?, 'queued', ?, '[]', '[]')
+                """,
+                (batch_id, 1, "Security Engineer", "2026-04-22T07:00:00Z"),
+            )
+            conn.commit()
+            conn.close()
+            auto_qa_review._pending_drain = False
+            try:
+                with patch.dict("os.environ", {"TEXTAILOR_AUTO_QA_REVIEW": "1"}):
+                    result = auto_qa_review.enqueue_auto_qa_review("auto_post_scrape")
+                self.assertTrue(result["ok"])
+                self.assertEqual(result["skipped"], "batch_in_flight")
+                self.assertTrue(result["deferred"])
+                self.assertTrue(auto_qa_review.status()["pending_drain"])
+            finally:
+                auto_qa_review._pending_drain = old_pending
+                server.DB_PATH = old_db
+
+    def test_auto_qa_review_ingest_trigger_records_source(self):
+        from services import auto_qa_review
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            db_path = root / "jobs.db"
+            self._create_results_db(db_path)
+            self._insert_result(
+                db_path,
+                job_id=1,
+                title="Security Engineer",
+                url="https://example.com/jobs/1",
+                decision="qa_pending",
+                jd_text="Build security automation and cloud controls.",
+            )
+            old_db = server.DB_PATH
+            server.DB_PATH = str(db_path)
+            server._ensure_workflow_schema(force=True)
+            try:
+                with (
+                    patch.dict("os.environ", {"TEXTAILOR_AUTO_QA_REVIEW": "1"}),
+                    patch("services.tailoring._ensure_qa_llm_review_worker_running", return_value=None),
+                ):
+                    result = auto_qa_review.enqueue_auto_qa_review("auto_post_ingest")
+                self.assertEqual(result["queued"], 1)
+                conn = sqlite3.connect(db_path)
+                source = conn.execute("SELECT trigger_source FROM qa_llm_review_batches").fetchone()[0]
+                conn.close()
+                self.assertEqual(source, "auto_post_ingest")
+            finally:
+                server.DB_PATH = old_db
 
     def test_qa_llm_review_rejects_job_below_salary_floor_even_if_model_passes(self):
         with tempfile.TemporaryDirectory() as td:

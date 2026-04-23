@@ -379,6 +379,7 @@ recover_on_startup()
 
 from services import scrape_scheduler as _scrape_scheduler
 from services import run_reviewer as _run_reviewer
+from services import auto_qa_review as _auto_qa_review
 
 
 @app.on_event("startup")
@@ -386,6 +387,7 @@ async def _scrape_scheduler_startup():
     if _scrape_scheduler.enabled():
         await _scrape_scheduler.start()
     await _run_reviewer.start()
+    await _auto_qa_review.start()
 
 
 @app.on_event("shutdown")
@@ -393,6 +395,7 @@ async def _scrape_scheduler_shutdown():
     if _scrape_scheduler.enabled():
         await _scrape_scheduler.stop()
     await _run_reviewer.stop()
+    await _auto_qa_review.stop()
 
 
 logger = logging.getLogger(__name__)

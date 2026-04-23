@@ -1642,6 +1642,11 @@ def tailoring_ingest_commit(payload: dict = Body(...)):
         )
         conn.commit()
         conn.close()
+        try:
+            from services.auto_qa_review import enqueue_auto_qa_review
+            enqueue_auto_qa_review(source="auto_post_ingest")
+        except Exception:
+            logger.exception("auto_qa: post-ingest enqueue failed")
         return {"ok": True, "job_id": job_id, "url": url}
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, 500)
@@ -2953,6 +2958,12 @@ def tailoring_qa_llm_review_status():
     _sync_app_state()
     _ensure_qa_llm_review_worker_running()
     return _qa_llm_review_snapshot()
+
+
+def tailoring_qa_auto_review_status():
+    _sync_app_state()
+    from services import auto_qa_review
+    return auto_qa_review.status()
 
 
 def tailoring_qa_llm_review_reports(limit: int = Query(20, ge=1, le=200)):
