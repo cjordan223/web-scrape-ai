@@ -103,7 +103,11 @@ function buildStarterPrompts(docFocus: 'resume' | 'cover') {
     return [
         {
             label: 'Answer Question',
-            prompt: 'Help me answer this application question:\n\n[Paste the application prompt here]\n\nUse only facts supported by this package.',
+            prompt: 'Help me answer this application question in a concise, natural paragraph:\n\n[Paste the application prompt here]\n\nUse only facts supported by this package.',
+        },
+        {
+            label: 'Shorter Answer',
+            prompt: 'Make this application answer tighter and more human. Keep it earnest, confident, and specific without sounding like a resume list:\n\n[Paste answer or prompt here]',
         },
         {
             label: 'Retailor Resume',
@@ -115,7 +119,7 @@ function buildStarterPrompts(docFocus: 'resume' | 'cover') {
         },
         {
             label: 'Explain Fit',
-            prompt: 'Why is my background a credible fit for this role? Give me 4 concise bullets I can reuse in applications.',
+            prompt: 'Help me answer this application question: Why is your background a credible fit for this role? Keep it to one concise, natural paragraph.',
         },
         {
             label: `Edit ${docFocus === 'resume' ? 'Resume' : 'Cover'}`,
@@ -209,7 +213,7 @@ export default function PackageChatPanel({ slug, docFocus, onDocUpdated }: Props
                         padding: '16px', opacity: 0.5,
                     }}>
                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.7rem', color: 'var(--text-secondary)' }}>
-                            Ask about fit, draft application answers, or request targeted edits to either document.
+                            Draft short application answers or request targeted edits to either document.
                         </span>
                     </div>
                 )}
@@ -353,7 +357,7 @@ export default function PackageChatPanel({ slug, docFocus, onDocUpdated }: Props
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Ask a question, request an edit, or draft an application answer..."
+                    placeholder="Paste an application question or ask for a tighter answer..."
                     rows={1}
                     style={{
                         flex: 1, padding: '6px 8px', borderRadius: '3px',

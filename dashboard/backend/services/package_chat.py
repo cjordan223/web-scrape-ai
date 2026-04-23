@@ -34,8 +34,8 @@ MODE_CONFIG = {
         "model_env": "TAILOR_PACKAGE_CHAT_EDIT_MODEL",
     },
     "application_answer": {
-        "max_tokens": 1800,
-        "temperature": 0.35,
+        "max_tokens": 900,
+        "temperature": 0.28,
         "model_env": "TAILOR_PACKAGE_CHAT_APPLICATION_MODEL",
     },
     "general": {
@@ -50,8 +50,18 @@ APPLICATION_HINTS = (
     "additional information",
     "help me answer",
     "supplemental question",
+    "what excites you",
+    "what excites me",
+    "what excites",
+    "what interests you",
+    "what interests me",
+    "what drew you",
+    "what draws you",
     "why do you want",
     "why are you interested",
+    "why this company",
+    "why this role",
+    "why us",
     "tell us about",
     "please share anything else",
     "short answer",
@@ -121,6 +131,58 @@ def _read_text(path: Path, max_chars: int = 0) -> str:
 
 def _strip_edit_blocks(text: str) -> str:
     return re.sub(r"<<<EDIT\s*\nOLD:\s*\n[\s\S]*?\nEDIT>>>", "", text, flags=re.DOTALL).strip()
+
+
+def _clean_application_answer(text: str, *, user_message: str = "") -> str:
+    """Remove model scaffolding that makes short application answers feel canned."""
+    cleaned = _strip_edit_blocks(text)
+    cleaned = re.sub(r"```(?:[a-zA-Z0-9_-]+)?\n?([\s\S]*?)```", r"\1", cleaned)
+    cleaned = re.sub(
+        r"^\s*(?:primary answer|answer|draft|suggested answer|response|option\s+\d+)\s*:\s*",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"\s*[—–]\s*", ", ", cleaned)
+    cleaned = re.sub(r"\*\*([^*\n]+)\*\*", r"\1", cleaned)
+    cleaned = re.sub(r"(?<!\w)\*([^*\n]+)\*(?!\w)", r"\1", cleaned)
+    cleaned = re.sub(r"__([^_\n]+)__", r"\1", cleaned)
+    cleaned = re.sub(r"(?<!\w)_([^_\n]+)_(?!\w)", r"\1", cleaned)
+    cleaned = re.sub(r"`([^`\n]+)`", r"\1", cleaned)
+    cleaned = re.sub(r"^\s{0,3}#{1,6}\s*", "", cleaned, flags=re.MULTILINE)
+    phrase_replacements = {
+        r"\binfrastructure as a product\b": "infrastructure as something developers can trust",
+        r"\bactionable visibility\b": "a clear view of what needed attention",
+        r"\bdemocratizing software development\b": "making software development more accessible",
+        r"\bbuilder-first\b": "practical",
+        r"\bself-service\b": "usable tooling",
+        r"\bpractical ethos\b": "way of building",
+        r"\bat scale\b": "",
+        r"\baligns with\b": "matches",
+        r"\baligns directly with\b": "fits",
+        r"\bmirrors my own instinct\b": "fits how I like to work",
+        r"\bmirrors how I approach\b": "fits how I approach",
+        r"\bmirrors how I work\b": "fits how I work",
+    }
+    for pattern, replacement in phrase_replacements.items():
+        cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+([.,;:])", r"\1", cleaned)
+    cleaned = re.sub(
+        r"\bWhat excites me most about ([A-Z][A-Za-z0-9 .&-]+) is the chance to\b",
+        "The exciting part is the chance to",
+        cleaned,
+    )
+    if not re.search(r"\b(bullet|bullets|list)\b", user_message, flags=re.IGNORECASE):
+        bullet_lines = re.findall(r"(?m)^\s*(?:[-*+]|\d+[.)])\s+(.+)$", cleaned)
+        non_bullet = re.sub(r"(?m)^\s*(?:[-*+]|\d+[.)])\s+.+$", "", cleaned).strip()
+        if bullet_lines and len(bullet_lines) >= 2:
+            joined = " ".join(line.strip().rstrip(".") for line in bullet_lines if line.strip())
+            cleaned = " ".join(part for part in [non_bullet, joined] if part).strip()
+        else:
+            cleaned = re.sub(r"(?m)^\s*(?:[-*+]|\d+[.)])\s+", "", cleaned)
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
 
 
 def _truncate(text: str, max_chars: int) -> str:
@@ -282,16 +344,19 @@ def _resolve_doc_target(message: str, doc_focus: str | None) -> str | None:
     return None
 
 
-def _render_recent_history(history: list[dict]) -> str:
+def _render_recent_history(history: list[dict], *, mode: str = "general") -> str:
     recent = history[-MAX_HISTORY:]
     if not recent:
         return ""
     lines: list[str] = []
     for msg in recent:
         role = msg.get("role", "user")
-        mode = msg.get("mode")
-        content = _truncate(_strip_edit_blocks(str(msg.get("content", ""))), HISTORY_PREVIEW_CHARS)
-        tag = f"[{mode}]" if mode else ""
+        msg_mode = msg.get("mode")
+        if mode == "application_answer" and role == "assistant":
+            continue
+        content = _strip_edit_blocks(str(msg.get("content", "")))
+        content = _truncate(content, HISTORY_PREVIEW_CHARS)
+        tag = f"[{msg_mode}]" if msg_mode else ""
         lines.append(f"{role.upper()}{tag}: {content}")
     return "\n".join(lines)
 
@@ -365,11 +430,34 @@ def build_system_prompt(context: dict, mode: str, target_doc: str | None) -> str
         parts.extend(
             [
                 "=== APPLICATION QUESTION MODE ===",
-                "The user wants help answering an application question or supplemental prompt.",
-                "Respond as a candidate-writing assistant, not as a TeX editor.",
-                "Draft a polished answer in first person using only supported facts from the package.",
+                "This mode is the primary purpose of package chat.",
+                "The user wants a short-form application answer or supplemental response.",
+                "Respond as a candidate-writing assistant, not as a TeX editor, resume reviewer, or generic career coach.",
+                "Draft a candidate-ready answer in first person using only supported facts from the package.",
                 "Do not emit edit blocks unless the user explicitly asks you to update a document too.",
-                "Prefer 1 strong answer plus, when useful, a shorter variant.",
+                "Default to one compact paragraph of 80-140 words unless the user asks for a different length.",
+                "If the prompt is a tiny form field, keep the answer closer to 50-90 words.",
+                "Return plain text only. Do not use Markdown, asterisks, italics, bold, headings, code fences, or decorative formatting.",
+                "Do not add labels like 'Primary answer', 'Draft', or 'Suggested answer'.",
+                "Do not use bullets unless the user explicitly asks for bullets.",
+                "Do not list accomplishments one after another; shape the evidence into a natural answer with a clear point.",
+                "Use one grounded example at most unless the user asks for a longer answer. Mention at most one prior employer or project.",
+                "If you use Coraline, do not add a second example from Great Wolf, Checkmarx, TexTailor, or another project.",
+                "Do not braid multiple resume facts into one overstuffed sentence.",
+                "Do not repeat the company's own slogans back at them as praise.",
+                "Use the package strategy and cover letter for facts only. Do not copy their wording or rhetorical structure.",
+                "Avoid polished strategy phrases even if they appear in context, including: infrastructure as a product, actionable visibility, democratizing software development, builder-first, self-service infrastructure, at scale, aligns directly, mirrors my own instinct.",
+                "Prefer plain, conversational specifics over abstractions. Say what kind of work sounds interesting and why.",
+                "For 'why this company' questions, connect the company's work to the candidate's judgment, curiosity, and work style.",
+                "Do not start with 'What excites me about [company] is'. Start more naturally.",
+                "Write in an organic, earnest, confident voice that sounds like a real person.",
+                "Use specific skills and work-style evidence, but connect them to motivation, judgment, or fit.",
+                "Avoid robotic transitions, corporate filler, exaggerated praise, and resume-recitation.",
+                "Do not use em dashes. Prefer commas, periods, or simple sentence breaks.",
+                "The answer should feel grounded, warm, capable, and direct.",
+                "Before finalizing, silently check: no Markdown, no em dash, no banned strategy phrase, no more than one prior-work example.",
+                "Weak example: 'What excites me about the company is that you treat infrastructure as a product, and I built X, Y, and Z.'",
+                "Strong example: 'I like building tools that make messy work easier for people who are moving fast. That is what drew me to this role.'",
             ]
         )
     else:
@@ -442,7 +530,7 @@ def build_system_prompt(context: dict, mode: str, target_doc: str | None) -> str
 
 def _build_user_prompt(message: str, history: list[dict], mode: str, target_doc: str | None) -> str:
     blocks: list[str] = []
-    history_block = _render_recent_history(history)
+    history_block = _render_recent_history(history, mode=mode)
     if history_block:
         blocks.append("=== RECENT CHAT HISTORY ===\n" + history_block)
     blocks.append(f"=== CURRENT MODE ===\n{mode}")
@@ -598,7 +686,12 @@ def send_chat(slug: str, message: str, doc_focus: str | None = None, *, model: s
     edits: list[dict] = []
     if mode == "edit":
         edits = _apply_edits(slug, target_doc, reply)
-    clean_reply = reply if mode == "edit" else _strip_edit_blocks(reply)
+    if mode == "edit":
+        clean_reply = reply
+    elif mode == "application_answer":
+        clean_reply = _clean_application_answer(reply, user_message=message)
+    else:
+        clean_reply = _strip_edit_blocks(reply)
 
     hp = _history_path(slug)
     if hp:
