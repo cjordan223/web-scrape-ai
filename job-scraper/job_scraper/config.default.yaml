@@ -113,7 +113,6 @@ filter:
   require_us_location: true
   allow_canada: false
   require_known_board: false
-  fetch_jd: true
   min_jd_chars: 50
   jd_max_chars: 15000
   score_accept_threshold: 0
@@ -128,13 +127,6 @@ pipeline_order:
 - hard_filter
 - llm_relevance
 - storage
-llm_review:
-  enabled: true
-  url: http://localhost:11434/v1/chat/completions
-  model: default
-  fail_open: true
-  timeout: 30
-  jd_max_chars: 2000
 crawl:
   enabled: true
   request_delay: 2
@@ -556,22 +548,6 @@ queries:
 - title_phrase: devops engineer
   board_site: linkedin.com/jobs/view
   suffix: remote
-remoteok:
-  enabled: true
-  tag_filter:
-    - security
-    - devops
-    - cloud
-    - infrastructure
-    - sre
-    - platform
-    - backend
-    - engineer
-    - ai
-    - ml
-hn_hiring:
-  enabled: true
-  max_comments: 500
 scrape_profile:
   cadence: "0 */6 * * *"
   rotation_groups: 4

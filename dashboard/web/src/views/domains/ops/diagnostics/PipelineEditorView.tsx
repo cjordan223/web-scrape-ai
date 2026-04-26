@@ -41,7 +41,6 @@ interface ScraperConfig {
   seen_ttl_days: number;
   target_max_results: number;
   pipeline_order: string[];
-  llm_review: Record<string, any>;
   crawl: { enabled: boolean; request_delay: number; max_results_per_target: number };
 }
 

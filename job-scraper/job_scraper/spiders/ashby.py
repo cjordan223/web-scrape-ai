@@ -1,33 +1,18 @@
-"""Spider for Ashby job boards via GraphQL API (jobs.ashbyhq.com)."""
+"""Spider for Ashby job boards via posting-api JSON."""
 from __future__ import annotations
-import json, logging
+import logging
 from datetime import datetime, timezone
+from urllib.parse import urlparse
+
 import scrapy
+
 from job_scraper.items import JobItem
-from job_scraper.spiders import diversified_subset, title_matches
+from job_scraper.spiders import diversified_subset
 from job_scraper.tiers import rotation_filter
 
 logger = logging.getLogger(__name__)
 
 _MAX_BOARDS_PER_RUN = 12
-
-ASHBY_GQL_URL = "https://jobs.ashbyhq.com/api/non-user-graphql"
-
-LIST_QUERY = """
-query ApiJobBoardWithTeams($org: String!) {
-  jobBoard: jobBoardWithTeams(organizationHostedJobsPageName: $org) {
-    jobPostings { id title locationName }
-  }
-}
-"""
-
-DETAIL_QUERY = """
-query ApiJobPosting($org: String!, $id: String!) {
-  jobPosting(organizationHostedJobsPageName: $org, jobPostingId: $id) {
-    id title descriptionHtml locationName employmentType compensationTierSummary
-  }
-}
-"""
 
 
 class AshbySpider(scrapy.Spider):
@@ -38,7 +23,6 @@ class AshbySpider(scrapy.Spider):
         self._boards = boards or []
         self._max_per_board = max_per_board
         self._run_id = run_id
-        self._use_json_api = True
 
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):
@@ -51,8 +35,12 @@ class AshbySpider(scrapy.Spider):
         spider = super().from_crawler(crawler, *args, **kwargs)
         spider._rotation_group = crawler.settings.get("SCRAPE_ROTATION_GROUP")
         spider._rotation_total = crawler.settings.getint("SCRAPE_ROTATION_TOTAL", 4)
-        spider._use_json_api = not crawler.settings.getbool("ASHBY_LEGACY_HTML", False)
         return spider
+
+    @staticmethod
+    def _slug_from_url(url: str) -> str:
+        path = urlparse(url).path.strip("/")
+        return path.split("/")[0] if path else ""
 
     def start_requests(self):
         rotated = rotation_filter(
@@ -69,33 +57,17 @@ class AshbySpider(scrapy.Spider):
             key=lambda board: board["url"],
         )
         logger.info(
-            "Ashby: scraping %d/%d boards this run (group=%s, rotated=%d, json=%s)",
+            "Ashby: scraping %d/%d boards this run (group=%s, rotated=%d)",
             len(boards), len(self._boards), self._rotation_group, len(rotated),
-            self._use_json_api,
         )
         for board in boards:
             org = self._slug_from_url(board["url"])
-            if self._use_json_api:
-                yield scrapy.Request(
-                    url=f"https://api.ashbyhq.com/posting-api/job-board/{org}?includeCompensation=true",
-                    callback=self.parse_board_json,
-                    meta={"company": board["company"], "org": org},
-                    dont_filter=True,
-                )
-            else:
-                yield scrapy.Request(
-                    url=ASHBY_GQL_URL,
-                    method="POST",
-                    headers={"Content-Type": "application/json"},
-                    body=json.dumps({
-                        "operationName": "ApiJobBoardWithTeams",
-                        "variables": {"org": org},
-                        "query": LIST_QUERY,
-                    }),
-                    callback=self.parse_board,
-                    meta={"company": board["company"], "org": org},
-                    dont_filter=True,
-                )
+            yield scrapy.Request(
+                url=f"https://api.ashbyhq.com/posting-api/job-board/{org}?includeCompensation=true",
+                callback=self.parse_board_json,
+                meta={"company": board["company"], "org": org},
+                dont_filter=True,
+            )
 
     def parse_board_json(self, response):
         try:
@@ -113,12 +85,29 @@ class AshbySpider(scrapy.Spider):
                 if values:
                     salary_k = min(values) / 1000.0
             salary_text = comp_data.get("compensationTierSummary") or comp_data.get("scrapeableCompensationSalarySummary") or ""
+
+            # Compose richer location string from location + workplaceType +
+            # address country, so downstream geo/remote checks have explicit
+            # signal even when `location` is just a city name.
+            location = job.get("location", "") or ""
+            workplace = job.get("workplaceType") or ""
+            is_remote = job.get("isRemote")
+            country = ((job.get("address") or {}).get("postalAddress") or {}).get("addressCountry") or ""
+            parts = [location]
+            if country and country.lower() not in location.lower():
+                parts.append(country)
+            if workplace and workplace.lower() not in location.lower():
+                parts.append(workplace)
+            if is_remote is True and "remote" not in " ".join(parts).lower():
+                parts.append("Remote")
+            location_full = ", ".join(p for p in parts if p)
+
             yield JobItem(
                 url=job.get("jobUrl", ""),
                 title=job.get("title", "Unknown"),
                 company=company,
                 board="ashby",
-                location=job.get("location", ""),
+                location=location_full,
                 salary_text=salary_text,
                 salary_k=salary_k,
                 jd_html=job.get("descriptionHtml", ""),
@@ -126,78 +115,3 @@ class AshbySpider(scrapy.Spider):
                 source=self.name,
                 created_at=datetime.now(timezone.utc).isoformat(),
             )
-
-    @staticmethod
-    def _slug_from_url(url: str) -> str:
-        from urllib.parse import urlparse
-        path = urlparse(url).path.strip("/")
-        return path.split("/")[0] if path else ""
-
-    def parse_board(self, response):
-        company = response.meta["company"]
-        org = response.meta["org"]
-        try:
-            data = json.loads(response.text)
-            board_data = (data.get("data") or {}).get("jobBoard") or {}
-            postings = board_data.get("jobPostings") or []
-        except (json.JSONDecodeError, KeyError, TypeError):
-            logger.warning("Failed to parse Ashby API response for %s", org)
-            return
-
-        logger.info("Ashby %s: %d job postings (limit %d)", org, len(postings), self._max_per_board)
-        for posting in postings[:self._max_per_board]:
-            job_id = posting["id"]
-            yield scrapy.Request(
-                url=ASHBY_GQL_URL,
-                method="POST",
-                headers={"Content-Type": "application/json"},
-                body=json.dumps({
-                    "operationName": "ApiJobPosting",
-                    "variables": {"org": org, "id": job_id},
-                    "query": DETAIL_QUERY,
-                }),
-                callback=self.parse_job,
-                meta={
-                    "company": company,
-                    "org": org,
-                    "brief_title": posting.get("title", ""),
-                    "brief_location": posting.get("locationName", ""),
-                },
-                dont_filter=True,
-            )
-
-    def parse_job(self, response):
-        company = response.meta["company"]
-        org = response.meta["org"]
-        try:
-            data = json.loads(response.text)
-            job = data.get("data", {}).get("jobPosting")
-        except (json.JSONDecodeError, KeyError):
-            logger.warning("Failed to parse Ashby job detail for %s", org)
-            return
-
-        if not job:
-            logger.warning("Empty job posting response for %s", org)
-            return
-
-        job_id = job["id"]
-        title = job.get("title") or response.meta.get("brief_title") or "Unknown"
-        if not title_matches(title):
-            logger.debug("Ashby %s: skipping non-matching title: %s", org, title)
-            return
-        location = job.get("locationName") or response.meta.get("brief_location") or ""
-        salary_text = job.get("compensationTierSummary") or ""
-        jd_html = job.get("descriptionHtml") or ""
-        url = f"https://jobs.ashbyhq.com/{org}/{job_id}"
-
-        yield JobItem(
-            url=url,
-            title=title.strip(),
-            company=company,
-            board="ashby",
-            location=location,
-            salary_text=salary_text,
-            jd_html=jd_html,
-            source=self.name,
-            created_at=datetime.now(timezone.utc).isoformat(),
-        )

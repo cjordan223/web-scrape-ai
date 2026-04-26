@@ -8,7 +8,6 @@ from job_scraper.spiders.ashby import AshbySpider
 
 def test_ashby_json_path_yields_item():
     spider = AshbySpider()
-    spider._use_json_api = True
     fixture = json.loads((Path(__file__).parent / "fixtures" / "ashby_sample.json").read_text())
     url = "https://api.ashbyhq.com/posting-api/job-board/acmeco?includeCompensation=true"
     response = TextResponse(

@@ -6,6 +6,15 @@ import re
 from functools import lru_cache
 
 
+# URL path segments that act as aggregator/board prefixes rather than company
+# slugs. Used by spider company-extraction and hard_filter company-sanity.
+AGGREGATOR_PATH_SEGMENTS = frozenset({
+    "jobs", "job", "careers", "career", "companies", "company",
+    "hiring", "apply", "listings", "listing", "browse", "view",
+    "positions", "position",
+})
+
+
 @lru_cache(maxsize=1)
 def _get_title_patterns() -> tuple[re.Pattern, ...]:
     from job_scraper.config import load_config

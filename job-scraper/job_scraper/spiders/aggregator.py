@@ -77,7 +77,7 @@ class AggregatorSpider(scrapy.Spider):
 
             # Clean company name (remove trailing " —")
             if company:
-                company = company.replace('\u2014', '').replace('—', '').strip()
+                company = company.replace('—', '').strip()
 
             if link:
                 yield scrapy.Request(
@@ -106,7 +106,7 @@ class AggregatorSpider(scrapy.Spider):
         title = response.meta.get("title") or response.css("h1::text, h2::text").get() or "Unknown"
         company = response.meta.get("company") or response.css('a[href*="/browse-jobs/companies/"]::text').get() or "Unknown"
         if company:
-            company = company.replace('\u2014', '').replace('—', '').strip()
+            company = company.replace('—', '').strip()
         location = response.meta.get("location") or ""
         salary_text = response.meta.get("salary_text") or ""
         jd_html = response.css('[data-testid="viewJobBodyJobFullDescriptionContent"], .viewjob-description, .job-description, #content').get() or response.text

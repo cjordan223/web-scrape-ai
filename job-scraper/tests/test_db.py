@@ -51,7 +51,7 @@ def test_insert_job(db):
     rows = db.recent_jobs(limit=1)
     assert len(rows) == 1
     assert rows[0]["title"] == "Security Engineer"
-    assert rows[0]["status"] == "pending"
+    assert rows[0]["status"] == "qa_pending"
 
 
 def test_insert_duplicate_url_raises(db):

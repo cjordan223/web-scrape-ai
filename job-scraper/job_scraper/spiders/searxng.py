@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlparse, urlencode
 import scrapy
 from job_scraper.items import JobItem
-from job_scraper.spiders import diversified_subset, run_seed
+from job_scraper.spiders import AGGREGATOR_PATH_SEGMENTS, diversified_subset, run_seed
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ _LOW_SIGNAL_HOST_FRAGMENTS = {
     "learn4good.com",
     "talent.com",
     "lensa.com",
-    "beBee.com".lower(),
+    "bebee.com",
     "builtin.com",
 }
 _TRUSTED_BOARD_PATTERNS: tuple[tuple[str, str], ...] = (
@@ -176,16 +176,10 @@ class SearXNGSpider(scrapy.Spider):
         return company, board
 
     def _extract_company(self, board: str, host: str, path_parts: list[str]) -> str:
-        _aggregator_segments = {
-            "jobs", "job", "careers", "career", "companies", "company",
-            "hiring", "apply", "listings", "listing", "browse", "view",
-            "positions", "position",
-        }
-
         def _first_valid_segment(parts: list[str]) -> str | None:
             for segment in parts:
                 normalized = segment.strip().lower()
-                if normalized and normalized not in _aggregator_segments:
+                if normalized and normalized not in AGGREGATOR_PATH_SEGMENTS:
                     return segment
             return None
 

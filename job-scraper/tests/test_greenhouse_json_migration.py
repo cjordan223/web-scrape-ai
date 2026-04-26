@@ -8,7 +8,6 @@ from job_scraper.spiders.greenhouse import GreenhouseSpider
 
 def test_greenhouse_json_path_yields_item():
     spider = GreenhouseSpider()
-    spider._use_json_api = True
     fixture = json.loads((Path(__file__).parent / "fixtures" / "greenhouse_sample.json").read_text())
     url = "https://boards-api.greenhouse.io/v1/boards/acmeco/jobs?content=true"
     response = TextResponse(

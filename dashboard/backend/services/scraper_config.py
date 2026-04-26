@@ -99,7 +99,6 @@ def _yaml_to_json(raw: dict) -> dict:
         "pipeline_order": raw.get("pipeline_order", [
             "text_extraction", "dedup", "hard_filter", "storage",
         ]),
-        "llm_review": raw.get("llm_review", {}),
         "crawl": {
             "enabled": raw.get("crawl", {}).get("enabled", True),
             "request_delay": raw.get("crawl", {}).get("request_delay", 2.0),
@@ -169,8 +168,6 @@ def _json_to_yaml(config_json: dict, existing: dict) -> dict:
         raw.setdefault("filter", {})["target_max_results"] = config_json["target_max_results"]
     if "pipeline_order" in config_json:
         raw["pipeline_order"] = config_json["pipeline_order"]
-    if "llm_review" in config_json:
-        raw["llm_review"] = config_json["llm_review"]
     if "crawl" in config_json:
         c = config_json["crawl"]
         crawl = raw.setdefault("crawl", {})
