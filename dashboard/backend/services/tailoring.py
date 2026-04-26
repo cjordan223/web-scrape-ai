@@ -1435,7 +1435,7 @@ _INGEST_EXTRACT_SYSTEM = (
     '{ "title": "", "company": "", "url": "", "seniority": "", "snippet": "", "salary_k": null, "experience_years": null }\n'
     '- seniority: junior|mid|senior|lead|staff|principal or ""\n'
     "- snippet: 1-3 sentence summary, max 400 chars\n"
-    "- salary_k: integer (thousands) or null\n"
+    "- salary_k: integer in thousands USD (top of range if a range is given, e.g. for '$90k-$130k' return 130). null if not stated.\n"
     "- experience_years: integer or null\n"
     '- url: application URL if present, else ""'
 )
@@ -2047,62 +2047,6 @@ def tailoring_qa_list(
             tuple(query_params),
         ).fetchall()
         items = [dict(r) for r in rows]
-        return {"items": items, "count": len(items), "total": total}
-    finally:
-        conn.close()
-
-
-def leads_list(
-    limit: int = Query(200, ge=1, le=2000),
-    search: str | None = Query(None),
-):
-    _sync_app_state()
-    search = search if isinstance(search, str) else None
-    conn = get_db()
-    try:
-        available = {
-            "company": _results_has_column(conn, "company"),
-            "location": _results_has_column(conn, "location"),
-        }
-        clauses = ["decision = 'lead'"]
-        params: list[object] = []
-        if search:
-            q = f"%{search.strip()}%"
-            search_fields = [
-                "COALESCE(title, '')",
-                "COALESCE(url, '')",
-            ]
-            if available["company"]:
-                search_fields.append("COALESCE(company, '')")
-            if available["location"]:
-                search_fields.append("COALESCE(location, '')")
-            clauses.append("(" + " OR ".join(f"{field} LIKE ?" for field in search_fields) + ")")
-            params.extend([q] * len(search_fields))
-        where = "WHERE " + " AND ".join(clauses)
-        total = conn.execute(f"SELECT COUNT(*) FROM results {where}", tuple(params)).fetchone()[0]
-        select_cols = [
-            "id",
-            "title",
-            "url",
-            "board",
-            "created_at",
-            "jd_text",
-            "company" if available["company"] else "NULL AS company",
-            "location" if available["location"] else "NULL AS location",
-        ]
-        query_params = [*params, max(1, min(int(limit), 2000))]
-        rows = conn.execute(
-            f"SELECT {', '.join(select_cols)} "
-            f"FROM results {where} "
-            "ORDER BY id DESC LIMIT ?",
-            tuple(query_params),
-        ).fetchall()
-        items = []
-        for r in rows:
-            d = dict(r)
-            jd = d.pop("jd_text", None) or ""
-            d["snippet"] = jd[:300].strip()
-            items.append(d)
         return {"items": items, "count": len(items), "total": total}
     finally:
         conn.close()
@@ -3487,8 +3431,6 @@ def llm_activate_provider(payload: dict = Body(...)):
     # Set the base URL from registry for all known providers.
     if provider == "ollama":
         updates["llm_base_url"] = PROVIDERS["ollama"]["base_url"]
-    elif provider == "mlx":
-        updates["llm_base_url"] = PROVIDERS["mlx"]["base_url"]
     elif provider == "custom":
         base_url = str(payload.get("base_url", "")).strip()
         if base_url:
@@ -3533,54 +3475,6 @@ def llm_test_provider(payload: dict = Body(...)):
 
 
 # ---------------------------------------------------------------------------
-# Routes — API: MLX Server Management
-# ---------------------------------------------------------------------------
-
-
-def mlx_status():
-    """Return MLX server status."""
-    from services.mlx_manager import status
-    return status()
-
-
-def mlx_start(payload: dict = Body(...)):
-    """Start MLX server with a model."""
-    from services.mlx_manager import start
-    model = payload.get("model")
-    if not model:
-        return JSONResponse({"ok": False, "error": "model required"}, 400)
-    port = int(payload.get("port", 8080))
-    return start(model, port)
-
-
-def mlx_stop():
-    """Stop the running MLX server."""
-    from services.mlx_manager import stop
-    return stop()
-
-
-def mlx_models():
-    """List cached MLX models available to serve."""
-    from services.mlx_manager import cached_models
-    return {"models": cached_models()}
-
-
-def mlx_pull(payload: dict = Body(...)):
-    """Start downloading a model from HuggingFace."""
-    from services.mlx_manager import pull
-    model_id = payload.get("model_id")
-    if not model_id:
-        return JSONResponse({"ok": False, "error": "model_id required"}, 400)
-    return pull(model_id)
-
-
-def mlx_pull_status():
-    """Return current model download progress."""
-    from services.mlx_manager import pull_status
-    return pull_status()
-
-
-# ---------------------------------------------------------------------------
 # LLM infrastructure status
 # ---------------------------------------------------------------------------
 
@@ -3622,42 +3516,6 @@ def llm_infrastructure():
         except Exception:
             pass
     services.append(ollama)
-
-    # --- MLX ---
-    mlx: dict = {
-        "name": "MLX",
-        "port": 8080,
-        "managed_by": "Dashboard (auto-managed)",
-        "manage_enabled": True,
-        "pid": None,
-        "status": "offline",
-        "model": None,
-        "disk_usage": None,
-    }
-    try:
-        from services.mlx_manager import status as mlx_st
-        st = mlx_st()
-        if st.get("running"):
-            mlx["status"] = "running"
-            mlx["pid"] = st.get("pid")
-            mlx["model"] = st.get("model")
-    except Exception:
-        pass
-    hf_cache = Path.home() / ".cache" / "huggingface" / "hub"
-    if hf_cache.exists():
-        try:
-            total = 0
-            for d in hf_cache.iterdir():
-                if d.name.startswith("models--mlx-community--"):
-                    result = subprocess.run(
-                        ["du", "-sk", str(d)], capture_output=True, text=True, timeout=5
-                    )
-                    total += int(result.stdout.split()[0]) * 1024
-            if total:
-                mlx["disk_usage"] = total
-        except Exception:
-            pass
-    services.append(mlx)
 
     # --- Dashboard ---
     dashboard: dict = {
@@ -3751,7 +3609,7 @@ def llm_catalog():
 
 
 def llm_benchmark(payload: dict = Body(...)):
-    """Run a micro-benchmark against an installed model (Ollama or MLX)."""
+    """Run a micro-benchmark against an installed Ollama model."""
     _sync_app_state()
     from services.model_catalog import run_benchmark
 

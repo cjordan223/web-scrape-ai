@@ -8,11 +8,55 @@ from __future__ import annotations
 
 import logging
 import os
+import json
+import urllib.request
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 _scheduler: Any = None
+
+
+class OllamaHealthError(RuntimeError):
+    """Raised when the scheduler cannot verify the required Ollama runtime."""
+
+
+def _fetch_json(url: str, timeout: int = 3) -> dict[str, Any]:
+    with urllib.request.urlopen(url, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def check_ollama_ready(
+    *,
+    model: str,
+    base_url: str = "http://localhost:11434",
+    fetch_json=_fetch_json,
+) -> None:
+    """Fail loudly unless Ollama is reachable and the configured model is pulled."""
+    tags_url = f"{base_url.rstrip('/')}/api/tags"
+    try:
+        data = fetch_json(tags_url, timeout=3)
+    except Exception as exc:
+        raise OllamaHealthError(f"Ollama unavailable at {tags_url}: {exc}") from exc
+
+    available = {
+        str(item.get("name") or item.get("model") or "").strip()
+        for item in data.get("models", []) or []
+    }
+    available.discard("")
+    if model not in available:
+        raise OllamaHealthError(
+            f"Required Ollama model '{model}' is not pulled. "
+            f"Run `ollama pull {model}` before starting the scrape scheduler."
+        )
+
+
+def ollama_base_url_from_chat_endpoint(endpoint: str) -> str:
+    value = str(endpoint or "http://localhost:11434").strip().rstrip("/")
+    suffix = "/v1/chat/completions"
+    if value.endswith(suffix):
+        return value[: -len(suffix)]
+    return value
 
 
 def compute_tick_plan(
@@ -23,7 +67,7 @@ def compute_tick_plan(
 ) -> dict[str, Any]:
     group = run_index % rotation_groups
     fire_discovery = (run_index % discovery_every_nth) == 0
-    tiers = ["workhorse", "lead"]
+    tiers = ["workhorse"]
     if fire_discovery:
         tiers.append("discovery")
     return {"run_index": run_index, "group": group, "tiers": tiers}
@@ -84,6 +128,11 @@ async def start():
     from job_scraper.config import load_config
 
     profile = load_config().scrape_profile
+    if profile.llm_gate.enabled:
+        check_ollama_ready(
+            model=profile.llm_gate.model,
+            base_url=ollama_base_url_from_chat_endpoint(profile.llm_gate.endpoint),
+        )
     _scheduler = AsyncIOScheduler()
     _scheduler.add_job(_tick, CronTrigger.from_crontab(profile.cadence), id="scrape_tick")
     _scheduler.start()

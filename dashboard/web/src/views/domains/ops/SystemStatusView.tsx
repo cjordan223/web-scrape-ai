@@ -23,8 +23,6 @@ type LLMGateBlock = {
   enabled?: boolean;
   endpoint?: string;
   model?: string;
-  fallback_endpoint?: string;
-  fallback_model?: string;
   accept_threshold?: number;
   max_calls_per_run?: number;
   timeout_seconds?: number;
@@ -63,11 +61,6 @@ const TIER_META: Record<string, { label: string; desc: string; accent: string }>
     desc: 'Breadth via SearXNG — gated by LLM relevance',
     accent: 'rgba(168, 85, 247, 0.35)',
   },
-  lead: {
-    label: 'Lead',
-    desc: 'Thin JDs for manual triage',
-    accent: 'rgba(59, 130, 246, 0.35)',
-  },
 };
 
 type FlagMode = 'opt-in' | 'rollback';
@@ -82,11 +75,6 @@ const FLAG_META: Record<string, FlagMeta> = {
     mode: 'opt-in',
     on: 'Scheduler active — cron ticks firing',
     off: 'Scheduler off — no autonomous scrapes',
-  },
-  TEXTAILOR_MANAGE_MLX: {
-    mode: 'opt-in',
-    on: 'Dashboard controls MLX lifecycle',
-    off: 'MLX endpoints read-only',
   },
   DASHBOARD_RELOAD: {
     mode: 'opt-in',
@@ -242,7 +230,7 @@ export default function SystemStatusView() {
       <section style={card}>
         <SectionHeader
           title="LLM Relevance Gate (discovery tier)"
-          subtitle="Scores each SearXNG result 0–10. Items below threshold drop before storage. Fails open after 3 consecutive timeouts so a stuck LLM doesn't block scrapes."
+          subtitle="Scores each SearXNG result 0–10 through Ollama. Items below threshold drop before storage; unavailable Ollama fails the scheduler loudly."
         />
         {Object.keys(llm_gate).length === 0 ? (
           <div style={{ color: 'var(--text-muted)' }}>Not configured</div>
@@ -255,8 +243,6 @@ export default function SystemStatusView() {
             />
             <KV label="Model (primary)" value={llm_gate.model ?? '—'} mono />
             <KV label="Endpoint" value={llm_gate.endpoint ?? '—'} mono />
-            <KV label="Model (fallback)" value={llm_gate.fallback_model ?? '—'} mono />
-            <KV label="Fallback endpoint" value={llm_gate.fallback_endpoint ?? '—'} mono />
             <KV label="Accept threshold" value={`≥ ${llm_gate.accept_threshold} / 10`} />
             <KV label="Max calls / run" value={String(llm_gate.max_calls_per_run)} />
             <KV label="Timeout" value={`${llm_gate.timeout_seconds}s`} />

@@ -336,7 +336,7 @@ class TestTailoringAPI(unittest.TestCase):
             finally:
                 server.RUNTIME_CONTROLS_PATH = old_controls
 
-    def test_tailoring_subprocess_runtime_falls_back_to_ollama_when_mlx_is_offline(self):
+    def test_tailoring_subprocess_runtime_maps_removed_mlx_provider_to_ollama(self):
         with tempfile.TemporaryDirectory() as td:
             old_controls = server.RUNTIME_CONTROLS_PATH
             server.RUNTIME_CONTROLS_PATH = Path(td) / "runtime_controls.json"
@@ -363,8 +363,6 @@ class TestTailoringAPI(unittest.TestCase):
 
             def fake_urlopen(req, timeout=0):
                 url = req if isinstance(req, str) else req.full_url
-                if url == "http://localhost:8080/v1/models":
-                    raise urllib.error.URLError("[Errno 61] Connection refused")
                 if url == "http://localhost:11434/v1/models":
                     return FakeResponse({"data": [{"id": "qwen3:30b"}]})
                 if url == "http://localhost:11434/api/tags":

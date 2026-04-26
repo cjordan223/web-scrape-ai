@@ -14,11 +14,8 @@ type Provider = {
   active: boolean;
 };
 
-type MlxStatus = { running: boolean; pid: number | null; model: string | null; port: number | null };
 type OllamaStatus = { enabled: boolean; available: boolean; models: string[]; provider: string; selected_model: string; state: string };
-type CachedModel = { id: string };
 type TestResult = { ok: boolean; models?: string[]; total?: number; error?: string };
-type PullStatus = { pulling: boolean; model_id: string | null; progress: string[]; exit_code: number | null };
 type ActivityEvent = { id: number; level: 'info' | 'success' | 'error'; message: string; ts: string };
 type StepState = 'pending' | 'active' | 'done' | 'error';
 type StepItem = { key: string; label: string; state: StepState };
@@ -38,7 +35,7 @@ type BenchmarkResult = {
   cached?: boolean; error?: string;
 };
 
-const LOCAL_IDS = new Set(['ollama', 'mlx']);
+const LOCAL_IDS = new Set(['ollama']);
 
 const dot = (color: string, glow = false) => ({
   width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 as const,
@@ -105,10 +102,7 @@ export default function LlmProvidersView() {
   const [loading, setLoading] = useState(true);
 
   // Local provider state
-  const [mlxStatus, setMlxStatus] = useState<MlxStatus>({ running: false, pid: null, model: null, port: null });
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
-  const [mlxCachedModels, setMlxCachedModels] = useState<CachedModel[]>([]);
-  const [mlxSwitching, setMlxSwitching] = useState(false);
   const [ollamaModels, setOllamaModels] = useState<{ id: string; state: string }[]>([]);
   const [ollamaSelectedModel, setOllamaSelectedModel] = useState('default');
 
@@ -120,11 +114,6 @@ export default function LlmProvidersView() {
   const [activating, setActivating] = useState<Record<string, boolean>>({});
   const [switchState, setSwitchState] = useState<SwitchState>(null);
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
-
-  // Pull state
-  const [pullInput, setPullInput] = useState('');
-  const [pulling, setPulling] = useState(false);
-  const [pullStatus, setPullStatus] = useState<PullStatus | null>(null);
 
   // Infrastructure state
   const [infra, setInfra] = useState<{ services: any[] } | null>(null);
@@ -146,9 +135,6 @@ export default function LlmProvidersView() {
   const [chatLoading, setChatLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'local' | 'cloud' | 'catalog'>('local');
   const chatEndRef = useRef<HTMLDivElement | null>(null);
-
-  const switchPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pullCompleteRef = useRef<string | null>(null);
 
   const pushEvent = useCallback((level: ActivityEvent['level'], message: string) => {
     setActivityEvents(prev => [
@@ -172,18 +158,10 @@ export default function LlmProvidersView() {
   }, []);
 
   const refreshLocalStatus = useCallback(async () => {
-    try { setMlxStatus(await api.getMlxStatus()); } catch { /* ignore */ }
     try {
       const st = await api.getLlmStatus();
       setOllamaStatus(st);
     } catch { /* ignore */ }
-  }, []);
-
-  const refreshMlxModels = useCallback(async () => {
-    try {
-      const data = await api.getMlxModels();
-      setMlxCachedModels(data.models || []);
-    } catch { setMlxCachedModels([]); }
   }, []);
 
   const refreshOllamaModels = useCallback(async () => {
@@ -231,11 +209,10 @@ export default function LlmProvidersView() {
   useEffect(() => {
     refreshProviders();
     refreshLocalStatus();
-    refreshMlxModels();
     refreshOllamaModels();
     refreshInfra();
     refreshCatalog();
-  }, [refreshProviders, refreshLocalStatus, refreshMlxModels, refreshOllamaModels, refreshInfra, refreshCatalog]);
+  }, [refreshProviders, refreshLocalStatus, refreshOllamaModels, refreshInfra, refreshCatalog]);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -268,31 +245,6 @@ export default function LlmProvidersView() {
     return () => clearInterval(interval);
   }, [refreshLocalStatus]);
 
-  // Poll pull status when active
-  useEffect(() => {
-    if (!pulling) return;
-    const interval = setInterval(async () => {
-      try {
-        const st = await api.getMlxPullStatus();
-        setPullStatus(st);
-        if (!st.pulling) {
-          setPulling(false);
-          refreshMlxModels();
-          const token = `${st.model_id || 'unknown'}:${st.exit_code}`;
-          if (pullCompleteRef.current !== token) {
-            pullCompleteRef.current = token;
-            pushEvent(st.exit_code === 0 ? 'success' : 'error', st.exit_code === 0
-              ? `Finished pulling MLX model ${st.model_id || ''}`.trim()
-              : `MLX model pull failed for ${st.model_id || 'unknown'} (exit ${st.exit_code ?? 'unknown'})`);
-          }
-        }
-      } catch {
-        pushEvent('error', 'Unable to refresh MLX pull status');
-      }
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [pulling, pushEvent, refreshMlxModels]);
-
   // --- Handlers ---
 
   const handleActivate = async (providerId: string) => {
@@ -310,19 +262,14 @@ export default function LlmProvidersView() {
     });
     pushEvent('info', `Switch requested: ${describeProvider(activeProvider || 'current')} -> ${describeProvider(providerId)}`);
     try {
-      const model = providerId === 'mlx' ? (mlxStatus.model || undefined)
-        : providerId === 'ollama' ? (ollamaSelectedModel || undefined)
-        : undefined;
+      const model = providerId === 'ollama' ? (ollamaSelectedModel || undefined) : undefined;
       await api.activateLlmProvider(providerId, undefined, model);
       await refreshProviders();
       await refreshLocalStatus();
       if (providerId === 'ollama') await refreshOllamaModels();
-      if (providerId === 'mlx') await refreshMlxModels();
       setSwitchState({
         title: `${describeProvider(providerId)} is active`,
-        detail: providerId === 'mlx'
-          ? 'New requests will use the running MLX server and selected model.'
-          : providerId === 'ollama'
+        detail: providerId === 'ollama'
             ? 'New requests will use Ollama and the selected on-demand model.'
             : 'New requests will use this provider.',
         provider: providerId,
@@ -353,155 +300,6 @@ export default function LlmProvidersView() {
       window.setTimeout(() => setSwitchState(current => current?.tone === 'info' ? null : current), 2500);
       window.setTimeout(() => setSwitchState(null), 6000);
       setActivating(a => ({ ...a, [providerId]: false }));
-    }
-  };
-
-  const handleMlxModelSelect = async (model: string) => {
-    setMlxSwitching(true);
-    setSwitchState({
-      title: 'Starting MLX model',
-      detail: `Launching ${model} and waiting for the local server to respond on port 8080.`,
-      provider: 'mlx',
-      model,
-      tone: 'info',
-      steps: buildSteps('start', [
-        ['save', 'Save Selection'],
-        ['start', 'Start Server'],
-        ['verify', 'Verify Health'],
-        ['ready', 'Ready'],
-      ]),
-    });
-    pushEvent('info', `Starting MLX model ${model}`);
-    try {
-      const res = await api.startMlx(model);
-      if (res && !res.ok) {
-        setTestResults(prev => ({ ...prev, mlx: { ok: false, error: res.error || 'Failed to start MLX', total: 0 } }));
-        setSwitchState({
-          title: 'MLX model start failed',
-          detail: res.error || 'Failed to start MLX',
-          provider: 'mlx',
-          model,
-          tone: 'error',
-          steps: buildSteps('start', [
-            ['save', 'Save Selection'],
-            ['start', 'Start Server'],
-            ['verify', 'Verify Health'],
-            ['ready', 'Ready'],
-          ], 'error'),
-        });
-        pushEvent('error', `MLX start failed for ${model}: ${res.error || 'unknown error'}`);
-        setMlxSwitching(false);
-        return;
-      }
-      // Poll until server is up (max 60s for large models)
-      if (switchPollRef.current) clearInterval(switchPollRef.current);
-      const pollId = setInterval(async () => {
-        try {
-          const st = await api.getMlxStatus();
-          setMlxStatus(st);
-          if (st.running) {
-            setMlxSwitching(false);
-            clearInterval(pollId);
-            // Persist model selection to runtime controls
-            if (st.model) await api.selectLlmModel(st.model);
-            await refreshProviders();
-            await refreshLocalStatus();
-            setSwitchState({
-              title: 'MLX ready',
-              detail: `${st.model || model} is live. New requests will use the MLX server.`,
-              provider: 'mlx',
-              model: st.model || model,
-              tone: 'success',
-              steps: buildSteps('ready', [
-                ['save', 'Save Selection'],
-                ['start', 'Start Server'],
-                ['verify', 'Verify Health'],
-                ['ready', 'Ready'],
-              ], 'success'),
-            });
-            pushEvent('success', `MLX server is ready with ${st.model || model}`);
-          }
-        } catch {
-          pushEvent('error', 'Unable to poll MLX server status during model switch');
-        }
-      }, 1500);
-      switchPollRef.current = pollId;
-      setTimeout(() => {
-        clearInterval(pollId);
-        setMlxSwitching(false);
-        setSwitchState(current => current?.tone === 'info'
-          ? {
-              title: 'MLX switch timed out',
-              detail: `The UI stopped waiting for ${model}. Check the console below for pull or startup errors.`,
-              provider: 'mlx',
-              model,
-              tone: 'error',
-              steps: buildSteps('verify', [
-                ['save', 'Save Selection'],
-                ['start', 'Start Server'],
-                ['verify', 'Verify Health'],
-                ['ready', 'Ready'],
-              ], 'error'),
-            }
-          : current);
-        pushEvent('error', `Timed out waiting for MLX model ${model} to become ready`);
-      }, 60000);
-    } catch (err: any) {
-      const msg = err?.response?.data?.error || err?.message || 'Failed to start MLX';
-      setTestResults(prev => ({ ...prev, mlx: { ok: false, error: msg, total: 0 } }));
-      setSwitchState({
-        title: 'MLX model start failed',
-        detail: msg,
-        provider: 'mlx',
-        model,
-        tone: 'error',
-        steps: buildSteps('start', [
-          ['save', 'Save Selection'],
-          ['start', 'Start Server'],
-          ['verify', 'Verify Health'],
-          ['ready', 'Ready'],
-        ], 'error'),
-      });
-      pushEvent('error', `MLX start failed for ${model}: ${msg}`);
-      setMlxSwitching(false);
-    }
-  };
-
-  const handleMlxStop = async () => {
-    pushEvent('info', 'Stop requested for MLX server');
-    try {
-      await api.stopMlx();
-      setMlxStatus({ running: false, pid: null, model: null, port: null });
-      setSwitchState({
-        title: 'MLX server stopped',
-        detail: activeProvider === 'mlx'
-          ? 'MLX is still the active provider, so the dashboard may auto-recover it.'
-          : 'MLX is offline until started again.',
-        provider: 'mlx',
-        tone: 'success',
-        steps: buildSteps('ready', [
-          ['stop', 'Send Stop'],
-          ['verify', 'Refresh State'],
-          ['ready', 'Stopped'],
-        ], 'success'),
-      });
-      pushEvent('success', activeProvider === 'mlx'
-        ? 'Stopped MLX server. Auto-recovery may bring it back because MLX is still active.'
-        : 'Stopped MLX server');
-    } catch (e: any) {
-      const msg = e?.response?.data?.error || e?.message || 'Failed to stop MLX';
-      setSwitchState({
-        title: 'MLX stop failed',
-        detail: msg,
-        provider: 'mlx',
-        tone: 'error',
-        steps: buildSteps('verify', [
-          ['stop', 'Send Stop'],
-          ['verify', 'Refresh State'],
-          ['ready', 'Stopped'],
-        ], 'error'),
-      });
-      pushEvent('error', `MLX stop failed: ${msg}`);
     }
   };
 
@@ -554,46 +352,6 @@ export default function LlmProvidersView() {
         ], 'error'),
       });
       pushEvent('error', `Failed to save Ollama model ${identifier || '(default)'}: ${msg}`);
-    }
-  };
-
-  const handlePull = async () => {
-    const id = pullInput.trim();
-    if (!id) return;
-    pushEvent('info', `Pulling MLX model ${id}`);
-    const result = await api.pullMlxModel(id);
-    if (result.ok) {
-      setPulling(true);
-      setPullInput('');
-      pullCompleteRef.current = null;
-      setSwitchState({
-        title: 'Downloading MLX model',
-        detail: `${id} is downloading in the background. You can watch progress in the console below.`,
-        provider: 'mlx',
-        model: id,
-        tone: 'info',
-        steps: buildSteps('start', [
-          ['queue', 'Queue Download'],
-          ['start', 'Transfer Files'],
-          ['verify', 'Update Cache'],
-          ['ready', 'Ready'],
-        ]),
-      });
-    } else {
-      pushEvent('error', `Failed to start MLX pull for ${id}: ${result.error || 'unknown error'}`);
-      setSwitchState({
-        title: 'MLX download failed to start',
-        detail: result.error || 'Unknown error',
-        provider: 'mlx',
-        model: id,
-        tone: 'error',
-        steps: buildSteps('queue', [
-          ['queue', 'Queue Download'],
-          ['start', 'Transfer Files'],
-          ['verify', 'Update Cache'],
-          ['ready', 'Ready'],
-        ], 'error'),
-      });
     }
   };
 
@@ -663,9 +421,7 @@ export default function LlmProvidersView() {
   const cloudProviders = providers.filter(p => !LOCAL_IDS.has(p.id));
 
   const ollamaOnline = ollamaStatus?.state === 'online';
-  const activeModelLabel = activeProvider === 'mlx'
-    ? (mlxStatus.model || 'none')
-    : ollamaSelectedModel || 'not configured';
+  const activeModelLabel = ollamaSelectedModel || 'not configured';
   const switchTone = switchState?.tone === 'error'
     ? { bg: 'rgba(217,79,79,0.08)', border: 'var(--red)', dot: 'var(--red)' }
     : switchState?.tone === 'success'
@@ -801,12 +557,9 @@ export default function LlmProvidersView() {
         {localProviders.map(p => {
           const isActive = p.id === activeProvider;
           const isOllama = p.id === 'ollama';
-          const isMlx = p.id === 'mlx';
-          const online = isOllama ? ollamaOnline : mlxStatus.running;
+          const online = isOllama ? ollamaOnline : false;
           const statusColor = online ? 'var(--green)' : 'var(--red)';
-          const currentModel = isOllama
-            ? (ollamaSelectedModel !== 'default' ? ollamaSelectedModel : ollamaModels[0]?.id)
-            : mlxStatus.model;
+          const currentModel = ollamaSelectedModel !== 'default' ? ollamaSelectedModel : ollamaModels[0]?.id;
 
           return (
             <div key={p.id} style={card(isActive)}>
@@ -818,9 +571,6 @@ export default function LlmProvidersView() {
                   {online ? 'Online' : 'Offline'}
                 </span>
                 {isActive && <span style={badge('rgba(60,179,113,0.15)', 'var(--green)')}>ACTIVE</span>}
-                {isMlx && mlxSwitching && (
-                  <span style={{ fontSize: '0.75rem', color: 'var(--accent)', animation: 'pulse 1.5s infinite' }}>Loading model...</span>
-                )}
               </div>
 
               {/* Inset Configuration Well */}
@@ -842,91 +592,25 @@ export default function LlmProvidersView() {
                 )}
 
                 {/* Model selector */}
-                <div style={(!isMlx || isMlx && !mlxStatus.running && testResults[p.id]?.error?.includes('lifecycle management is disabled')) ? {} : { marginBottom: '1rem' }}>
+                <div>
                   <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
-                    {isMlx ? 'Cached Models' : 'Available Models'}
+                    Available Models
                   </label>
-                  {isMlx ? (
-                    <select
-                      value={mlxStatus.model || ''}
-                      onChange={e => e.target.value && handleMlxModelSelect(e.target.value)}
-                      disabled={mlxSwitching}
-                      style={{ ...selectStyle, opacity: mlxSwitching ? 0.5 : 1 }}
-                    >
-                      <option value="">Select a model...</option>
-                      {mlxCachedModels.map(m => (
-                        <option key={m.id} value={m.id}>{m.id}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <select
-                      value={ollamaSelectedModel}
-                      onChange={e => handleOllamaModelSelect(e.target.value)}
-                      style={selectStyle}
-                    >
-                      <option value="">Select a model...</option>
-                      {ollamaModels.map(m => (
-                        <option key={m.id} value={m.id}>{m.id}</option>
-                      ))}
-                    </select>
-                  )}
+                  <select
+                    value={ollamaSelectedModel}
+                    onChange={e => handleOllamaModelSelect(e.target.value)}
+                    style={selectStyle}
+                  >
+                    <option value="">Select a model...</option>
+                    {ollamaModels.map(m => (
+                      <option key={m.id} value={m.id}>{m.id}</option>
+                    ))}
+                  </select>
                 </div>
-
-                {/* MLX management disabled hint */}
-                {isMlx && !mlxSwitching && !mlxStatus.running && testResults[p.id]?.error?.includes('lifecycle management is disabled') && (
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.75rem', fontStyle: 'italic' }}>
-                    MLX management disabled. Set TEXTAILOR_MANAGE_MLX=1 to enable start/stop/pull.
-                  </div>
-                )}
-
-                {/* MLX pull model */}
-                {isMlx && (
-                  <div style={{ marginTop: '0.25rem' }}>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
-                      Pull New Model
-                    </label>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <input
-                        type="text"
-                        placeholder="mlx-community/model-name"
-                        value={pullInput}
-                        onChange={e => setPullInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handlePull()}
-                        disabled={pulling}
-                        style={{
-                          ...selectStyle, flex: 1, maxWidth: 'none',
-                          opacity: pulling ? 0.5 : 1,
-                        }}
-                      />
-                      <button onClick={handlePull} disabled={pulling || !pullInput.trim()} style={btn('var(--accent)', '#fff', pulling || !pullInput.trim())}>
-                        {pulling ? 'Pulling...' : 'Pull'}
-                      </button>
-                    </div>
-                    {pullStatus && (pullStatus.pulling || pullStatus.progress.length > 0) && (
-                      <div style={{
-                        marginTop: '0.75rem', padding: '0.75rem', background: 'var(--surface-3)',
-                        borderRadius: 'var(--radius)', fontSize: '0.75rem', fontFamily: 'monospace',
-                        maxHeight: 120, overflowY: 'auto', color: 'var(--text-secondary)', border: '1px solid var(--border)'
-                      }}>
-                        {pullStatus.progress.map((line, i) => <div key={i}>{line}</div>)}
-                        {pullStatus.exit_code !== null && pullStatus.exit_code !== undefined && (
-                          <div style={{ color: pullStatus.exit_code === 0 ? 'var(--green)' : 'var(--red)', marginTop: 6 }}>
-                            {pullStatus.exit_code === 0 ? 'Download complete' : `Failed (exit code ${pullStatus.exit_code})`}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
               {/* Action buttons */}
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                {isMlx && mlxStatus.running && (
-                  <button onClick={handleMlxStop} style={btn('rgba(217,79,79,0.15)', '#ffb4b4')}>
-                    Stop Server
-                  </button>
-                )}
                 <button onClick={() => handleTest(p.id)} disabled={testing[p.id]} style={btn('var(--border-bright)', 'var(--text)', testing[p.id], true)}>
                   {testing[p.id] ? 'Testing...' : 'Test Connection'}
                 </button>
@@ -1147,10 +831,7 @@ export default function LlmProvidersView() {
                   {/* Top row: name + badges */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
                     <span style={{
-                      ...badge(
-                        m.provider === 'mlx' ? 'rgba(168,85,247,0.15)' : 'rgba(75,142,240,0.12)',
-                        m.provider === 'mlx' ? '#a855f7' : 'var(--accent)',
-                      ),
+                      ...badge('rgba(75,142,240,0.12)', 'var(--accent)'),
                       fontSize: '0.66rem', textTransform: 'uppercase' as const, letterSpacing: '0.06em',
                     }}>
                       {m.provider || 'ollama'}
@@ -1217,7 +898,7 @@ export default function LlmProvidersView() {
                         >
                           {isBenching ? 'Running...' : bench?.ok ? 'Re-run Benchmark' : 'Benchmark on This Machine'}
                         </button>
-                        {!isSelected && m.provider !== 'mlx' && (
+                        {!isSelected && (
                           <button
                             onClick={async () => {
                               await api.selectLlmModel(m.id);
@@ -1309,7 +990,7 @@ export default function LlmProvidersView() {
       <CollapsibleSection title="Provider Console" defaultOpen={Boolean(switchState)}>
         <div style={consoleShell}>
           {activityEvents.length === 0 ? (
-            <div style={{ color: '#7f92aa' }}>No provider activity yet. Switch, test, stop, or pull a model to see a trace here.</div>
+            <div style={{ color: '#7f92aa' }}>No provider activity yet. Switch, test, or select a model to see a trace here.</div>
           ) : (
             activityEvents.map(event => {
               const color = event.level === 'error' ? '#ff8e8e' : event.level === 'success' ? '#73d8a6' : '#8fc1ff';
@@ -1348,9 +1029,6 @@ export default function LlmProvidersView() {
             {svc.pid && <div style={{ color: 'var(--text-secondary)' }}>PID: {svc.pid}</div>}
             {svc.model && <div style={{ color: 'var(--text-secondary)' }}>Model: <span style={{ color: 'var(--text)' }}>{svc.model}</span></div>}
             {svc.disk_usage != null && <div style={{ color: 'var(--text-secondary)' }}>Disk: {fmtBytes(svc.disk_usage)}</div>}
-            {svc.manage_enabled === false && svc.name === 'MLX' && (
-              <div style={{ color: 'var(--yellow)', fontSize: '0.75rem', fontStyle: 'italic' }}>Management disabled</div>
-            )}
           </div>
         ))}
       </div>

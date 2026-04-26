@@ -6,7 +6,6 @@ import json
 import subprocess
 import time
 import urllib.request
-from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Machine profile
@@ -236,127 +235,12 @@ def _ollama_models(base_url: str, memory_gb: int) -> list[dict]:
     return models
 
 
-# ---------------------------------------------------------------------------
-# MLX model discovery (HuggingFace cache + config.json)
-# ---------------------------------------------------------------------------
-
-HF_CACHE_DIR = Path.home() / ".cache" / "huggingface" / "hub"
-
-
-def _mlx_model_config(cache_dir: Path) -> dict | None:
-    """Read config.json from a HuggingFace cache model directory."""
-    # config.json is inside snapshots/<hash>/config.json
-    snapshots = cache_dir / "snapshots"
-    if not snapshots.exists():
-        return None
-    for snap in sorted(snapshots.iterdir(), reverse=True):
-        cfg = snap / "config.json"
-        if cfg.exists():
-            try:
-                return json.loads(cfg.read_text())
-            except Exception:
-                pass
-    return None
-
-
-def _mlx_disk_size(cache_dir: Path) -> int:
-    """Compute total disk usage of a cached model directory (bytes)."""
-    total = 0
-    snapshots = cache_dir / "snapshots"
-    if not snapshots.exists():
-        return 0
-    for snap in snapshots.iterdir():
-        if not snap.is_dir():
-            continue
-        for f in snap.iterdir():
-            if f.is_file():
-                try:
-                    total += f.stat().st_size
-                except OSError:
-                    pass
-    return total
-
-
-def _estimate_params_from_name(name: str) -> tuple[str, float | None]:
-    """Try to extract param count from model name like 'Qwen2.5-Coder-32B-Instruct-4bit'.
-
-    Matches '<number>B' but NOT '<number>bit' or '<number>byte'.
-    """
-    import re
-    m = re.search(r'(\d+(?:\.\d+)?)B(?!i)', name)
-    if m:
-        val = float(m.group(1))
-        return f"{val}B" if val == int(val) else f"{val}B", val
-    return "", None
-
-
-def _mlx_models(memory_gb: int) -> list[dict]:
-    """Discover MLX models from HuggingFace cache."""
-    models = []
-    if not HF_CACHE_DIR.exists():
-        return models
-
-    for d in sorted(HF_CACHE_DIR.glob("models--mlx-community--*")):
-        parts = d.name.split("--", 1)
-        if len(parts) < 2:
-            continue
-        model_id = parts[1].replace("--", "/", 1)
-
-        config = _mlx_model_config(d)
-        size_bytes = _mlx_disk_size(d)
-
-        family = ""
-        context_length = None
-        quant_str = ""
-        capabilities: list[str] = ["completion"]
-
-        if config:
-            family = config.get("model_type", "")
-            context_length = config.get("max_position_embeddings")
-            q = config.get("quantization", {})
-            if isinstance(q, dict) and q.get("bits"):
-                quant_str = f"Q{q['bits']}{'_' + q.get('mode', '') if q.get('mode') else ''}"
-
-        # Infer param size from name
-        param_size, param_count = _estimate_params_from_name(model_id)
-
-        # Infer capabilities from name
-        name_lower = model_id.lower()
-        if "thinking" in name_lower:
-            capabilities.append("thinking")
-        if "coder" in name_lower or "code" in name_lower:
-            capabilities.append("tools")
-
-        fit = _compute_fit(size_bytes, memory_gb)
-        use_case = _infer_use_case(model_id, capabilities)
-
-        models.append({
-            "id": model_id,
-            "provider": "mlx",
-            "family": family,
-            "parameter_size": param_size,
-            "parameter_count_b": param_count,
-            "quantization": quant_str,
-            "context_length": context_length,
-            "size_bytes": size_bytes,
-            "capabilities": capabilities,
-            "use_case": use_case,
-            "fit": fit,
-            "modified_at": None,
-        })
-
-    return models
-
-
 def get_catalog(base_url: str = "http://localhost:11434") -> dict:
-    """Build full model catalog from Ollama + MLX + machine profile."""
+    """Build full model catalog from Ollama + machine profile."""
     machine = get_machine_profile()
     memory_gb = machine.get("memory_gb") or 0
 
-    ollama = _ollama_models(base_url, memory_gb)
-    mlx = _mlx_models(memory_gb)
-
-    models = ollama + mlx
+    models = _ollama_models(base_url, memory_gb)
 
     # Sort: excellent/good fit first, then by param count descending
     _fit_order = {"excellent": 0, "good": 1, "caution": 2, "heavy": 3, "unknown": 4}
@@ -420,52 +304,6 @@ def _benchmark_ollama(model_id: str, base_url: str) -> dict:
     }
 
 
-def _benchmark_openai(model_id: str, base_url: str) -> dict:
-    """Benchmark via OpenAI-compatible /v1/chat/completions (MLX, etc.)."""
-    prompt = "Explain what a hash table is in exactly two sentences."
-    body = json.dumps({
-        "model": model_id,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 128,
-    }).encode()
-
-    req = urllib.request.Request(
-        f"{base_url.rstrip('/')}/v1/chat/completions",
-        data=body,
-        method="POST",
-    )
-    req.add_header("Content-Type", "application/json")
-
-    t0 = time.monotonic()
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        data = json.loads(resp.read())
-    wall_time = time.monotonic() - t0
-
-    usage = data.get("usage", {})
-    completion_tokens = usage.get("completion_tokens", 0)
-    prompt_tokens = usage.get("prompt_tokens", 0)
-    reply = ""
-    choices = data.get("choices", [])
-    if choices:
-        reply = (choices[0].get("message") or {}).get("content", "")
-
-    tokens_per_sec = (completion_tokens / wall_time) if wall_time > 0 else 0
-
-    return {
-        "ok": True,
-        "model": model_id,
-        "provider": "mlx",
-        "wall_time_s": round(wall_time, 2),
-        "time_to_first_token_ms": None,
-        "generation_tokens_per_sec": round(tokens_per_sec, 1),
-        "prompt_eval_tokens_per_sec": None,
-        "eval_tokens": completion_tokens,
-        "prompt_tokens": prompt_tokens,
-        "response_preview": reply[:200],
-        "cached": False,
-    }
-
-
 def run_benchmark(
     model_id: str,
     base_url: str = "http://localhost:11434",
@@ -476,10 +314,7 @@ def run_benchmark(
         return {**_benchmark_cache[model_id], "cached": True}
 
     try:
-        if provider == "mlx":
-            result = _benchmark_openai(model_id, "http://localhost:8080")
-        else:
-            result = _benchmark_ollama(model_id, base_url)
+        result = _benchmark_ollama(model_id, base_url)
     except Exception as e:
         return {"ok": False, "error": str(e), "model": model_id}
 

@@ -30,17 +30,9 @@ class _HTTPGateClient:
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0,
         }
-        try:
-            r = requests.post(self._cfg.endpoint, json=body, timeout=self._cfg.timeout_seconds)
-            r.raise_for_status()
-            return r.json()["choices"][0]["message"]["content"]
-        except Exception:
-            body["model"] = self._cfg.fallback_model
-            r = requests.post(
-                self._cfg.fallback_endpoint, json=body, timeout=self._cfg.timeout_seconds
-            )
-            r.raise_for_status()
-            return r.json()["choices"][0]["message"]["content"]
+        r = requests.post(self._cfg.endpoint, json=body, timeout=self._cfg.timeout_seconds)
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"]
 
 
 def _load_persona_card() -> str:
@@ -106,6 +98,11 @@ class LLMRelevancePipeline:
                 "LLM gate call failed (%d in a row): %s",
                 self._consecutive_timeouts, exc,
             )
+            if not self._cfg.fail_open:
+                self._record_gate_failure(spider, str(exc))
+                raise RuntimeError(
+                    "LLM relevance gate unavailable and fail_open is disabled"
+                ) from exc
             if self._consecutive_timeouts >= 3 and self._cfg.fail_open:
                 self.mode = GateOutcome.FAIL_OPEN
                 self._record_mode_observed(spider)
@@ -126,6 +123,9 @@ class LLMRelevancePipeline:
             except Exception:
                 parsed = None
             if parsed is None:
+                if not self._cfg.fail_open:
+                    self._record_gate_failure(spider, "LLM gate returned invalid JSON")
+                    raise RuntimeError("LLM relevance gate returned invalid JSON")
                 return self._apply_verdict(
                     item, spider,
                     verdict="uncertain",
@@ -222,5 +222,12 @@ class LLMRelevancePipeline:
             spider.crawler.settings.set(
                 "LLM_GATE_MODE_OBSERVED", self.mode.value, priority="cmdline",
             )
+        except Exception:
+            pass
+
+    def _record_gate_failure(self, spider, reason: str):
+        try:
+            spider.crawler.settings.set("LLM_GATE_MODE_OBSERVED", "failed", priority="cmdline")
+            spider.crawler.settings.set("LLM_GATE_FAILURE", reason, priority="cmdline")
         except Exception:
             pass

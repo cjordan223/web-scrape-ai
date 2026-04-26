@@ -142,16 +142,9 @@ def _call_llm(prompt: str, cfg) -> str:
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0,
     }
-    try:
-        r = requests.post(cfg.endpoint, json=body, timeout=_REQUEST_TIMEOUT)
-        r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"]
-    except Exception as primary_exc:
-        logger.info("run_reviewer: primary model failed (%s), trying fallback", primary_exc)
-        body["model"] = cfg.fallback_model
-        r = requests.post(cfg.fallback_endpoint, json=body, timeout=_REQUEST_TIMEOUT)
-        r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"]
+    r = requests.post(cfg.endpoint, json=body, timeout=_REQUEST_TIMEOUT)
+    r.raise_for_status()
+    return r.json()["choices"][0]["message"]["content"]
 
 
 def _parse_review(raw: str) -> dict[str, Any] | None:
@@ -182,7 +175,7 @@ def review_run(db_path: str, run_id: str) -> dict[str, Any] | None:
     try:
         raw = _call_llm(prompt, cfg.scrape_profile.llm_gate)
     except Exception as exc:
-        # Leave llm_review NULL so the next poll tick retries once MLX recovers.
+        # Leave llm_review NULL so the next poll tick retries once Ollama recovers.
         logger.warning("run_reviewer: LLM call failed for run=%s: %s", run_id, exc)
         return None
 

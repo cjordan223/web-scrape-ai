@@ -27,7 +27,11 @@ def test_ttl_validator_accepts_min_safe():
 def test_llm_gate_default_shape():
     g = LLMGateConfig()
     assert g.enabled is True
+    assert g.endpoint == "http://localhost:11434/v1/chat/completions"
+    assert g.model == "qwen2.5:7b"
+    assert not hasattr(g, "fallback_endpoint")
+    assert not hasattr(g, "fallback_model")
     assert g.accept_threshold == 5
     assert g.max_calls_per_run == 150
     assert g.timeout_seconds == 10
-    assert g.fail_open is True
+    assert g.fail_open is False

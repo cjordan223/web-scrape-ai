@@ -1,6 +1,7 @@
 """job_scraper — Job discovery pipeline powered by Scrapy."""
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 
@@ -38,8 +39,6 @@ def scrape_all(
     from .spiders.searxng import SearXNGSpider
     from .spiders.aggregator import AggregatorSpider
     from .spiders.generic import GenericSpider
-    from .spiders.remoteok import RemoteOKSpider
-    from .spiders.hn_hiring import HNHiringSpider
     from .tiers import SPIDER_TIERS, Tier
 
     ALL_SPIDERS = {
@@ -50,8 +49,6 @@ def scrape_all(
         "searxng": SearXNGSpider,
         "aggregator": AggregatorSpider,
         "generic": GenericSpider,
-        "remoteok": RemoteOKSpider,
-        "hn_hiring": HNHiringSpider,
     }
 
     run_id = uuid.uuid4().hex[:12]
@@ -115,7 +112,7 @@ def scrape_all(
     by_status = {row["status"]: row["n"] for row in rows}
     stored_count = sum(by_status.values())
     filtered_count = by_status.get("rejected", 0)
-    net_new = by_status.get("pending", 0) + by_status.get("qa_pending", 0) + by_status.get("lead", 0)
+    net_new = by_status.get("pending", 0) + by_status.get("qa_pending", 0)
 
     # Semantic gate_mode — never null for a completed run.
     discovery_members = [n for n in rotation_members if SPIDER_TIERS.get(n) is Tier.DISCOVERY]
@@ -135,6 +132,16 @@ def scrape_all(
             if mode == "overflow":
                 gate_mode = "overflow"
 
+    gate_failure = None
+    for crawler in crawler_refs:
+        if SPIDER_TIERS.get(crawler_names.get(crawler, "")) is not Tier.DISCOVERY:
+            continue
+        if crawler.settings.get("LLM_GATE_MODE_OBSERVED") == "failed":
+            gate_mode = "failed"
+            gate_failure = crawler.settings.get("LLM_GATE_FAILURE") or "LLM gate failed"
+            error_count = max(error_count, 1)
+            break
+
     db.finish_run(
         run_id,
         raw_count=raw_count,
@@ -145,6 +152,8 @@ def scrape_all(
         gate_mode=gate_mode,
         rotation_group=rotation_group,
         rotation_members=rotation_members,
+        status="failed" if gate_failure else "completed",
+        errors=json.dumps([gate_failure]) if gate_failure else None,
     )
 
     stats_out = {
@@ -156,6 +165,8 @@ def scrape_all(
         "rotation_group": rotation_group,
         "rotation_members": rotation_members,
         "gate_mode": gate_mode,
+        "status": "failed" if gate_failure else "completed",
+        "errors": [gate_failure] if gate_failure else [],
     }
     db.close()
     return stats_out

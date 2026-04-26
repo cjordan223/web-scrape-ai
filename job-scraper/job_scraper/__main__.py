@@ -18,7 +18,7 @@ console = Console()
 def scrape(
     spider: Optional[str] = typer.Option(None, "--spider", "-s", help="Run only this spider (e.g. ashby, greenhouse)"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable debug logging"),
-    tiers: Optional[str] = typer.Option(None, "--tiers", help="Comma-separated tiers (workhorse,discovery,lead)"),
+    tiers: Optional[str] = typer.Option(None, "--tiers", help="Comma-separated tiers (workhorse,discovery)"),
     rotation_group: Optional[int] = typer.Option(None, "--rotation-group", help="Which rotation bucket to run this tick"),
     run_index: Optional[int] = typer.Option(None, "--run-index", help="Monotonic run counter (scheduler-supplied)"),
 ):
@@ -48,6 +48,10 @@ def scrape(
     table.add_row("Pending", str(result["pending"]))
     table.add_row("Rejected", str(result["rejected"]))
     console.print(table)
+    if result.get("status") == "failed":
+        for error in result.get("errors") or ["scrape failed"]:
+            console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1)
 
 
 @app.command()

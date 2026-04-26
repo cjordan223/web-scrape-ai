@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from job_scraper.items import JobItem
-from job_scraper.pipelines.llm_relevance import LLMRelevancePipeline, GateOutcome
+from job_scraper.pipelines.llm_relevance import _HTTPGateClient, LLMRelevancePipeline, GateOutcome
 from job_scraper.scrape_profile import LLMGateConfig
 
 
@@ -21,6 +21,26 @@ class _StubClient:
 
 class _FakeSpider:
     name = "searxng"
+
+
+class _FakeSettings:
+    def __init__(self):
+        self.values = {}
+
+    def set(self, key, value, priority=None):
+        self.values[key] = value
+
+
+class _FakeCrawler:
+    def __init__(self):
+        self.settings = _FakeSettings()
+
+
+class _FakeCrawlerSpider:
+    name = "searxng"
+
+    def __init__(self):
+        self.crawler = _FakeCrawler()
 
 
 def _make_pipe(client, cfg: LLMGateConfig | None = None, stats=None):
@@ -83,12 +103,27 @@ def test_uncertain_above_threshold_accepted():
     assert out["status"] == "pending"
 
 
-def test_malformed_retry_then_uncertain_fallback():
+def test_malformed_retry_then_raises_when_fail_open_disabled():
     client = _StubClient([FIXTURES["malformed"], FIXTURES["malformed"]])
     pipe = _make_pipe(client)
     item = {"url": "https://x", "title": "Eng", "company": "acme",
             "snippet": "", "source": "searxng", "status": "pending"}
-    pipe.process_item(item, _FakeSpider())
+    try:
+        pipe.process_item(item, _FakeSpider())
+    except RuntimeError as exc:
+        assert "valid JSON" in str(exc)
+    else:
+        raise AssertionError("expected malformed LLM output to fail closed")
+    assert client.calls == 2
+
+
+def test_malformed_retry_then_uncertain_when_fail_open_enabled():
+    client = _StubClient([FIXTURES["malformed"], FIXTURES["malformed"]])
+    pipe = _make_pipe(client, cfg=LLMGateConfig(fail_open=True))
+    item = {"url": "https://x", "title": "Eng", "company": "acme",
+            "snippet": "", "source": "searxng", "status": "pending"}
+    out = pipe.process_item(item, _FakeSpider())
+    assert out["status"] == "pending"
     assert client.calls == 2
 
 
@@ -141,7 +176,7 @@ def test_fail_open_on_circuit_break():
     class BrokenClient:
         def ask(self, prompt):
             raise TimeoutError("no response")
-    pipe = _make_pipe(BrokenClient())
+    pipe = _make_pipe(BrokenClient(), cfg=LLMGateConfig(fail_open=True))
     for _ in range(3):
         item = {"url": f"https://x/{_}", "title": "Eng", "company": "c",
                 "snippet": "", "source": "searxng", "status": "pending"}
@@ -151,3 +186,63 @@ def test_fail_open_on_circuit_break():
     out = pipe.process_item(item, _FakeSpider())
     assert out["status"] == "pending"
     assert pipe.mode == GateOutcome.FAIL_OPEN
+
+
+def test_gate_failure_raises_when_fail_open_disabled():
+    class BrokenClient:
+        def ask(self, prompt):
+            raise TimeoutError("no response")
+
+    pipe = _make_pipe(BrokenClient(), cfg=LLMGateConfig(fail_open=False))
+    item = {"url": "https://x/fail", "title": "Eng", "company": "c",
+            "snippet": "", "source": "searxng", "status": "pending"}
+
+    try:
+        pipe.process_item(item, _FakeSpider())
+    except RuntimeError as exc:
+        assert "fail_open is disabled" in str(exc)
+    else:
+        raise AssertionError("expected fail-closed LLM gate to raise")
+
+
+def test_gate_failure_marks_crawler_settings():
+    class BrokenClient:
+        def ask(self, prompt):
+            raise TimeoutError("no response")
+
+    spider = _FakeCrawlerSpider()
+    pipe = _make_pipe(BrokenClient(), cfg=LLMGateConfig(fail_open=False))
+    item = {"url": "https://x/fail", "title": "Eng", "company": "c",
+            "snippet": "", "source": "searxng", "status": "pending"}
+
+    try:
+        pipe.process_item(item, spider)
+    except RuntimeError:
+        pass
+
+    assert spider.crawler.settings.values["LLM_GATE_MODE_OBSERVED"] == "failed"
+    assert "no response" in spider.crawler.settings.values["LLM_GATE_FAILURE"]
+
+
+def test_http_gate_client_does_not_silently_fallback(monkeypatch):
+    calls: list[str] = []
+
+    def broken_post(url, **kwargs):
+        calls.append(url)
+        raise TimeoutError("ollama unavailable")
+
+    monkeypatch.setattr("requests.post", broken_post)
+    cfg = LLMGateConfig(
+        endpoint="http://localhost:11434/v1/chat/completions",
+        model="qwen2.5:7b",
+    )
+    client = _HTTPGateClient(cfg)
+
+    try:
+        client.ask("score this job")
+    except TimeoutError:
+        pass
+    else:
+        raise AssertionError("expected unavailable Ollama call to raise")
+
+    assert calls == ["http://localhost:11434/v1/chat/completions"]

@@ -286,14 +286,14 @@ export default function ScraperMetricsView() {
           value={kpis.lastNetNew != null ? String(kpis.lastNetNew) : '—'}
           unit={kpis.lastNetNew != null ? `/ ${target} target` : ''}
           tone={kpis.lastNetNew == null ? 'muted' : kpis.lastNetNew >= target ? 'good' : kpis.lastNetNew >= target * 0.7 ? 'warn' : 'bad'}
-          footer={kpis.lastNetNew != null ? <StatusSplit qa={kpis.lastQaPending} lead={kpis.lastLead} /> : undefined}
+          footer={kpis.lastNetNew != null ? <StatusSplit qa={kpis.lastQaPending} /> : undefined}
         />
         <KpiTile
           label={`Total net-new (${since})`}
           value={kpis.totalNetNew != null ? String(kpis.totalNetNew) : '—'}
           unit={kpis.totalNetNew != null ? `vs ${kpis.windowTarget} target` : ''}
           tone={kpis.totalNetNew == null ? 'muted' : kpis.totalNetNew >= kpis.windowTarget ? 'good' : 'warn'}
-          footer={kpis.totalNetNew != null ? <StatusSplit qa={kpis.totalQaPending} lead={kpis.totalLead} /> : undefined}
+          footer={kpis.totalNetNew != null ? <StatusSplit qa={kpis.totalQaPending} /> : undefined}
         />
         <KpiTile
           label="Gate overflow rate"
@@ -313,7 +313,7 @@ export default function ScraperMetricsView() {
         <section style={card}>
           <SectionHeader
             title={`Daily net-new (${since})`}
-            subtitle={`Bars are stacked by scrape-time status: amber = qa_pending (still owes QA approval before tailoring), blue = lead (hn_hiring/remoteok — lowest confidence). Dashed line = daily target (${dailyTarget}). Target is set at total-net-new today — "ready for tailoring" is a subset earned after QA.`}
+            subtitle={`Bars are stacked by scrape-time status: amber = qa_pending (still owes QA approval before tailoring), gray = other legacy stored statuses. Dashed line = daily target (${dailyTarget}). Target is set at total-net-new today — "ready for tailoring" is a subset earned after QA.`}
           />
           <DailyChart data={stats.daily_net_new} target={dailyTarget} />
         </section>
@@ -321,7 +321,7 @@ export default function ScraperMetricsView() {
         <section style={card}>
           <SectionHeader
             title="Per-run net-new (last 20)"
-            subtitle="Bar height = net-new stored. Fill is stacked by status (amber = qa_pending, blue = lead). Outline reflects the gate: green = normal, amber = overflow (budget hit, some items unscored), no outline = skipped_by_cadence. Hover a bar for exact breakdown."
+            subtitle="Bar height = net-new stored. Fill is stacked by status (amber = qa_pending, gray = other legacy stored statuses). Outline reflects the gate: green = normal, amber = overflow (budget hit, some items unscored), no outline = skipped_by_cadence. Hover a bar for exact breakdown."
           />
           <RunStrip rows={stats.per_run.slice(0, 20)} target={target} />
         </section>
@@ -330,7 +330,7 @@ export default function ScraperMetricsView() {
       <section style={card}>
         <SectionHeader
           title={`Source health (${since})`}
-          subtitle="Per-spider funnel aggregated over the window. Tiers: workhorse (always runs, known-good sources) · discovery (rotates, LLM-gated for noise) · lead (HN hiring / curated). Columns: Raw = items fetched; Dedup/Filter/LLM = drops at each stage; Stored = kept as pending or lead; Runs = how many scheduler ticks this spider appeared in."
+          subtitle="Per-spider funnel aggregated over the window. Tiers: workhorse (always runs, known-good sources) · discovery (rotates, LLM-gated for noise). Columns: Raw = items fetched; Dedup/Filter/LLM = drops at each stage; Stored = kept jobs; Runs = how many scheduler ticks this spider appeared in."
         />
         <SourceTable rows={stats.by_source} />
       </section>
@@ -558,7 +558,7 @@ function MiniMetric({ label, value, tone = 'var(--text-primary)' }: { label: str
 }
 
 const REVIEWER_EXPLAINER =
-  'When a scheduled run completes, a background loop (60s poll, max 5 reviews/tick) sends the run\u2019s raw/dedup/filter/net-new counts, per-spider tier stats, and the last 7 runs as baseline to the MLX gate model (Meta-Llama-3.1-8B-Instruct-4bit, qwen2.5:7b fallback). The model returns health, summary, flags, and recommendations as JSON. If the LLM is unreachable the review stays empty and is retried on the next tick \u2014 no fake summaries. Regenerate forces a fresh call for a specific run.';
+  'When a scheduled run completes, a background loop (60s poll, max 5 reviews/tick) sends the run\u2019s raw/dedup/filter/net-new counts, per-spider tier stats, and the last 7 runs as baseline to the Ollama gate model. The model returns health, summary, flags, and recommendations as JSON. If the LLM is unreachable the review stays empty and is retried on the next tick \u2014 no fake summaries. Regenerate forces a fresh call for a specific run.';
 
 const HEALTH_STYLE: Record<ReviewHealth, { dot: string; label: string; text: string }> = {
   green: { dot: 'rgb(34, 197, 94)', label: 'Healthy', text: 'rgb(134, 239, 172)' },
@@ -625,7 +625,7 @@ function LatestReviewPanel({
           </p>
           <p style={{ margin: '10px 0 0', fontSize: 13, lineHeight: 1.55, color: pending ? 'var(--text-muted)' : 'var(--text-primary)' }}>
             {pending
-              ? 'Awaiting review. Background reviewer will retry on its next 60s tick. If MLX is down or the primary model is unavailable, the reviewer falls back to qwen2.5:7b via Ollama.'
+              ? 'Awaiting review. Background reviewer will retry on its next 60s tick. If Ollama is unavailable, the review stays pending.'
               : review?.summary || '(No summary provided.)'}
           </p>
         </div>
@@ -686,11 +686,9 @@ function computeKpis(stats: TierStats | null, target: number) {
   const last = stats?.per_run[0];
   const lastNetNew = last?.net_new ?? null;
   const lastQaPending = last?.net_new_qa_pending ?? 0;
-  const lastLead = last?.net_new_lead ?? 0;
   const dayCount = stats?.daily_net_new.length ?? 0;
   const totalNetNew = stats?.daily_net_new.reduce((acc, d) => acc + (d.net_new ?? 0), 0) ?? null;
   const totalQaPending = stats?.daily_net_new.reduce((acc, d) => acc + d.net_new_qa_pending, 0) ?? 0;
-  const totalLead = stats?.daily_net_new.reduce((acc, d) => acc + d.net_new_lead, 0) ?? 0;
   const runsInWindow = stats?.per_run.length ?? 0;
   const windowTarget = runsInWindow * target;
   const rotationSeen = new Set<number>();
@@ -704,8 +702,8 @@ function computeKpis(stats: TierStats | null, target: number) {
     }
   });
   return {
-    lastNetNew, lastQaPending, lastLead,
-    totalNetNew, totalQaPending, totalLead,
+    lastNetNew, lastQaPending,
+    totalNetNew, totalQaPending,
     rotationSeen, overflow, gateTotal, windowTarget, dayCount,
   };
 }
@@ -716,7 +714,6 @@ function DailyChart({ data, target }: { data: DayRow[]; target: number }) {
   const max = Math.max(target * 1.2, ...totals, 1);
   const width = 100 / data.length;
   const QA_COLOR = 'rgba(245,158,11,0.85)';
-  const LEAD_COLOR = 'rgba(96,165,250,0.7)';
   const OTHER_COLOR = 'rgba(148,163,184,0.45)';
   return (
     <div style={{ position: 'relative', height: 180 }}>
@@ -734,22 +731,15 @@ function DailyChart({ data, target }: { data: DayRow[]; target: number }) {
         {data.map((d, i) => {
           const total = d.net_new ?? 0;
           const qa = d.net_new_qa_pending;
-          const lead = d.net_new_lead;
-          const other = Math.max(0, total - qa - lead);
+          const other = Math.max(0, total - qa);
           const x = i * width + width * 0.15;
           const barW = width * 0.7;
           const qaH = (qa / max) * 100;
-          const leadH = (lead / max) * 100;
           const otherH = (other / max) * 100;
           let y = 100 - qaH;
           const segs: React.ReactNode[] = [];
           if (qa > 0) {
             segs.push(<rect key="qa" x={x} y={y} width={barW} height={qaH} fill={QA_COLOR} rx="0.5" />);
-          }
-          if (lead > 0) {
-            const ly = y - leadH;
-            segs.push(<rect key="lead" x={x} y={ly} width={barW} height={leadH} fill={LEAD_COLOR} rx="0.5" />);
-            y = ly;
           }
           if (other > 0) {
             const oy = y - otherH;
@@ -757,7 +747,7 @@ function DailyChart({ data, target }: { data: DayRow[]; target: number }) {
           }
           return (
             <g key={d.day}>
-              <title>{`${d.day} · ${total} total · ${qa} qa_pending · ${lead} lead${other ? ` · ${other} other` : ''}`}</title>
+              <title>{`${d.day} · ${total} total · ${qa} qa_pending${other ? ` · ${other} other` : ''}`}</title>
               {segs}
             </g>
           );
@@ -771,19 +761,19 @@ function DailyChart({ data, target }: { data: DayRow[]; target: number }) {
           </div>
         ))}
       </div>
-      <ChartLegend qaColor={QA_COLOR} leadColor={LEAD_COLOR} />
+      <ChartLegend qaColor={QA_COLOR} />
     </div>
   );
 }
 
-function ChartLegend({ qaColor, leadColor }: { qaColor: string; leadColor: string }) {
+function ChartLegend({ qaColor }: { qaColor: string }) {
   const swatch = (c: string): React.CSSProperties => ({
     display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: c, marginRight: 6,
   });
   return (
     <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
       <span><span style={swatch(qaColor)} />qa_pending — needs QA approval</span>
-      <span><span style={swatch(leadColor)} />lead — hn_hiring / remoteok</span>
+      <span><span style={swatch('rgba(148,163,184,0.45)')} />other — legacy stored statuses</span>
       <span style={{ marginLeft: 'auto' }}>Dashed line = total target</span>
     </div>
   );
@@ -795,7 +785,6 @@ function RunStrip({ rows, target }: { rows: RunRow[]; target: number }) {
   const values = reversed.map((r) => r.net_new ?? 0);
   const max = Math.max(target * 1.2, ...values, 1);
   const QA_COLOR = 'rgba(245,158,11,0.85)';
-  const LEAD_COLOR = 'rgba(96,165,250,0.7)';
   const OTHER_COLOR = 'rgba(148,163,184,0.45)';
   return (
     <div style={{ height: 180, display: 'flex', flexDirection: 'column' }}>
@@ -812,10 +801,9 @@ function RunStrip({ rows, target }: { rows: RunRow[]; target: number }) {
           }
           const total = r.net_new;
           const qa = r.net_new_qa_pending;
-          const lead = r.net_new_lead;
-          const other = Math.max(0, total - qa - lead);
+          const other = Math.max(0, total - qa);
           const h = (total / max) * 100;
-          const title = `${fmtDate(r.started_at)} · net-new=${total} (qa=${qa}, lead=${lead}${other ? `, other=${other}` : ''}) · gate=${r.gate_mode ?? 'n/a'} · group=${r.rotation_group ?? 'n/a'}`;
+          const title = `${fmtDate(r.started_at)} · net-new=${total} (qa=${qa}${other ? `, other=${other}` : ''}) · gate=${r.gate_mode ?? 'n/a'} · group=${r.rotation_group ?? 'n/a'}`;
           const outline =
             r.gate_mode === 'overflow'
               ? '1px solid rgba(245,158,11,0.9)'
@@ -839,7 +827,6 @@ function RunStrip({ rows, target }: { rows: RunRow[]; target: number }) {
               }}
             >
               {qa > 0 && <div style={{ flex: qa, background: QA_COLOR }} />}
-              {lead > 0 && <div style={{ flex: lead, background: LEAD_COLOR }} />}
               {other > 0 && <div style={{ flex: other, background: OTHER_COLOR }} />}
             </div>
           );
@@ -857,7 +844,7 @@ function SourceTable({ rows }: { rows: SourceRow[] }) {
   if (rows.length === 0) {
     return <Empty>No per-tier stats yet. Stats populate after the first scheduler-driven run.</Empty>;
   }
-  const tierOrder: Record<string, number> = { workhorse: 0, discovery: 1, lead: 2 };
+  const tierOrder: Record<string, number> = { workhorse: 0, discovery: 1 };
   const sorted = [...rows].sort((a, b) => {
     const t = (tierOrder[a.tier] ?? 99) - (tierOrder[b.tier] ?? 99);
     return t !== 0 ? t : b.raw_hits - a.raw_hits;
@@ -920,7 +907,6 @@ function TierBadge({ tier }: { tier: string }) {
   const colors: Record<string, string> = {
     workhorse: 'rgba(34,197,94,0.2)',
     discovery: 'rgba(168,85,247,0.2)',
-    lead: 'rgba(59,130,246,0.2)',
   };
   return (
     <span
@@ -956,8 +942,8 @@ function KpiTile({ label, value, unit, tone, footer }: { label: string; value: s
   );
 }
 
-function StatusSplit({ qa, lead }: { qa: number; lead: number }) {
-  if (qa === 0 && lead === 0) {
+function StatusSplit({ qa }: { qa: number }) {
+  if (qa === 0) {
     return <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>no items stored</span>;
   }
   return (
@@ -966,12 +952,6 @@ function StatusSplit({ qa, lead }: { qa: number; lead: number }) {
         <span title="Items that reached storage as qa_pending — they still need QA approval (manual or LLM-review) before they can be tailored.">
           <span style={{ color: 'rgb(252, 211, 77)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{qa}</span>{' '}
           <span>need QA</span>
-        </span>
-      )}
-      {lead > 0 && (
-        <span title="Lead-tier items from hn_hiring / remoteok — lowest confidence, separate manual flow.">
-          <span style={{ color: 'rgb(147, 197, 253)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{lead}</span>{' '}
-          <span>lead</span>
         </span>
       )}
     </div>

@@ -60,7 +60,6 @@ def _current_db_path() -> str | None:
 
 _FLAG_KEYS = (
     "TEXTAILOR_SCRAPE_SCHEDULER",
-    "TEXTAILOR_MANAGE_MLX",
     "DASHBOARD_RELOAD",
 )
 
@@ -125,8 +124,6 @@ def system_status():
             "enabled": profile.llm_gate.enabled,
             "endpoint": profile.llm_gate.endpoint,
             "model": profile.llm_gate.model,
-            "fallback_endpoint": profile.llm_gate.fallback_endpoint,
-            "fallback_model": profile.llm_gate.fallback_model,
             "accept_threshold": profile.llm_gate.accept_threshold,
             "max_calls_per_run": profile.llm_gate.max_calls_per_run,
             "timeout_seconds": profile.llm_gate.timeout_seconds,

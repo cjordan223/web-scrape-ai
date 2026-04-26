@@ -46,7 +46,7 @@ npm run build
 source venv/bin/activate
 python -m pytest dashboard/backend/tests/test_tailoring_api.py
 python -m pytest dashboard/backend/tests/test_package_chat.py
-python -m pytest dashboard/backend/tests/test_mlx_endpoints.py
+python -m pytest dashboard/backend/tests/test_scrape_scheduler.py
 PYTHONPATH=tailoring python -m pytest tailoring/tests/test_ollama_tracing.py
 ```
 
@@ -61,7 +61,6 @@ Desktop routes (two domains — Pipeline and Ops):
 - `/pipeline/editor` — visual pipeline editor (default landing page, React Flow)
 - `/pipeline/ingest` — manual job ingest
 - `/pipeline/qa` — QA triage (approve/reject/LLM-review)
-- `/pipeline/leads` — HN Hiring leads browser
 - `/pipeline/ready` — ready jobs with queue controls
 - `/pipeline/packages` — tailoring output packages
 - `/pipeline/applied` — applied applications tracker
@@ -89,7 +88,7 @@ Mobile routes (auto-redirect on `width < 768`, defaults to `/m/qa`), tab bar ord
 - SQL query endpoint (`/api/db/query`) is SELECT-only.
 - Admin page (`/ops/admin`) is a SQL console + bulk ops — fires destructive actions directly, no confirmation phrase.
 - Production DB: `jobs` table is the source of truth; `results` is a VIEW (`SELECT *, status AS decision FROM jobs`).
-- LLM provider registry in `providers.py`: ollama, mlx, gemini, groq, mistral, openrouter, together, custom. Legacy `"lmstudio"`/`"openai"` auto-migrate to `"ollama"` on load.
+- LLM provider registry in `providers.py`: ollama, gemini, groq, mistral, openrouter, together, custom. Legacy `"lmstudio"`/`"openai"`/`"mlx"` auto-migrate to `"ollama"` on load.
 - Applied applications snapshot artifacts into `applied_snapshots` table — survives package deletion.
 - LLM model selection is explicit — TexTailor never auto-picks the first model from a shared endpoint. Tailoring will fail with a clear error if no model is configured.
 
@@ -122,12 +121,11 @@ Mobile routes (auto-redirect on `width < 768`, defaults to `/m/qa`), tab bar ord
 - `GET /api/llm/status`, `GET /api/llm/models`, `POST /api/llm/models/select`, `POST /api/llm/models/deselect` (legacy aliases: `/load`, `/unload`)
 - `GET /api/llm/providers`, `POST /api/llm/providers/key`, `POST /api/llm/providers/activate`, `POST /api/llm/providers/test`
 - `GET /api/llm/infrastructure`, `GET /api/llm/catalog`, `POST /api/llm/chat`, `POST /api/llm/benchmark`
-- `GET /api/llm/mlx/status`, `POST /api/llm/mlx/start`, `POST /api/llm/mlx/stop`, `GET /api/llm/mlx/models`, `POST /api/llm/mlx/pull`, `GET /api/llm/mlx/pull/status`
 - `POST /api/tailoring/ingest/fetch-url`, `POST /api/tailoring/ingest/parse`, `POST /api/tailoring/ingest/commit`, `POST /api/tailoring/ingest/scan-mobile`
 - `GET /api/tailoring/qa`, `POST /api/tailoring/qa/approve`, `POST /api/tailoring/qa/reject`, `POST /api/tailoring/qa/permanently-reject`
 - `GET /api/tailoring/qa/llm-review`, `POST /api/tailoring/qa/llm-review`, `DELETE /api/tailoring/qa/llm-review`
 - `POST /api/tailoring/qa/reset-approved`, `POST /api/tailoring/qa/undo-approve`, `POST /api/tailoring/qa/undo-reject`, `POST /api/tailoring/qa/rollback`
-- `GET /api/leads`, `GET /api/state-log`
+- `GET /api/state-log`
 
 **Ops** (`routers/ops.py`):
 - `GET /api/db/schema`, `GET /api/db/tables`, `GET /api/db/table/{name}`, `GET /api/db/query`, `GET /api/db/size`
@@ -150,7 +148,7 @@ Scrapy + Typer CLI: discovery via spiders, processing via item pipelines.
 - `job_scraper/items.py` — Scrapy item definitions
 - `job_scraper/salary_policy.py` — salary validation logic
 - `job_scraper/settings.py` — Scrapy settings
-- `job_scraper/spiders/` — 10 spiders: `searxng`, `ashby`, `greenhouse`, `lever`, `hn_hiring`, `remoteok`, `usajobs`, `workable`, `generic`, `aggregator`
+- `job_scraper/spiders/` — active spiders: `searxng`, `ashby`, `greenhouse`, `lever`, `workable`, `generic`, `aggregator`
 - `job_scraper/pipelines/` — processing stages: `text_extraction` → `dedup` → `hard_filter` → `llm_relevance` → `storage` (plus `tier_stats` helper)
 
 ## Tailoring Package Layout (high-level)
@@ -173,10 +171,9 @@ Scrapy + Typer CLI: discovery via spiders, processing via item pipelines.
 - `services/tailoring.py` — main business logic (3.4K LOC): job processing, QA, LLM review, packages, applied tracking
 - `services/ops.py` — DB admin, runtime controls, metrics
 - `services/package_chat.py` — LLM-powered package refinement chat (history in `{slug}/.chat_history.json`)
-- `services/model_catalog.py` — model discovery & catalog (Ollama, MLX), benchmarking
+- `services/model_catalog.py` — Ollama model discovery, catalog, and benchmarking
 - `services/archive.py` — tailoring run archival
 - `services/scraper_config.py` — scraper YAML config persistence
-- `services/mlx_manager.py` — MLX server lifecycle (start/stop/pull)
 - `services/mobile_jd.py` — mobile JD scanning/OCR via Tesseract
 - `services/jd_fetch.py` — domain-specific JD fetchers (LinkedIn, Ashby, generic)
 - `services/llm_keys.py` — secure API key storage (`~/.local/share/textailor/llm_keys.json`)
@@ -196,9 +193,7 @@ React 19 + TypeScript 5.9 + Vite 8 + React Router v7. Pipeline editor uses @xyfl
   - SearXNG `8888`
   - Dashboard `8899` (`DASHBOARD_PORT`)
   - LLM endpoint `11434` (Ollama)
-  - MLX default `8080`
   - Frontend dev `5173`
-- `TEXTAILOR_MANAGE_MLX=1` — opt-in to MLX server lifecycle management (start/stop/pull) from the dashboard. Without this, MLX endpoints are read-only.
 - `DASHBOARD_RELOAD=1` — enable uvicorn hot-reload (disabled by default for stable LAN serving)
 - `TAILOR_LLM_MODEL` — explicit model ID for tailoring (required, no auto-pick). Fallback: `TAILOR_OLLAMA_MODEL`.
 - `TAILOR_LLM_URL` — chat endpoint (default: `http://localhost:11434/v1/chat/completions`). Fallback: `TAILOR_OLLAMA_URL`.

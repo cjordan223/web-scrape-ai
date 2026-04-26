@@ -11,14 +11,12 @@ from pydantic import BaseModel, Field, model_validator
 
 class LLMGateConfig(BaseModel):
     enabled: bool = True
-    endpoint: str = "http://localhost:8080/v1/chat/completions"
-    model: str = "qwen3-4b-instruct-mlx"
-    fallback_endpoint: str = "http://localhost:11434/v1/chat/completions"
-    fallback_model: str = "qwen2.5:3b-instruct"
+    endpoint: str = "http://localhost:11434/v1/chat/completions"
+    model: str = "qwen2.5:7b"
     accept_threshold: int = Field(default=5, ge=0, le=10)
     max_calls_per_run: int = Field(default=150, ge=1)
     timeout_seconds: int = Field(default=10, ge=1)
-    fail_open: bool = True
+    fail_open: bool = False
 
 
 class ScrapeProfile(BaseModel):

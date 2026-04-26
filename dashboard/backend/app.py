@@ -373,10 +373,6 @@ _DEFAULT_RUNTIME_CONTROLS = {
 app = FastAPI(title="Job Scraper Dashboard")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# Recover MLX server state if one is already running on the default port.
-from services.mlx_manager import recover_on_startup
-recover_on_startup()
-
 from services import scrape_scheduler as _scrape_scheduler
 from services import run_reviewer as _run_reviewer
 from services import auto_qa_review as _auto_qa_review
@@ -631,12 +627,15 @@ def _resolve_llm_runtime(controls: dict | None = None) -> dict:
     # Look up provider in registry; map legacy values.
     provider_def = PROVIDERS.get(provider)
     if provider_def is None:
-        # Legacy "lmstudio"/"openai" → ollama.
+        # Legacy removed providers ("lmstudio", "openai", "mlx") → ollama.
+        controls = dict(controls)
+        controls["llm_base_url"] = PROVIDERS["ollama"]["base_url"]
+        controls["llm_model"] = "default"
         provider = "ollama"
         provider_def = PROVIDERS["ollama"]
 
     # Base URL: use controls override for local/custom providers, else registry default.
-    if provider in ("ollama", "mlx", "custom"):
+    if provider in ("ollama", "custom"):
         base_url = _normalize_llm_base_url(
             str(controls.get("llm_base_url") or provider_def["base_url"] or _DEFAULT_RUNTIME_CONTROLS["llm_base_url"])
         )
@@ -730,13 +729,7 @@ def _resolve_runtime_model_id(
 
 
 def _resolve_tailoring_subprocess_runtime() -> dict:
-    """Resolve a reachable LLM runtime for background tailoring runs.
-
-    Prefer the active runtime-controls selection. If that provider is unreachable
-    and it is not already Ollama, fall back to local Ollama when it has a usable
-    non-embedding model. This keeps dashboard-triggered runs working when MLX is
-    selected but offline.
-    """
+    """Resolve a reachable LLM runtime for background tailoring runs."""
     from providers import PROVIDERS
 
     controls = _load_runtime_controls()
@@ -746,7 +739,7 @@ def _resolve_tailoring_subprocess_runtime() -> dict:
         fallback_controls = dict(controls)
         fallback_controls["llm_provider"] = "ollama"
         fallback_controls["llm_base_url"] = PROVIDERS["ollama"]["base_url"]
-        # An MLX/custom-selected model often doesn't exist in Ollama. Let the
+        # A non-Ollama selected model often doesn't exist in Ollama. Let the
         # fallback auto-pick the first usable local model instead.
         fallback_controls["llm_model"] = "default"
         candidate_controls.append(fallback_controls)
@@ -1862,24 +1855,11 @@ def _tailoring_runner_snapshot(log_lines: int = 80) -> dict:
 # the queue even when no one is hitting the status API.
 # ---------------------------------------------------------------------------
 def _tailoring_queue_poller():
-    """Poll every 15s to reap finished runners, advance queue, and auto-recover MLX."""
+    """Poll every 15s to reap finished runners and advance queue."""
     while True:
         time.sleep(15)
         try:
             _tailoring_runner_snapshot(log_lines=0)
-        except Exception:
-            pass
-        # Auto-recover MLX server if provider is mlx and server is down
-        try:
-            controls = _load_runtime_controls()
-            if controls.get("llm_provider") == "mlx":
-                from services.mlx_manager import status as mlx_st, start as mlx_start
-                st = mlx_st()
-                if not st.get("running"):
-                    model = controls.get("llm_model")
-                    if model:
-                        logger.warning("MLX server down — auto-restarting with model %s", model)
-                        mlx_start(model)
         except Exception:
             pass
 

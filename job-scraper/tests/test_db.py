@@ -76,6 +76,14 @@ def test_start_and_finish_run(db):
     assert run["dedup_count"] == 5
 
 
+def test_finish_run_can_mark_failed(db):
+    db.start_run("run-fail")
+    db.finish_run("run-fail", error_count=1, errors="LLM gate failed", status="failed")
+    run = db.get_run("run-fail")
+    assert run["status"] == "failed"
+    assert run["errors"] == "LLM gate failed"
+
+
 def test_job_count(db):
     assert db.job_count() == 0
     db.insert_job({

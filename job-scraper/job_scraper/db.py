@@ -300,6 +300,7 @@ class JobDB:
         gate_mode: str | None = None,
         rotation_group: int | None = None,
         rotation_members: list[str] | None = None,
+        status: str = "completed",
     ) -> None:
         import json as _json
         now = _now()
@@ -318,10 +319,10 @@ class JobDB:
                gate_mode = COALESCE(?, gate_mode),
                rotation_group = COALESCE(?, rotation_group),
                rotation_members = COALESCE(?, rotation_members),
-               status = 'completed'
+               status = ?
             WHERE run_id = ?""",
             (now, elapsed, raw_count, dedup_count, filtered_count, error_count,
-             errors, net_new, gate_mode, rotation_group, members_json, run_id),
+             errors, net_new, gate_mode, rotation_group, members_json, status, run_id),
         )
         self._conn.commit()
 

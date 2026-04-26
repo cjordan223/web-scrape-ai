@@ -25,10 +25,8 @@ from .tracing import utc_now_iso
 
 logger = logging.getLogger(__name__)
 
-# Transient connection-level failures we retry on. MLX in particular can
-# drop connections mid-response when the server crashes, or refuse new
-# connections for a few seconds while it recovers. HTTP 4xx/5xx responses
-# are NOT retried here — those indicate a deterministic failure and should
+# Transient connection-level failures we retry on. HTTP 4xx/5xx responses are
+# NOT retried here because those indicate deterministic failures that should
 # surface to the caller.
 _TRANSIENT_LLM_ERRORS: tuple[type[Exception], ...] = (
     RequestsConnectionError,
@@ -125,7 +123,7 @@ def _use_file_lock(runtime: Mapping[str, Any] | None = None) -> bool:
     """Only use file lock for local providers (single GPU)."""
     if runtime is not None and "use_lock" in runtime:
         return bool(runtime.get("use_lock"))
-    return _runtime_provider(runtime) in ("ollama", "mlx", "")
+    return _runtime_provider(runtime) in ("ollama", "")
 
 
 def _lock_context(runtime: Mapping[str, Any] | None = None):
@@ -149,9 +147,7 @@ def _post_with_retry(
     """POST to an LLM endpoint, retrying transient connection failures.
 
     Retries on ConnectionError/ChunkedEncodingError/ReadTimeout with exponential
-    backoff — these are the failure modes seen when MLX crashes mid-request or
-    refuses new connections for a few seconds during recovery. HTTP 4xx/5xx
-    responses are NOT retried (the caller handles those).
+    backoff. HTTP 4xx/5xx responses are NOT retried (the caller handles those).
     """
     last_exc: Exception | None = None
     for attempt in range(1, _LLM_REQUEST_MAX_ATTEMPTS + 1):

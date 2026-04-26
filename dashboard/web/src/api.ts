@@ -5,6 +5,7 @@ import axios from 'axios';
 const API_BASE = import.meta.env.DEV ? 'http://localhost:8899/api' : '/api';
 const LLM_REQUEST_TIMEOUT_MS = 130000;
 const PACKAGE_CHAT_TIMEOUT_MS = 610000;
+const PACKAGE_REGENERATE_TIMEOUT_MS = 360000;
 
 export const apiClient = axios.create({
     baseURL: API_BASE,
@@ -189,7 +190,9 @@ export const api = {
     },
 
     regeneratePackageCover: async (slug: string) => {
-        const { data } = await apiClient.post(`/packages/${slug}/regenerate/cover`);
+        const { data } = await apiClient.post(`/packages/${slug}/regenerate/cover`, undefined, {
+            timeout: PACKAGE_REGENERATE_TIMEOUT_MS,
+        });
         return data;
     },
 
@@ -288,32 +291,6 @@ export const api = {
         return data;
     },
 
-    // MLX management
-    getMlxStatus: async () => {
-        const { data } = await apiClient.get('/llm/mlx/status');
-        return data;
-    },
-    startMlx: async (model: string, port = 8080) => {
-        const { data } = await apiClient.post('/llm/mlx/start', { model, port });
-        return data;
-    },
-    stopMlx: async () => {
-        const { data } = await apiClient.post('/llm/mlx/stop');
-        return data;
-    },
-    getMlxModels: async () => {
-        const { data } = await apiClient.get('/llm/mlx/models');
-        return data;
-    },
-    pullMlxModel: async (model_id: string) => {
-        const { data } = await apiClient.post('/llm/mlx/pull', { model_id });
-        return data;
-    },
-    getMlxPullStatus: async () => {
-        const { data } = await apiClient.get('/llm/mlx/pull/status');
-        return data;
-    },
-
     ingestFetchUrl: async (url: string) => {
         const { data } = await apiClient.post('/tailoring/ingest/fetch-url', { url });
         return data;
@@ -336,11 +313,6 @@ export const api = {
 
     getQAPending: async (limit?: number, params?: Record<string, any>) => {
         const { data } = await apiClient.get('/tailoring/qa', { params: { limit, ...(params || {}) } });
-        return data;
-    },
-
-    getLeads: async (limit?: number, params?: Record<string, any>) => {
-        const { data } = await apiClient.get('/leads', { params: { limit, ...(params || {}) } });
         return data;
     },
 

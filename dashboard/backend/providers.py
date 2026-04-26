@@ -7,12 +7,6 @@ PROVIDERS: dict[str, dict] = {
         "auth": None,
         "notes": "Local inference via Ollama. No API key required.",
     },
-    "mlx": {
-        "label": "MLX (Apple Silicon)",
-        "base_url": "http://localhost:8080",
-        "auth": None,
-        "notes": "Local inference via mlx-lm server. 2x faster on Apple Silicon.",
-    },
     "gemini": {
         "label": "Google Gemini",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
