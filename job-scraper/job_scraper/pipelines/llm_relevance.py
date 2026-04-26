@@ -146,6 +146,11 @@ class LLMRelevancePipeline:
     def _build_prompt(self, item: dict[str, Any]) -> str:
         return (
             "You are gating job postings for relevance to this candidate. "
+            "HARD REQUIREMENTS (reject if violated): the role must be (a) "
+            "based in the United States, and (b) fully remote. EU-only, "
+            "UK-only, hybrid, in-office, or unspecified-location postings "
+            "are reject. Titles containing '(m/f/d)', '(w/m/d)', '(f/m/d)' "
+            "or named EU/APAC cities are reject regardless of snippet.\n\n"
             "Respond with ONLY a JSON object: "
             '{"score": 0-10, "verdict": "accept"|"reject"|"uncertain", '
             '"reason": "short", "flags": ["..."]}.\n\n'

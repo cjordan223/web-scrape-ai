@@ -133,6 +133,7 @@ def test_salary_below_floor_rejected(filter_pipeline, spider):
 def test_unparseable_salary_passes(filter_pipeline, spider):
     item = JobItem(url="https://example.com/job/3", title="Engineer",
                    company="C", board="b", source="s", salary_text="competitive",
+                   location="Remote, USA",
                    created_at="2026-01-01T00:00:00Z")
     result = filter_pipeline.process_item(item, spider)
     assert result.get("status") != "rejected"
@@ -141,6 +142,7 @@ def test_unparseable_salary_passes(filter_pipeline, spider):
 def test_salary_at_floor_but_below_target_passes(filter_pipeline, spider):
     item = JobItem(url="https://example.com/job/3b", title="Engineer",
                    company="C", board="b", source="s", salary_text="$100,000 - $120,000",
+                   location="Remote, USA",
                    created_at="2026-01-01T00:00:00Z")
     result = filter_pipeline.process_item(item, spider)
     assert result.get("status") != "rejected"
@@ -149,6 +151,7 @@ def test_salary_at_floor_but_below_target_passes(filter_pipeline, spider):
 def test_clean_job_passes(filter_pipeline, spider):
     item = JobItem(url="https://example.com/job/4", title="Security Engineer",
                    company="Acme", board="greenhouse", source="s",
+                   location="Remote, USA",
                    created_at="2026-01-01T00:00:00Z")
     result = filter_pipeline.process_item(item, spider)
     assert result.get("status") != "rejected"
@@ -156,7 +159,7 @@ def test_clean_job_passes(filter_pipeline, spider):
 
 def test_international_location_rejected(filter_pipeline, spider):
     item = JobItem(url="https://example.com/job/4b", title="Security Engineer",
-                   company="Acme", board="remoteok", source="s",
+                   company="Acme", board="greenhouse", source="s",
                    location="International",
                    created_at="2026-01-01T00:00:00Z")
     result = filter_pipeline.process_item(item, spider)
@@ -172,6 +175,88 @@ def test_content_blocklist_rejected(filter_pipeline, spider):
     result = filter_pipeline.process_item(item, spider)
     assert result["status"] == "rejected"
     assert result["rejection_stage"] == "content_blocklist"
+
+
+def test_eu_marker_in_title_rejected(filter_pipeline, spider):
+    item = JobItem(
+        url="https://jobs.ashbyhq.com/bunch/abc",
+        title="Senior Platform Engineer (m/f/d) @ bunch",
+        company="bunch", board="ashby", source="searxng",
+        location="", jd_text="snippet text",
+        created_at="2026-01-01T00:00:00Z",
+    )
+    result = filter_pipeline.process_item(item, spider)
+    assert result["status"] == "rejected"
+    assert result["rejection_stage"] == "title_geo"
+    assert "EU equality marker" in result["rejection_reason"]
+
+
+def test_eu_city_in_title_rejected(filter_pipeline, spider):
+    item = JobItem(
+        url="https://jobs.lever.co/emburse/xyz",
+        title="Senior Security Engineer Barcelona",
+        company="emburse", board="lever", source="searxng",
+        location="", jd_text="snippet",
+        created_at="2026-01-01T00:00:00Z",
+    )
+    result = filter_pipeline.process_item(item, spider)
+    assert result["status"] == "rejected"
+    assert result["rejection_stage"] == "title_geo"
+
+
+def test_empty_location_with_no_us_signal_rejected(
+    filter_pipeline, spider
+):
+    """Empty location must fail closed — silent passes on missing data hide bugs."""
+    item = JobItem(
+        url="https://jobs.ashbyhq.com/abound/xyz",
+        title="Senior Security Engineer",
+        company="Abound", board="ashby", source="searxng",
+        location="", jd_text="Help build secure systems.",
+        created_at="2026-01-01T00:00:00Z",
+    )
+    result = filter_pipeline.process_item(item, spider)
+    assert result["status"] == "rejected"
+    # Either geo_non_us (no US signal) OR not_remote (no remote signal) gate
+    # catches it — both encode the same "missing-data fail-closed" intent.
+    assert result["rejection_stage"] in {"geo_non_us", "not_remote"}
+
+
+def test_empty_location_with_us_jd_signal_passes_geo(filter_pipeline, spider):
+    """Empty location + US signal in JD passes geo (still hits remote gate)."""
+    item = JobItem(
+        url="https://jobs.ashbyhq.com/co/xyz",
+        title="Security Engineer",
+        company="co", board="ashby", source="searxng",
+        location="",
+        jd_text="Remote role open to candidates anywhere in the USA.",
+        created_at="2026-01-01T00:00:00Z",
+    )
+    result = filter_pipeline.process_item(item, spider)
+    # Should not be rejected on geo; remote signal also present.
+    assert result.get("rejection_stage") not in {"geo_non_us", "not_remote"}
+
+
+def test_aggregator_path_on_legit_ats_rejected(filter_pipeline, spider):
+    """jobs.lever.co/jobgether/... should be caught by jobgether.com blocklist."""
+    cfg = HardFilterConfig(
+        domain_blocklist=["jobgether.com"],
+        title_blocklist=["staff"],
+        content_blocklist=[],
+        min_salary_k=100,
+        target_salary_k=150,
+    )
+    pipe = HardFilterPipeline(config=cfg)
+    item = JobItem(
+        url="https://jobs.lever.co/jobgether/abc-123",
+        title="Senior DevOps Engineer",
+        company="jobgether", board="lever", source="searxng",
+        location="Remote, USA", jd_text="Remote role.",
+        created_at="2026-01-01T00:00:00Z",
+    )
+    result = pipe.process_item(item, spider)
+    assert result["status"] == "rejected"
+    assert result["rejection_stage"] == "domain_blocklist"
 
 
 # --- Storage ---

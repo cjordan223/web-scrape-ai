@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 from job_scraper.config import HardFilterConfig
 from job_scraper.salary_policy import evaluate_salary_policy
+from job_scraper.spiders import AGGREGATOR_PATH_SEGMENTS
 
 logger = logging.getLogger(__name__)
 
@@ -108,12 +109,12 @@ _ONSITE_PATTERN = re.compile(
     re.I,
 )
 
-# Aggregator path segments that leak into company when URL parsing fails.
-_BAD_COMPANY_TOKENS = {
-    "jobs", "job", "careers", "career", "companies", "company",
-    "hiring", "apply", "listings", "listing", "browse", "view",
-    "positions", "position", "unknown", "",
-}
+# German / EU statutory equality marker in titles — strong non-US signal.
+_EU_EQUALITY_MARKER_PATTERN = re.compile(
+    r"\(\s*[mwfd]\s*/\s*[mwfd]\s*/\s*[mwfd]\s*\)", re.I,
+)
+
+_BAD_COMPANY_TOKENS = AGGREGATOR_PATH_SEGMENTS | {"unknown", ""}
 
 # Experience-years regex: captures "7+ years", "8-10 years", "minimum of 10 years", etc.
 _EXPERIENCE_PATTERNS = [
@@ -144,8 +145,31 @@ def _extract_experience_years(jd_text: str) -> int | None:
     return max(candidates)
 
 
+def _check_title_geo(title: str, allow_canada: bool = False) -> str | None:
+    """Reject titles that explicitly name a non-US city/country or carry an EU
+    equality marker like '(m/f/d)'. Returns rejection reason or None."""
+    if not title:
+        return None
+    if _EU_EQUALITY_MARKER_PATTERN.search(title):
+        return "EU equality marker in title (m/f/d-style)"
+    matches = _NON_US_PATTERN.findall(title)
+    if not matches:
+        return None
+    if _US_LOCATION_PATTERN.search(title):
+        return None
+    if allow_canada:
+        non_canada = [m for m in matches if not _CANADA_PATTERN.search(m)]
+        if not non_canada:
+            return None
+    return f"Non-US token in title: {', '.join(set(matches[:3]))}"
+
+
 def _is_non_us_only(location: str, jd_text: str, require_us: bool = True, allow_canada: bool = False) -> str | None:
-    """Return rejection reason if job is clearly non-US, or None if OK."""
+    """Return rejection reason if job is clearly non-US, or None if OK.
+
+    Empty location with require_us=True fails closed when JD has no US signal —
+    missing data should not silently pass a hard requirement.
+    """
     normalized_location = location.strip()
     if normalized_location:
         if re.search(r"\b(international|worldwide)\b", normalized_location, re.I):
@@ -176,17 +200,22 @@ def _is_non_us_only(location: str, jd_text: str, require_us: bool = True, allow_
             return None
         return f"Non-US location (no US signal): {normalized_location}"
 
-    if not location.strip() and jd_text:
-        for located_match in re.finditer(
-            r"(?:located?\s+in|based\s+in|position\s+(?:is\s+)?in|office\s+in|"
-            r"role\s+is\s+in|work\s+from\s+our|remote\s*[-:]\s*|within\s+the)\s+(.{0,120})",
-            jd_text,
-            re.I,
-        ):
-            context = located_match.group(1)
-            if _NON_US_PATTERN.search(context) and not _US_LOCATION_PATTERN.search(context):
-                non_us = _NON_US_PATTERN.findall(context)
-                return f"Non-US location (JD): {', '.join(set(non_us[:3]))}"
+    if not location.strip():
+        if jd_text:
+            for located_match in re.finditer(
+                r"(?:located?\s+in|based\s+in|position\s+(?:is\s+)?in|office\s+in|"
+                r"role\s+is\s+in|work\s+from\s+our|remote\s*[-:]\s*|within\s+the)\s+(.{0,120})",
+                jd_text,
+                re.I,
+            ):
+                context = located_match.group(1)
+                if _NON_US_PATTERN.search(context) and not _US_LOCATION_PATTERN.search(context):
+                    non_us = _NON_US_PATTERN.findall(context)
+                    return f"Non-US location (JD): {', '.join(set(non_us[:3]))}"
+        if require_us:
+            jd_has_us = bool(jd_text and _US_LOCATION_PATTERN.search(jd_text))
+            if not jd_has_us:
+                return "Empty location and no US signal (enrichment missing)"
 
     return None
 
@@ -217,6 +246,11 @@ def _check_remote(location: str, jd_text: str, require_explicit: bool) -> str | 
     if loc and not _REMOTE_PATTERN.search(loc) and not jd_has_remote:
         # Location set to a specific city with no remote mention anywhere.
         return f"No remote signal (location: {loc[:80]})"
+
+    if not loc and not jd_has_remote:
+        # Empty location and no remote signal in JD — fail closed instead of
+        # silently passing on missing data.
+        return "No remote signal (location empty, JD silent)"
 
     return None
 
@@ -269,10 +303,18 @@ class HardFilterPipeline:
         title = item.get("title", "")
         verdicts: list[dict] = []
 
-        host = urlparse(url).netloc.lower()
+        parsed_url = urlparse(url)
+        host = parsed_url.netloc.lower()
+        path_segments = {seg.lower() for seg in parsed_url.path.split("/") if seg}
         for domain in self._config.domain_blocklist:
-            if domain in host:
+            domain_lc = domain.lower()
+            if domain_lc in host:
                 return self._reject(item, "domain_blocklist", f"Blocked domain: {domain}", spider=spider, verdicts=verdicts)
+            # Also block aggregator hosting on legitimate ATS — e.g.
+            # `jobs.lever.co/jobgether/...` should be caught by `jobgether.com`.
+            blocked_token = domain_lc.split(".")[0]
+            if blocked_token and blocked_token in path_segments:
+                return self._reject(item, "domain_blocklist", f"Blocked aggregator in path: {domain}", spider=spider, verdicts=verdicts)
         verdicts.append({"rule": "domain_blocklist", "pass": True})
 
         # Company sanity — reject URL-path-leak company names.
@@ -285,6 +327,11 @@ class HardFilterPipeline:
             if pattern.search(title):
                 return self._reject(item, "title_blocklist", f"Blocked title word: {pattern.pattern}", spider=spider, verdicts=verdicts)
         verdicts.append({"rule": "title_blocklist", "pass": True})
+
+        title_geo_reason = _check_title_geo(title, allow_canada=self._config.allow_canada)
+        if title_geo_reason:
+            return self._reject(item, "title_geo", title_geo_reason, spider=spider, verdicts=verdicts)
+        verdicts.append({"rule": "title_geo", "pass": True})
 
         jd_text = item.get("jd_text") or ""
         for pattern in self._content_patterns:
