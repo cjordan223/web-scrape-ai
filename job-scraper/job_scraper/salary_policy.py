@@ -5,7 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
-_SALARY_PATTERN = re.compile(r"\$\s*([\d,]+)")
+_SALARY_TOKEN = re.compile(
+    r"(?:US|CA|AU|NZ|GB|EU)?\s*[\$£€¥]\s*([\d,]+(?:\.\d+)?)\s*([KkMm]?)"
+)
+_HOURLY_HINTS = ("per hour", "/hr", "hourly", " an hour")
+_MONTHLY_HINTS = ("per month", "/mo", "monthly", " a month")
+_ANNUAL_HOURS = 2080
+_ANNUAL_MONTHS = 12
 
 
 @dataclass(frozen=True)
@@ -34,18 +40,41 @@ def _coerce_salary_k(value: object) -> int | None:
 
 
 def parse_salary_text_k(text: str) -> int | None:
-    matches = _SALARY_PATTERN.findall(text or "")
-    if not matches:
+    """Return the top of a salary range expressed in annual thousands.
+
+    Handles K/M suffixes, common currency symbols, and hourly/monthly rates
+    (converted to annual at 2080 hrs/yr or 12 mo/yr). Returns the maximum
+    value in the text so wide ranges with a qualifying ceiling are not
+    rejected on their low end.
+    """
+    if not text:
         return None
-    values: list[int] = []
-    for match in matches:
+    low = text.lower()
+    if any(h in low for h in _HOURLY_HINTS):
+        multiplier = _ANNUAL_HOURS
+    elif any(h in low for h in _MONTHLY_HINTS):
+        multiplier = _ANNUAL_MONTHS
+    else:
+        multiplier = 1
+    candidates: list[float] = []
+    for match in _SALARY_TOKEN.finditer(text):
         try:
-            value = int(match.replace(",", ""))
+            num = float(match.group(1).replace(",", ""))
         except ValueError:
             continue
-        if 20_000 <= value <= 500_000:
-            values.append(value // 1000)
-    return min(values) if values else None
+        suffix = match.group(2)
+        if suffix in ("K", "k"):
+            dollars = num * 1_000
+        elif suffix in ("M", "m"):
+            dollars = num * 1_000_000
+        else:
+            dollars = num
+        annual_k = (dollars * multiplier) / 1000
+        if 20 <= annual_k <= 600:
+            candidates.append(annual_k)
+    if not candidates:
+        return None
+    return int(max(candidates))
 
 
 def evaluate_salary_policy(
@@ -55,9 +84,13 @@ def evaluate_salary_policy(
     salary_text: str = "",
     salary_k: object = None,
 ) -> SalaryPolicyVerdict:
-    parsed_salary_k = _coerce_salary_k(salary_k)
-    if parsed_salary_k is None:
-        parsed_salary_k = parse_salary_text_k(salary_text)
+    # Take the higher of stored salary_k and re-parsed salary_text. Stored
+    # salary_k can be the bottom of a range when an upstream spider captured
+    # the min; re-parsing the text recovers the true ceiling.
+    coerced = _coerce_salary_k(salary_k)
+    parsed_text = parse_salary_text_k(salary_text)
+    candidates = [v for v in (coerced, parsed_text) if v is not None]
+    parsed_salary_k = max(candidates) if candidates else None
     if parsed_salary_k is None:
         return SalaryPolicyVerdict(
             parsed_salary_k=None,

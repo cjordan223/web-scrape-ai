@@ -23,4 +23,4 @@ def test_lever_json_path_yields_item():
     assert item["board"] == "lever"
     assert item["company"] == "acmeco"
     assert "Remote" in item["location"]
-    assert item["salary_k"] == 150.0
+    assert item["salary_k"] == 180.0
