@@ -311,6 +311,11 @@ export const api = {
         return data;
     },
 
+    ingestPackage: async (jd_text: string) => {
+        const { data } = await apiClient.post('/tailoring/ingest/package', { jd_text });
+        return data;
+    },
+
     getQAPending: async (limit?: number, params?: Record<string, any>) => {
         const { data } = await apiClient.get('/tailoring/qa', { params: { limit, ...(params || {}) } });
         return data;

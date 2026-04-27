@@ -1253,7 +1253,7 @@ class TestTailoringAPI(unittest.TestCase):
                 self.assertEqual(resp.status_code, 200)
                 body = resp.json()
                 self.assertTrue(body["ok"])
-                self.assertEqual(body["approved"][0]["reason"], "Salary $75k below $100k floor")
+                self.assertEqual(body["approved"][0]["reason"], "Salary $90k below $100k floor")
 
                 conn = sqlite3.connect(db_path)
                 row = conn.execute("SELECT decision FROM results WHERE id = 1").fetchone()
@@ -1301,6 +1301,222 @@ class TestTailoringAPI(unittest.TestCase):
         self.assertEqual(kwargs["model_id"], "model-b")
         self.assertEqual(kwargs["llm_runtime"]["provider"], "custom")
         self.assertEqual(kwargs["trace"]["phase"], "dashboard_ingest_parse")
+
+    def test_ingest_package_parses_validates_prepares_and_queues_job(self):
+        with tempfile.TemporaryDirectory() as td:
+            db_path = Path(td) / "jobs.db"
+            self._create_results_db(db_path, with_approved_jd_text=False)
+
+            old_db = server.DB_PATH
+            server.DB_PATH = str(db_path)
+            server._ensure_workflow_schema(force=True)
+            client = TestClient(server.app)
+            try:
+                with (
+                    patch("services.tailoring._resolve_active_llm_runtime", return_value=({"provider": "test"}, "model-1")),
+                    patch(
+                        "services.tailoring._shared_chat_expect_json",
+                        return_value={
+                            "title": "Security Engineer",
+                            "company": "ExampleCo",
+                            "url": "https://example.com/jobs/ingest-package",
+                            "seniority": "senior",
+                            "snippet": "Security platform role.",
+                            "salary_k": 180,
+                            "experience_years": 5,
+                        },
+                    ),
+                    patch(
+                        "services.jd_fetch.fetch_jd",
+                        return_value=(
+                            "Security Engineer role with cloud security, incident response, "
+                            "automation, Python, Linux, platform ownership, reliability, compliance, "
+                            "developer enablement, observability, and production systems across distributed cloud environments.",
+                            "test",
+                        ),
+                    ),
+                    patch(
+                        "services.tailoring._polish_job_description",
+                        return_value=(
+                            "Security platform role focused on cloud automation.",
+                            "ROLE SUMMARY\nSecurity platform role.\n\nCORE RESPONSIBILITIES\n- Build automation.",
+                            True,
+                        ),
+                    ),
+                    patch.object(server, "_process_tailoring_queue", return_value=None),
+                ):
+                    resp = client.post(
+                        "/api/tailoring/ingest/package",
+                        json={
+                            "jd_text": (
+                                "https://example.com/jobs/ingest-package\n"
+                                "Security Engineer role with cloud security, incident response, automation, "
+                                "Python, Linux, and platform ownership across production systems."
+                            )
+                        },
+                    )
+
+                self.assertEqual(resp.status_code, 200)
+                payload = resp.json()
+                self.assertTrue(payload["ok"])
+                self.assertEqual(payload["decision"], "qa_approved")
+                self.assertEqual(payload["queued"], 1)
+                self.assertEqual(payload["fields"]["url"], "https://example.com/jobs/ingest-package")
+
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    "SELECT decision, url, company, approved_jd_text FROM results WHERE id = ?",
+                    (payload["job_id"],),
+                ).fetchone()
+                queue_row = conn.execute(
+                    "SELECT job_id, status FROM tailoring_queue_items WHERE job_id = ?",
+                    (payload["job_id"],),
+                ).fetchone()
+                conn.close()
+
+                self.assertEqual(row["decision"], "qa_approved")
+                self.assertEqual(row["url"], "https://example.com/jobs/ingest-package")
+                self.assertEqual(row["company"], "ExampleCo")
+                self.assertIn("ROLE SUMMARY", row["approved_jd_text"])
+                self.assertEqual(tuple(queue_row), (payload["job_id"], "queued"))
+            finally:
+                server.DB_PATH = old_db
+
+    def test_ingest_package_requires_url_from_parse(self):
+        with tempfile.TemporaryDirectory() as td:
+            db_path = Path(td) / "jobs.db"
+            self._create_results_db(db_path, with_approved_jd_text=False)
+
+            old_db = server.DB_PATH
+            server.DB_PATH = str(db_path)
+            server._ensure_workflow_schema(force=True)
+            client = TestClient(server.app)
+            try:
+                with (
+                    patch("services.tailoring._resolve_active_llm_runtime", return_value=({"provider": "test"}, "model-1")),
+                    patch(
+                        "services.tailoring._shared_chat_expect_json",
+                        return_value={
+                            "title": "Security Engineer",
+                            "company": "ExampleCo",
+                            "url": "",
+                            "seniority": "senior",
+                            "snippet": "Security platform role.",
+                            "salary_k": 180,
+                            "experience_years": 5,
+                        },
+                    ),
+                ):
+                    resp = client.post(
+                        "/api/tailoring/ingest/package",
+                        json={"jd_text": "Security Engineer role with cloud security and automation."},
+                    )
+
+                self.assertEqual(resp.status_code, 422)
+                self.assertIn("URL", resp.json()["error"])
+                conn = sqlite3.connect(db_path)
+                count = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+                conn.close()
+                self.assertEqual(count, 0)
+            finally:
+                server.DB_PATH = old_db
+
+    def test_ingest_package_rejects_unfetchable_url(self):
+        with tempfile.TemporaryDirectory() as td:
+            db_path = Path(td) / "jobs.db"
+            self._create_results_db(db_path, with_approved_jd_text=False)
+
+            old_db = server.DB_PATH
+            server.DB_PATH = str(db_path)
+            server._ensure_workflow_schema(force=True)
+            client = TestClient(server.app)
+            try:
+                with (
+                    patch("services.tailoring._resolve_active_llm_runtime", return_value=({"provider": "test"}, "model-1")),
+                    patch(
+                        "services.tailoring._shared_chat_expect_json",
+                        return_value={
+                            "title": "Security Engineer",
+                            "company": "ExampleCo",
+                            "url": "https://example.com/jobs/bad",
+                            "seniority": "senior",
+                            "snippet": "Security platform role.",
+                            "salary_k": 180,
+                            "experience_years": 5,
+                        },
+                    ),
+                    patch("services.jd_fetch.fetch_jd", return_value=("", "test")),
+                ):
+                    resp = client.post(
+                        "/api/tailoring/ingest/package",
+                        json={"jd_text": "https://example.com/jobs/bad\nSecurity Engineer role."},
+                    )
+
+                self.assertEqual(resp.status_code, 422)
+                self.assertIn("Could not extract job content", resp.json()["error"])
+                conn = sqlite3.connect(db_path)
+                count = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+                conn.close()
+                self.assertEqual(count, 0)
+            finally:
+                server.DB_PATH = old_db
+
+    def test_ingest_package_blocks_non_approved_job(self):
+        with tempfile.TemporaryDirectory() as td:
+            db_path = Path(td) / "jobs.db"
+            self._create_results_db(db_path, with_approved_jd_text=False)
+
+            old_db = server.DB_PATH
+            server.DB_PATH = str(db_path)
+            server._ensure_workflow_schema(force=True)
+            client = TestClient(server.app)
+            try:
+                with (
+                    patch("services.tailoring._resolve_active_llm_runtime", return_value=({"provider": "test"}, "model-1")),
+                    patch(
+                        "services.tailoring._shared_chat_expect_json",
+                        return_value={
+                            "title": "Security Engineer",
+                            "company": "ExampleCo",
+                            "url": "https://example.com/jobs/low-salary",
+                            "seniority": "senior",
+                            "snippet": "Security platform role.",
+                            "salary_k": 75,
+                            "experience_years": 5,
+                        },
+                    ),
+                    patch(
+                        "services.jd_fetch.fetch_jd",
+                        return_value=(
+                            "Security Engineer role with cloud security, incident response, "
+                            "automation, Python, Linux, platform ownership, reliability, compliance, "
+                            "developer enablement, observability, and production systems across distributed cloud environments.",
+                            "test",
+                        ),
+                    ),
+                ):
+                    resp = client.post(
+                        "/api/tailoring/ingest/package",
+                        json={
+                            "jd_text": (
+                                "https://example.com/jobs/low-salary\n"
+                                "Security Engineer role with cloud security, incident response, automation, "
+                                "Python, Linux, and platform ownership across production systems."
+                            )
+                        },
+                    )
+
+                self.assertEqual(resp.status_code, 409)
+                self.assertIn("not approved", resp.json()["error"])
+                conn = sqlite3.connect(db_path)
+                queue_count = conn.execute("SELECT COUNT(*) FROM tailoring_queue_items").fetchone()[0]
+                decision = conn.execute("SELECT status FROM jobs").fetchone()[0]
+                conn.close()
+                self.assertEqual(queue_count, 0)
+                self.assertEqual(decision, "qa_rejected")
+            finally:
+                server.DB_PATH = old_db
 
     def test_qa_llm_review_queue_uses_loaded_model_and_reports_progress(self):
         with tempfile.TemporaryDirectory() as td:
@@ -1739,7 +1955,7 @@ class TestTailoringAPI(unittest.TestCase):
 
                 self.assertIsNotNone(status)
                 self.assertEqual(status["summary"]["failed"], 1)
-                self.assertEqual(status["items"][0]["reason"], "Salary $75k below $100k floor")
+                self.assertEqual(status["items"][0]["reason"], "Salary $90k below $100k floor")
 
                 conn = sqlite3.connect(db_path)
                 row = conn.execute("SELECT decision FROM results WHERE id = 1").fetchone()

@@ -9,9 +9,6 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-import Vision
-from Cocoa import NSURL
-from CoreFoundation import CFRunLoopGetCurrent, CFRunLoopRunInMode, kCFRunLoopDefaultMode
 from services.audit import log_state_change
 
 MOBILE_JD_DIR = Path(__file__).resolve().parents[3] / "tailoring" / "mobile-jd"
@@ -19,6 +16,9 @@ MOBILE_JD_DIR = Path(__file__).resolve().parents[3] / "tailoring" / "mobile-jd"
 
 def ocr_image(path: Path) -> str:
     """Run macOS Vision OCR on a single image file. Returns recognised text."""
+    import Vision
+    from Cocoa import NSURL
+
     url = NSURL.fileURLWithPath_(str(path))
     handler = Vision.VNImageRequestHandler.alloc().initWithURL_options_(url, None)
     request = Vision.VNRecognizeTextRequest.alloc().init()

@@ -14,7 +14,6 @@ from typing import Callable, Iterable, TypeVar
 class Tier(str, Enum):
     WORKHORSE = "workhorse"   # direct ATS, high-signal, known-good companies
     DISCOVERY = "discovery"   # SearXNG — breadth via search engines
-    LEAD = "lead"             # thin JD, manual browsing bucket
 
 
 SPIDER_TIERS: dict[str, Tier] = {
@@ -23,8 +22,6 @@ SPIDER_TIERS: dict[str, Tier] = {
     "lever": Tier.WORKHORSE,
     "workable": Tier.WORKHORSE,
     "searxng": Tier.DISCOVERY,
-    "hn_hiring": Tier.LEAD,
-    "remoteok": Tier.LEAD,
     # Legacy/low-signal spiders get a tier too so metrics don't crash.
     "aggregator": Tier.DISCOVERY,
     "generic": Tier.DISCOVERY,

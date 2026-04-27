@@ -107,8 +107,8 @@ export default function JobInventoryTab({ onRunStarted }: Props) {
     const [queueBusy, setQueueBusy] = useState(false);
     const [queueError, setQueueError] = useState('');
     const [resetBusy, setResetBusy] = useState(false);
-    const [sortKey, setSortKey] = useState<ReadySortKey>('company');
-    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+    const [sortKey, setSortKey] = useState<ReadySortKey>('date_added');
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
     const [queueBatchSize, setQueueBatchSize] = useState('20');
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [groupByCompany, setGroupByCompany] = useState<boolean>(getInitialGroupByCompany);

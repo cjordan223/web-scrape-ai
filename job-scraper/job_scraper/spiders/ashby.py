@@ -81,9 +81,10 @@ class AshbySpider(scrapy.Spider):
             comp_data = job.get("compensation") or {}
             comp = comp_data.get("summaryComponents") or []
             if comp:
-                values = [c.get("minValue") for c in comp if c.get("minValue")]
+                values = [c.get("maxValue") or c.get("minValue") for c in comp]
+                values = [v for v in values if v]
                 if values:
-                    salary_k = min(values) / 1000.0
+                    salary_k = max(values) / 1000.0
             salary_text = comp_data.get("compensationTierSummary") or comp_data.get("scrapeableCompensationSalarySummary") or ""
 
             # Compose richer location string from location + workplaceType +

@@ -20,7 +20,6 @@ const IngestView = lazy(() => import('./views/domains/tailoring/runs/IngestView'
 const TailoringRejectedView = lazy(() => import('./views/domains/tailoring/rejected/RejectedView'));
 const PackagesView = lazy(() => import('./views/domains/tailoring/outputs/PackagesView'));
 const AppliedView = lazy(() => import('./views/domains/tailoring/outputs/AppliedView'));
-const LeadsView = lazy(() => import('./views/domains/tailoring/leads/LeadsView'));
 const SqlConsoleView = lazy(() => import('./views/domains/ops/diagnostics/SqlConsoleView'));
 const PipelineView = lazy(() => import('./views/domains/ops/diagnostics/PipelineView'));
 const PipelineEditorView = lazy(() => import('./views/domains/ops/diagnostics/PipelineEditorView'));
@@ -153,10 +152,9 @@ function App() {
           <Route path="/pipeline/ready" element={<LazyRoute><TailoringView /></LazyRoute>} />
           <Route path="/pipeline/ingest" element={<LazyRoute><IngestView /></LazyRoute>} />
           <Route path="/pipeline/editor/:runId" element={<LegacyRedirect to="/pipeline/editor" />} />
-          <Route path="/pipeline/qa" element={<LazyRoute><QAView /></LazyRoute>} />
+          <Route path="/pipeline/qa" element={<LegacyRedirect to="/ops/qa" />} />
           <Route path="/pipeline/packages" element={<LazyRoute><PackagesView /></LazyRoute>} />
           <Route path="/pipeline/applied" element={<LazyRoute><AppliedView /></LazyRoute>} />
-          <Route path="/pipeline/leads" element={<LazyRoute><LeadsView /></LazyRoute>} />
 
           {/* Ops */}
           <Route path="/ops" element={<Navigate to="/ops/inventory" replace />} />
@@ -166,6 +164,7 @@ function App() {
           <Route path="/ops/rejected/qa" element={<LazyRoute><TailoringRejectedView /></LazyRoute>} />
           <Route path="/ops/traces" element={<LazyRoute><PipelineView /></LazyRoute>} />
           <Route path="/ops/llm" element={<LazyRoute><LlmProvidersView /></LazyRoute>} />
+          <Route path="/ops/qa" element={<LazyRoute><QAView /></LazyRoute>} />
           <Route path="/ops/metrics" element={<LazyRoute><MetricsView /></LazyRoute>} />
           <Route path="/ops/scraper" element={<LazyRoute><ScraperMetricsView /></LazyRoute>} />
           <Route path="/ops/qa-reports" element={<LazyRoute><QaReviewReportsView /></LazyRoute>} />
@@ -196,7 +195,7 @@ function App() {
           <Route path="/scraping/quality/dedup" element={<LegacyRedirect to="/pipeline/editor" />} />
           <Route path="/scraping/quality/schedules" element={<LegacyRedirect to="/pipeline/editor" />} />
           <Route path="/tailoring" element={<LegacyRedirect to="/pipeline/ready" />} />
-          <Route path="/tailoring/qa" element={<LegacyRedirect to="/pipeline/ready" />} />
+          <Route path="/tailoring/qa" element={<LegacyRedirect to="/ops/qa" />} />
           <Route path="/pipeline/rejected" element={<LegacyRedirect to="/ops/rejected/qa" />} />
           <Route path="/tailoring/runs" element={<LegacyRedirect to="/pipeline/ready" />} />
           <Route path="/tailoring/outputs/packages" element={<LegacyRedirect to="/pipeline/packages" />} />

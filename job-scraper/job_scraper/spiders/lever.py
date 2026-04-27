@@ -78,8 +78,9 @@ class LeverSpider(scrapy.Spider):
             categories = job.get("categories") or {}
             salary_k = None
             sr = job.get("salaryRange") or {}
-            if sr.get("min"):
-                salary_k = sr["min"] / 1000.0
+            top = sr.get("max") or sr.get("min")
+            if top:
+                salary_k = top / 1000.0
             yield JobItem(
                 url=job.get("hostedUrl", ""),
                 title=job.get("text", "Unknown"),

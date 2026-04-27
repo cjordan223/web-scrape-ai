@@ -359,6 +359,32 @@ def validate(output_path: str = typer.Argument(..., help="Path to output directo
         raise typer.Exit(1)
 
 
+@app.command("cover-style-audit")
+def cover_style_audit(
+    paths: list[Path] = typer.Argument(..., help="Cover .tex files or output roots to scan"),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON instead of a readable summary"),
+):
+    """Audit cover letters for banned rhetorical patterns."""
+    from .cover_style import audit_cover_letter_paths
+
+    report = audit_cover_letter_paths(paths)
+    if json_output:
+        typer.echo(json.dumps(report, indent=2))
+        return
+
+    typer.echo(
+        f"Cover style audit - {report['total_letters']} letters, "
+        f"{report['total_hits']} banned-pattern hits"
+    )
+    for letter in report["letters"]:
+        typer.echo(f"\n{letter['path']}: {letter['total_hits']} hits")
+        for finding in letter["findings"]:
+            typer.echo(f"  - {finding['family']}: {finding['matched_text']}")
+
+    if report["total_hits"]:
+        raise typer.Exit(1)
+
+
 @app.command()
 def coverage(
     json_output: bool = typer.Option(False, "--json", help="Emit JSON instead of table"),

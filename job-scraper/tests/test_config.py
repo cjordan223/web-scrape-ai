@@ -38,20 +38,6 @@ def test_title_keywords_loaded():
     assert "security" in cfg.hard_filters.title_keywords
 
 
-def test_remoteok_config_loaded():
-    cfg = load_config()
-    assert cfg.remoteok is not None
-    assert cfg.remoteok.enabled is True
-    assert len(cfg.remoteok.tag_filter) > 0
-
-
-def test_hn_hiring_config_loaded():
-    cfg = load_config()
-    assert cfg.hn_hiring is not None
-    assert cfg.hn_hiring.enabled is True
-    assert cfg.hn_hiring.max_comments > 0
-
-
 def test_linkedin_queries_present():
     cfg = load_config()
     linkedin_queries = [q for q in cfg.queries if "linkedin.com" in q.board_site]

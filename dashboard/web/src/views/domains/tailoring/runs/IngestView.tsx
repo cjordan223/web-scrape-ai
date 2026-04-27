@@ -7,8 +7,9 @@ export default function IngestView() {
     return (
         <div style={{ height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
             <IngestTab
-                onSentToQa={() => navigate('/pipeline/qa')}
+                onSentToQa={() => navigate('/ops/qa')}
                 onSentToReady={() => navigate('/pipeline/ready')}
+                onPackageCreated={(slug) => navigate(`/pipeline/packages?slug=${encodeURIComponent(slug)}`)}
             />
         </div>
     );

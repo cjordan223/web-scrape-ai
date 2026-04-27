@@ -13,7 +13,7 @@ Sub-categories help the analyzer match specific JD keywords.
 
 ## Domain Interests
 
-These are areas of genuine personal curiosity and motivation — not just professional skills.
+These are areas of genuine personal curiosity and motivation, separate from professional skill matching.
 When a role intersects one of these domains, lean into that connection authentically.
 
 ### Space & Aerospace
@@ -25,7 +25,7 @@ I'm drawn to the intersection of software and space — orbital mechanics, satel
 - Launch infrastructure and operations software
 
 ### Artificial Intelligence & Machine Learning
-Not just using AI as a tool — genuinely interested in how these systems work, how to make them reliable, and how to govern them responsibly. Already building LLM-powered tooling (this job search pipeline, RAG systems, AI governance frameworks).
+I use AI as a tool and also care about how these systems work, how to make them reliable, and how to govern them responsibly. Already building LLM-powered tooling (this job search pipeline, RAG systems, AI governance frameworks).
 - LLM application development and evaluation
 - AI safety, alignment, and governance
 - ML infrastructure and MLOps

@@ -77,6 +77,30 @@ I built a SOC 2-aligned RAG chatbot on AWS Lambda.
         self.assertIn("unsupported_ai_deployment_claim", categories)
         self.assertIn("company_name_rendering_issue", categories)
 
+    def test_validate_cover_rejects_banned_rhetorical_patterns(self):
+        tex = r"""
+\documentclass{article}
+\newcommand{\companyname}{Example}
+\begin{document}
+Hiring Manager\\
+\companyname
+
+I do careful security engineering. This is not just coverage, but confidence.
+\end{document}
+"""
+        with tempfile.TemporaryDirectory() as td:
+            tex_path = Path(td) / "Conner_Jordan_Cover_Letter.tex"
+            tex_path.write_text(tex, encoding="utf-8")
+            (Path(td) / "analysis.json").write_text(json.dumps({"company_name": "Example"}), encoding="utf-8")
+            with patch("tailor.validator.compile_tex", return_value=tex_path.with_suffix(".pdf")):
+                result = validate_cover_letter(tex_path)
+
+        self.assertFalse(result.passed)
+        details = [item for item in result.failure_details if item["category"] == "cover_style_banned_pattern"]
+        self.assertEqual(len(details), 1)
+        self.assertEqual(details[0]["pattern_family"], "not_just_but")
+        self.assertIn("not just coverage, but confidence", details[0]["matched_text"])
+
     def test_writer_persists_grounding_artifacts(self):
         job = SelectedJob(
             id=1,

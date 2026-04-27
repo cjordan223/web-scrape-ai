@@ -38,7 +38,7 @@ KEEP UNDER ~2600 chars total so it fits in the cover draft budget (~3000 chars t
 - confident but not inflated
 
 ## Active reasoning (cover letters only)
-- Show your thinking. Don't just say you did something — explain why you chose that approach, what tradeoff you weighed, or what you learned from it.
+- Show your thinking. Pair actions with why you chose that approach, what tradeoff you weighed, or what you learned from it.
 - Connect experience to the company's situation. "I built X" is a resume line. "I built X because of Y, which is the same constraint your team faces with Z" is a cover letter line.
 - Express genuine motivation. What about this company's problem or product interests you? Be specific — not "I'm passionate about security" but what about their particular approach caught your attention.
 - It's OK to have opinions. "I prefer X over Y because..." shows judgment. Judgment is what hiring managers look for in cover letters.

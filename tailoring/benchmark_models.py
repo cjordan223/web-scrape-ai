@@ -13,6 +13,7 @@ import json
 import re
 import sys
 import time
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import requests
 
@@ -39,7 +40,7 @@ Requirements:
 """
 
 
-def chat(model: str, system: str, user: str, json_mode: bool = False) -> tuple[str, float]:
+def chat(model: str, system: str, user: str, json_mode: bool = False) -> Tuple[str, float]:
     """Send a chat to Ollama native API. Returns (content, duration_seconds)."""
     base = OLLAMA_URL
     payload = {
@@ -68,7 +69,7 @@ def chat(model: str, system: str, user: str, json_mode: bool = False) -> tuple[s
     return content.strip(), elapsed
 
 
-def extract_json_from(text: str) -> dict | None:
+def extract_json_from(text: str) -> Optional[Dict[str, Any]]:
     """Try to parse first JSON object from text."""
     text = re.sub(r"^```(?:json)?\s*", "", text.strip())
     text = re.sub(r"\s*```$", "", text)
@@ -84,7 +85,7 @@ def extract_json_from(text: str) -> dict | None:
     return None
 
 
-def test_json_analysis(model: str) -> dict:
+def test_json_analysis(model: str) -> Dict[str, Any]:
     """Test 1: JSON structured output (analysis phase)."""
     system = """\
 You are a job application strategist. Analyze the job description and produce a structured mapping.
@@ -136,7 +137,7 @@ Respond with ONLY a JSON object:
     return result
 
 
-def test_latex_generation(model: str) -> dict:
+def test_latex_generation(model: str) -> Dict[str, Any]:
     """Test 2: LaTeX generation (draft phase)."""
     system = r"""\
 You are a LaTeX resume expert. Generate a minimal but complete LaTeX resume document.
@@ -183,7 +184,7 @@ Previous roles at University of California (security engineer) and Great Wolf Re
     }
 
 
-def test_strategy_json(model: str) -> dict:
+def test_strategy_json(model: str) -> Dict[str, Any]:
     """Test 3: Complex structured strategy (strategy phase)."""
     system = """\
 You are a resume tailoring strategist. Build a precise writing plan.
@@ -243,7 +244,7 @@ Return ONLY JSON:
     return result
 
 
-def print_result(r: dict):
+def print_result(r: Dict[str, Any]):
     """Pretty-print a single test result."""
     test = r.pop("test")
     model = r.pop("model")

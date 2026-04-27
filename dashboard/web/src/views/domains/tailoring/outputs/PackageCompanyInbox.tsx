@@ -60,8 +60,6 @@ function prettyBoard(board?: string) {
         lever: 'Lever',
         ashby: 'Ashby',
         searxng: 'SearXNG',
-        hn_hiring: 'HN Hiring',
-        remoteok: 'RemoteOK',
         usajobs: 'USAJobs',
         manual: 'Manual',
     };

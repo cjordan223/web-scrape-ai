@@ -25,13 +25,13 @@ def test_finish_run_persists_rotation_members():
         "r-rm",
         raw_count=10, dedup_count=3, filtered_count=1,
         net_new=2, gate_mode="normal",
-        rotation_group=0, rotation_members=["ashby", "remoteok"],
+        rotation_group=0, rotation_members=["ashby", "searxng"],
     )
     row = db._conn.execute(
         "SELECT rotation_members, gate_mode FROM runs WHERE run_id = ?", ("r-rm",),
     ).fetchone()
     assert row["gate_mode"] == "normal"
-    assert json.loads(row["rotation_members"]) == ["ashby", "remoteok"]
+    assert json.loads(row["rotation_members"]) == ["ashby", "searxng"]
 
 
 def test_seed_tier_stats_creates_zero_rows():
@@ -39,14 +39,14 @@ def test_seed_tier_stats_creates_zero_rows():
     db.start_run("r-seed", trigger="scheduled")
     db.seed_tier_stats(
         "r-seed",
-        [("ashby", "workhorse"), ("remoteok", "lead"), ("searxng", "discovery")],
+        [("ashby", "workhorse"), ("generic", "discovery"), ("searxng", "discovery")],
     )
     rows = db._conn.execute(
         "SELECT source, tier, raw_hits FROM run_tier_stats WHERE run_id = ? ORDER BY source",
         ("r-seed",),
     ).fetchall()
     names = [r["source"] for r in rows]
-    assert names == ["ashby", "remoteok", "searxng"]
+    assert names == ["ashby", "generic", "searxng"]
     assert all(r["raw_hits"] == 0 for r in rows)
 
 

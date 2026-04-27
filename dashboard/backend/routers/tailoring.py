@@ -58,6 +58,7 @@ ROUTES: list[tuple[str, str, str]] = [
     ("POST", "/api/tailoring/ingest/parse", "tailoring_ingest_parse"),
     ("POST", "/api/tailoring/ingest/commit", "tailoring_ingest_commit"),
     ("POST", "/api/tailoring/ingest/prepare", "tailoring_ingest_prepare"),
+    ("POST", "/api/tailoring/ingest/package", "tailoring_ingest_package"),
     ("POST", "/api/tailoring/ingest/fetch-url", "tailoring_ingest_fetch_url"),
     ("POST", "/api/tailoring/ingest/scan-mobile", "tailoring_ingest_scan_mobile"),
     ("GET", "/api/tailoring/qa", "tailoring_qa_list"),

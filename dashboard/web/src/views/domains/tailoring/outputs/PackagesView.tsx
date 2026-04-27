@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../../../../api';
 import { MessageSquare, ChevronDown, ChevronUp, Copy, Scissors, SlidersHorizontal, X, RotateCcw, Skull } from 'lucide-react';
 import { copyText, toLocalInputValue } from '../../../../utils';
@@ -10,6 +11,7 @@ type MainTab = 'briefing' | 'strategy' | 'documents' | 'jd' | 'diff' | 'editor';
 type RunFilter = 'all' | 'recent_reruns' | 'latest_only' | 'previous_only' | 'with_history' | 'returned';
 type TimelineMode = 'off' | 'newer_than' | 'between';
 type TimelineUnit = 'hours' | 'days';
+type RegenerateStatus = 'idle' | 'running' | 'success' | 'error';
 
 type PackageGroup = {
     key: string;
@@ -95,6 +97,28 @@ function describeTimelineFilter(
         return `Between ${lower}-${upper} ${unitLabel}${upper === 1 ? '' : 's'} ago`;
     }
     return 'Timeline off';
+}
+
+function formatRegenerateError(error?: string) {
+    const raw = String(error || '').trim();
+    if (!raw) return 'Cover regeneration failed';
+
+    const connectionRefused = raw.match(/Failed to establish a new connection: \[Errno \d+\] Connection refused/);
+    if (connectionRefused) {
+        return `LLM runtime connection failed: ${connectionRefused[0]}.`;
+    }
+
+    const timeout = raw.match(/(?:Read timed out|timed out|timeout)/i);
+    if (timeout) {
+        return 'Cover regeneration timed out while waiting for the LLM runtime.';
+    }
+
+    const firstUsefulLine = raw
+        .split('\n')
+        .map((line) => line.trim())
+        .find((line) => line && !line.startsWith('Traceback') && !line.startsWith('File "'));
+    const message = firstUsefulLine || raw;
+    return message.length > 360 ? `${message.slice(0, 357)}...` : message;
 }
 
 const timelineInputStyle: React.CSSProperties = { borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', padding: '7px 9px', minWidth: 0 };
@@ -387,6 +411,10 @@ function buildCoverLetterManualEntrySection(tex: string): ManualEntrySection | n
 }
 
 export default function PackagesView() {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const requestedSlug = searchParams.get('slug');
+    const prevActiveSlugRef = useRef<string | null>(null);
+
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -424,6 +452,7 @@ export default function PackagesView() {
     const [applyError, setApplyError] = useState('');
     const [regenerateBusy, setRegenerateBusy] = useState(false);
     const [regenerateMessage, setRegenerateMessage] = useState('');
+    const [regenerateStatus, setRegenerateStatus] = useState<RegenerateStatus>('idle');
     const [deleteBusy, setDeleteBusy] = useState(false);
     const [resumeChunksOpen, setResumeChunksOpen] = useState(false);
     const [copiedChunkIndex, setCopiedChunkIndex] = useState<number | null>(null);
@@ -457,6 +486,7 @@ export default function PackagesView() {
         setCompileError('');
         setDiffError('');
         setRegenerateMessage('');
+        setRegenerateStatus('idle');
         setMainTab('documents');
         setApplyFormOpen(false);
         setApplyError('');
@@ -475,6 +505,25 @@ export default function PackagesView() {
         const id = setInterval(fetchPackages, 15000);
         return () => clearInterval(id);
     }, [fetchPackages]);
+
+    useEffect(() => {
+        if (!requestedSlug) return;
+        setActiveSlug(requestedSlug);
+    }, [requestedSlug]);
+
+    useEffect(() => {
+        if (prevActiveSlugRef.current && activeSlug === null && searchParams.get('slug')) {
+            setSearchParams(
+                (prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.delete('slug');
+                    return next;
+                },
+                { replace: true },
+            );
+        }
+        prevActiveSlugRef.current = activeSlug;
+    }, [activeSlug, searchParams, setSearchParams]);
 
     useEffect(() => {
         const fetchDetail = async () => {
@@ -544,21 +593,31 @@ export default function PackagesView() {
     const handleRegenerateCover = async () => {
         if (!activeSlug) return;
         setRegenerateBusy(true);
-        setRegenerateMessage('');
+        setMoreOptionsOpen(false);
+        setRegenerateStatus('running');
+        setRegenerateMessage('Regenerating cover letter... writing, validating, and compiling PDF. This can take a few minutes.');
         setCompileError('');
         try {
             const result = await api.regeneratePackageCover(activeSlug);
             if (!result?.ok) {
-                setRegenerateMessage(result?.error || 'Cover regeneration failed');
+                setRegenerateStatus('error');
+                setRegenerateMessage(formatRegenerateError(result?.error));
                 return;
             }
             setPackageDoc('cover');
             setMainTab('documents');
-            setRegenerateMessage('Cover letter regenerated');
             await fetchPackages();
             await loadDetail(activeSlug);
+            setRegenerateStatus('success');
+            setRegenerateMessage('Cover letter regenerated and PDF refreshed.');
         } catch (e: any) {
-            setRegenerateMessage(e?.response?.data?.error || 'Cover regeneration failed');
+            setRegenerateStatus('error');
+            const timedOut = e?.code === 'ECONNABORTED';
+            setRegenerateMessage(
+                timedOut
+                    ? 'Cover regeneration timed out before the server responded.'
+                    : formatRegenerateError(e?.response?.data?.error)
+            );
         } finally {
             setRegenerateBusy(false);
         }
@@ -693,10 +752,10 @@ export default function PackagesView() {
 
 
     useEffect(() => {
-        if (activeSlug !== null && !visibleData.some((item) => item.slug === activeSlug)) {
+        if (activeSlug !== null && !data.some((item) => item.slug === activeSlug)) {
             setActiveSlug(null);
         }
-    }, [visibleData, activeSlug]);
+    }, [data, activeSlug]);
 
     useEffect(() => {
         if (groupedFilteredData.length === 0) {
@@ -997,10 +1056,10 @@ export default function PackagesView() {
                                             {moreOptionsOpen && (
                                                 <div style={{
                                                     position: 'absolute', top: '100%', right: 0, marginTop: '6px',
-                                                    background: 'var(--surface)', border: '1px solid var(--border)',
+                                                    background: '#0b1018', border: '1px solid rgba(255,255,255,.16)',
                                                     borderRadius: '8px', padding: '6px', display: 'flex', flexDirection: 'column',
                                                     gap: '2px', zIndex: 100, minWidth: '200px',
-                                                    boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
+                                                    boxShadow: '0 20px 60px rgba(0,0,0,.72), 0 0 0 1px rgba(0,0,0,.4)'
                                                 }}>
                                                     <a
                                                         className="btn btn-ghost btn-sm"
@@ -1223,13 +1282,28 @@ export default function PackagesView() {
 
                         {regenerateMessage && (
                             <div style={{
-                                padding: '8px 20px',
+                                padding: '9px 20px',
                                 borderBottom: '1px solid var(--border)',
-                                background: 'var(--surface)',
+                                background: regenerateStatus === 'running'
+                                    ? 'rgba(200,144,42,.12)'
+                                    : regenerateStatus === 'success'
+                                    ? 'rgba(60,179,113,.1)'
+                                    : 'rgba(217,79,79,.1)',
                                 fontFamily: 'var(--font-mono)',
                                 fontSize: '.7rem',
-                                color: regenerateMessage === 'Cover letter regenerated' ? 'var(--green)' : 'var(--red)',
+                                color: regenerateStatus === 'running'
+                                    ? 'var(--amber)'
+                                    : regenerateStatus === 'success'
+                                    ? 'var(--green)'
+                                    : 'var(--red)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                lineHeight: 1.45,
+                                maxHeight: '84px',
+                                overflowY: 'auto',
                             }}>
+                                {regenerateStatus === 'running' && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
                                 {regenerateMessage}
                             </div>
                         )}

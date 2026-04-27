@@ -6,8 +6,13 @@ from unittest.mock import patch
 from tailor.selector import SelectedJob
 from tailor.validator import ResumeFitMetrics, _count_resume_bullets_by_company, _extract_body_text
 from tailor.writer import (
+    _COVER_DRAFT_SYSTEM,
+    _COVER_HUMANIZE_SYSTEM,
+    _COVER_QA_SYSTEM,
+    _COVER_STYLE_REPAIR_SYSTEM,
     _coerce_cover_chunks,
     _coerce_resume_chunks,
+    _repair_cover_style_chunks,
     _trim_cover_text_to_budget,
     write_cover_letter,
     write_resume,
@@ -509,13 +514,64 @@ class TestWriterSequence(unittest.TestCase):
             out = Path(td)
             write_cover_letter(self.job, self.analysis, out, previous_feedback=previous_feedback, attempt=2)
 
+        strategy_prompt = next(prompt for trace, prompt in prompts if trace.get("phase") == "strategy")
         draft_prompt = next(prompt for trace, prompt in prompts if trace.get("phase") == "draft")
         qa_prompt = next(prompt for trace, prompt in prompts if trace.get("phase") == "qa")
-        for prompt in [draft_prompt, qa_prompt]:
+        humanize_prompt = next(prompt for trace, prompt in prompts if trace.get("phase") == "humanize")
+        for prompt in [strategy_prompt, draft_prompt, qa_prompt, humanize_prompt]:
             self.assertIn("Structured validator failures (JSON)", prompt)
             self.assertIn('"category": "company_rendering_mismatch"', prompt)
             self.assertIn("Dear Exampel hiring team", prompt)
             self.assertIn("Summary: FAIL — company name mismatch", prompt)
+
+    def test_cover_prompts_hard_ban_banned_rhetorical_patterns(self):
+        for prompt in [_COVER_DRAFT_SYSTEM, _COVER_QA_SYSTEM, _COVER_HUMANIZE_SYSTEM, _COVER_STYLE_REPAIR_SYSTEM]:
+            self.assertIn("BANNED COVER-LETTER RHETORICAL PATTERNS", prompt)
+            self.assertIn("zero occurrences", prompt)
+            self.assertNotIn("at most ONE", prompt)
+            self.assertNotIn("at most one", prompt)
+
+    def test_cover_style_repair_rewrites_banned_sentences_before_validation(self):
+        prompts = []
+        payload = {
+            "paragraphs": [
+                "I didn't just write runbooks, I walked teams through the tradeoffs.",
+                "This is grounded supporting detail.",
+            ],
+            "closing": "I've learned that security only works when people use it.",
+        }
+
+        def fake_repair(system_prompt, user_prompt, **kwargs):
+            prompts.append((system_prompt, user_prompt, kwargs.get("trace")))
+            return {
+                "paragraphs": [
+                    "I paired runbooks with team walkthroughs so each tradeoff was clear.",
+                    "This is grounded supporting detail.",
+                ],
+                "closing": "Security works best when people can use it without friction.",
+            }
+
+        repaired = _repair_cover_style_chunks(
+            payload,
+            analysis={"company_name": "Example", "role_title": "Role"},
+            grounding={},
+            attempt=2,
+            trace_recorder=None,
+            repair_fn=fake_repair,
+        )
+
+        self.assertEqual(
+            repaired["paragraphs"][0],
+            "I paired runbooks with team walkthroughs so each tradeoff was clear.",
+        )
+        self.assertEqual(
+            repaired["closing"],
+            "Security works best when people can use it without friction.",
+        )
+        self.assertEqual(len(prompts), 1)
+        self.assertIn("I didn't just write runbooks", prompts[0][1])
+        self.assertIn("I've learned that security only works", prompts[0][1])
+        self.assertEqual(prompts[0][2]["phase"], "style_repair")
 
 
 if __name__ == "__main__":

@@ -11,4 +11,4 @@ DO NOT add vignettes or voice rules here — those belong in vignettes/ and voic
 **Core Orientation:** Builder who fills gaps — when an org has a problem nobody knows how to approach, I research it, prototype a solution, and ship working code
 **Working Style:** Cautious in production, aggressive in learning. Everything starts manual before it gets automated. Communicates constantly to keep non-technical leadership aligned.
 
-I'm a mid-career engineer (~3 years security, CS degree in software engineering) who builds above my experience level — not because I overestimate myself, but because I'm not afraid to learn fast and ask for help when I need it.
+I'm a mid-career engineer (~3 years security, CS degree in software engineering) who builds above my experience level because I learn quickly, ask for help when I need it, and keep shipping while I close gaps.

@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TexTailor · CI/CD Security Guide</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --bg-elev: #12151d;
+    --bg-card: #161a24;
+    --line: #232836;
+    --line-soft: #1c212c;
+    --ink: #e7ecf3;
+    --ink-dim: #9aa3b2;
+    --ink-faint: #6b7384;
+    --accent: #7cf0c3;
+    --accent-dim: #3fb393;
+    --warn: #ffc266;
+    --danger: #ff7a7a;
+    --info: #8ab4ff;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.6; }
+  body {
+    background:
+      radial-gradient(1100px 600px at 85% -10%, rgba(124,240,195,0.08), transparent 60%),
+      radial-gradient(900px 500px at -10% 20%, rgba(138,180,255,0.06), transparent 60%),
+      var(--bg);
+    min-height: 100vh;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre { font-family: var(--mono); }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 48px;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 48px 32px 120px;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; gap: 24px; padding: 24px 16px 80px; }
+    .sidebar { position: static !important; }
+  }
+
+  /* Sidebar nav */
+  .sidebar {
+    position: sticky;
+    top: 32px;
+    align-self: start;
+    font-size: 13px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 28px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .brand-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 16px rgba(124,240,195,0.6);
+  }
+  .nav-group + .nav-group { margin-top: 20px; }
+  .nav-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 10px;
+  }
+  .nav-list { list-style: none; padding: 0; margin: 0; }
+  .nav-list li { margin: 0; }
+  .nav-list a {
+    display: block;
+    padding: 6px 10px;
+    border-left: 2px solid transparent;
+    color: var(--ink-dim);
+    border-radius: 0 6px 6px 0;
+    transition: all .15s;
+  }
+  .nav-list a:hover { color: var(--ink); border-left-color: var(--line); background: var(--bg-elev); text-decoration: none; }
+  .nav-list a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(124,240,195,0.05); }
+
+  /* Main */
+  main { min-width: 0; }
+
+  /* Hero */
+  .hero {
+    position: relative;
+    padding: 56px 44px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: linear-gradient(135deg, #141824 0%, #0e1119 100%);
+    overflow: hidden;
+    margin-bottom: 48px;
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    top: -60%; right: -20%;
+    width: 600px; height: 600px;
+    background: radial-gradient(closest-side, rgba(124,240,195,0.15), transparent 70%);
+    pointer-events: none;
+  }
+  .kicker {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    padding: 4px 10px;
+    border: 1px solid rgba(124,240,195,0.3);
+    border-radius: 999px;
+    background: rgba(124,240,195,0.05);
+  }
+  .hero h1 {
+    font-size: 44px;
+    line-height: 1.1;
+    margin: 20px 0 16px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .hero h1 em { font-style: normal; color: var(--accent); }
+  .hero p.lede {
+    font-size: 17px;
+    color: var(--ink-dim);
+    max-width: 640px;
+    margin: 0;
+  }
+  .hero-meta {
+    display: flex;
+    gap: 24px;
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line-soft);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-faint);
+  }
+  .hero-meta span b { color: var(--ink); font-weight: 500; }
+
+  /* Sections */
+  section { margin-bottom: 56px; scroll-margin-top: 32px; }
+  h2 {
+    font-size: 26px;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  h2 .num {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+  h3 {
+    font-size: 17px;
+    margin: 28px 0 10px;
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .section-lede {
+    color: var(--ink-dim);
+    margin: 0 0 24px;
+    font-size: 15px;
+  }
+
+  /* Layer flow */
+  .flow {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 700px) { .flow { grid-template-columns: 1fr 1fr; } }
+  .flow-step {
+    position: relative;
+    padding: 18px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    transition: border-color .2s;
+  }
+  .flow-step:hover { border-color: var(--accent-dim); }
+  .flow-step .step-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+  }
+  .flow-step h4 {
+    margin: 6px 0 4px;
+    font-size: 15px;
+  }
+  .flow-step p { margin: 0; font-size: 13px; color: var(--ink-dim); }
+
+  /* Cards grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    padding: 22px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    transition: transform .15s, border-color .15s;
+  }
+  .card:hover { transform: translateY(-2px); border-color: var(--accent-dim); }
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .card-head h3 { margin: 0; font-size: 15px; }
+  .tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    color: var(--ink-dim);
+  }
+  .tag.tag-accent { color: var(--accent); border-color: rgba(124,240,195,0.3); background: rgba(124,240,195,0.05); }
+  .tag.tag-warn { color: var(--warn); border-color: rgba(255,194,102,0.3); background: rgba(255,194,102,0.05); }
+  .tag.tag-info { color: var(--info); border-color: rgba(138,180,255,0.3); background: rgba(138,180,255,0.05); }
+
+  .card p { margin: 0 0 10px; font-size: 14px; color: var(--ink-dim); }
+  .card ul { margin: 8px 0 0; padding-left: 20px; font-size: 13.5px; color: var(--ink-dim); }
+  .card ul li { margin-bottom: 4px; }
+  .card code { background: var(--bg-elev); padding: 1px 6px; border-radius: 4px; font-size: 12px; color: var(--ink); }
+
+  /* Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin-top: 8px;
+    overflow: hidden;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+  }
+  th, td {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  th {
+    background: var(--bg-elev);
+    color: var(--ink-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg-elev); }
+  td code { background: var(--bg-elev); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+
+  /* Callouts */
+  .callout {
+    padding: 16px 20px;
+    border-radius: 10px;
+    border-left: 3px solid var(--info);
+    background: rgba(138,180,255,0.06);
+    margin: 16px 0;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .callout.warn { border-left-color: var(--warn); background: rgba(255,194,102,0.06); }
+  .callout.danger { border-left-color: var(--danger); background: rgba(255,122,122,0.06); }
+  .callout-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--info);
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+  .callout.warn .callout-title { color: var(--warn); }
+  .callout.danger .callout-title { color: var(--danger); }
+
+  /* Code */
+  pre {
+    background: #0a0c12;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #c7d1de;
+  }
+  pre .c { color: var(--ink-faint); }
+  pre .k { color: var(--accent); }
+  pre .s { color: var(--warn); }
+
+  /* Threat list */
+  .threats { list-style: none; padding: 0; margin: 0; }
+  .threats li {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 20px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 14px;
+  }
+  .threats li:last-child { border-bottom: none; }
+  .threats .t-label { font-family: var(--mono); font-size: 12px; color: var(--accent); }
+  .threats .t-body { color: var(--ink-dim); }
+  .threats .t-body b { color: var(--ink); font-weight: 500; }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding-top: 32px;
+    border-top: 1px solid var(--line-soft);
+    color: var(--ink-faint);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  ul.check { list-style: none; padding: 0; }
+  ul.check li { padding: 6px 0 6px 26px; position: relative; font-size: 14px; color: var(--ink); }
+  ul.check li::before {
+    content: "→";
+    position: absolute; left: 6px; top: 6px;
+    color: var(--accent);
+    font-family: var(--mono);
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <span>TexTailor · SecOps</span>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-title">Guide</div>
+      <ul class="nav-list">
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#layers">Pipeline layers</a></li>
+        <li><a href="#checks">Check catalog</a></li>
+        <li><a href="#custom">Repo-specific rules</a></li>
+        <li><a href="#gating">Gating policy</a></li>
+        <li><a href="#threats">Threat model</a></li>
+        <li><a href="#starter">Starter set</a></li>
+      </ul>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-title">Reference</div>
+      <ul class="nav-list">
+        <li><a href="#tools">Tool matrix</a></li>
+        <li><a href="#glossary">Glossary</a></li>
+      </ul>
+    </div>
+  </aside>
+
+  <main>
+    <header class="hero">
+      <span class="kicker">●&nbsp;&nbsp;Internal guide · v1</span>
+      <h1>CI/CD Security<br/><em>for TexTailor</em></h1>
+      <p class="lede">Theory-first playbook for hardening the TexTailor monorepo: Python scraper &amp; backend, React dashboard, SearXNG container, SQLite store. Layered checks from pre-commit to release, with repo-specific rules for the parts that actually matter.</p>
+      <div class="hero-meta">
+        <span>Scope: <b>monorepo</b></span>
+        <span>Stack: <b>Python · TS · Docker · SQLite</b></span>
+        <span>Posture: <b>LAN-only dashboard</b></span>
+      </div>
+    </header>
+
+    <section id="overview">
+      <h2><span class="num">01</span>Overview</h2>
+      <p class="section-lede">Security in CI/CD is defense in depth. Cheap checks run first and fail loudly; expensive ones run less often. Each layer catches a different class of problem — skipping a layer leaves that class unobserved.</p>
+
+      <div class="callout">
+        <div class="callout-title">Guiding principle</div>
+        Fail fast on cheap checks, gate merge on blocking classes, schedule expensive scans. Custom rules for this repo matter more than generic rule packs because the riskiest surface (SQL console, artifact paths, ops admin) is bespoke.
+      </div>
+    </section>
+
+    <section id="layers">
+      <h2><span class="num">02</span>Pipeline layers</h2>
+      <p class="section-lede">Four stages. Checks escalate in cost and coverage.</p>
+
+      <div class="flow">
+        <div class="flow-step">
+          <div class="step-num">STAGE · 01</div>
+          <h4>Pre-commit</h4>
+          <p>Local, sub-second. Secrets, format, lint. Catches 80% of accidents.</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">STAGE · 02</div>
+          <h4>PR CI</h4>
+          <p>Blocking gate. SAST, SCA, custom semgrep, unit tests, type check.</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">STAGE · 03</div>
+          <h4>Main / nightly</h4>
+          <p>Slow scans. SBOM, container rescan, full-history secret sweep, DAST.</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">STAGE · 04</div>
+          <h4>Release</h4>
+          <p>Sign artifacts, freeze deps, attach SBOM, tag container digest.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="checks">
+      <h2><span class="num">03</span>Check catalog</h2>
+      <p class="section-lede">Each category answers a different question about the change.</p>
+
+      <div class="grid">
+        <div class="card">
+          <div class="card-head"><h3>SAST</h3><span class="tag tag-accent">code patterns</span></div>
+          <p>Pattern-match dangerous code before it ships.</p>
+          <ul>
+            <li>Python: <code>bandit</code> — shell=True, pickle, weak crypto</li>
+            <li><code>semgrep</code> — FastAPI + python rulesets</li>
+            <li>TS: <code>eslint-plugin-security</code>, semgrep react rules</li>
+            <li>Target: injection, XSS, unsafe deserialization</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>SCA (dependencies)</h3><span class="tag tag-accent">known CVEs</span></div>
+          <p>Scan transitive deps for published vulnerabilities.</p>
+          <ul>
+            <li>Python: <code>pip-audit</code> or <code>safety</code></li>
+            <li>JS: <code>npm audit --production</code>, <code>osv-scanner</code></li>
+            <li>Dependabot / Renovate auto-PRs</li>
+            <li>Pin with hashes (<code>pip-compile --generate-hashes</code>)</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Secret scanning</h3><span class="tag tag-warn">high leverage</span></div>
+          <p>Detect credentials in diffs and history.</p>
+          <ul>
+            <li><code>gitleaks</code> / <code>trufflehog</code></li>
+            <li>Pre-commit + PR + nightly full-history</li>
+            <li>Rules for OpenAI, Anthropic, Groq, Mistral, OpenRouter keys</li>
+            <li>Verify <code>llm_keys.json</code> path covered by <code>.gitignore</code></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Container / image</h3><span class="tag tag-accent">image CVEs</span></div>
+          <p>SearXNG image and any derived layers.</p>
+          <ul>
+            <li><code>hadolint</code> — Dockerfile linting</li>
+            <li><code>trivy</code> or <code>grype</code> — CVE scan</li>
+            <li>Weekly rescan base image — new CVEs emerge</li>
+            <li>Flag <code>:latest</code>, root user, missing healthcheck</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>IaC / config</h3><span class="tag">posture</span></div>
+          <p>Compose files and runtime config.</p>
+          <ul>
+            <li><code>checkov</code> on <code>docker-compose.yml</code></li>
+            <li>Exposed ports review — <code>0.0.0.0:8899</code> intentional?</li>
+            <li>CORS allowlist, no <code>*</code></li>
+            <li>No privileged containers</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>License</h3><span class="tag">policy</span></div>
+          <p>Flag incompatible licenses before merge.</p>
+          <ul>
+            <li><code>pip-licenses</code></li>
+            <li><code>license-checker</code> (npm)</li>
+            <li>Fail policy: block GPL/AGPL if forbidden</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>SBOM + provenance</h3><span class="tag tag-info">supply chain</span></div>
+          <p>Know what shipped so you can answer "are we affected."</p>
+          <ul>
+            <li><code>cyclonedx-py</code>, <code>cyclonedx-npm</code></li>
+            <li>Attach SBOM to release artifacts</li>
+            <li>Pin container by digest, not tag</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>DAST (light)</h3><span class="tag">runtime</span></div>
+          <p>Exercise the running app, not the source.</p>
+          <ul>
+            <li>Schemathesis against FastAPI <code>/openapi.json</code></li>
+            <li>OWASP ZAP baseline (passive in CI)</li>
+            <li>Active scans only in staging, never against prod</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="custom">
+      <h2><span class="num">04</span>Repo-specific rules</h2>
+      <p class="section-lede">Generic rulesets miss the endpoints that matter here. These are custom semgrep patterns worth writing.</p>
+
+      <div class="grid">
+        <div class="card">
+          <div class="card-head"><h3>SELECT-only SQL console</h3><span class="tag tag-warn">must-have</span></div>
+          <p><code>/api/db/query</code> must never execute non-SELECT. A regression here turns a read endpoint into DROP.</p>
+          <ul>
+            <li>Semgrep rule: within <code>routers/ops.py</code>, block <code>execute(</code> without AST check</li>
+            <li>Unit test: POST <code>UPDATE</code>, <code>DROP</code>, <code>INSERT</code> → expect 400</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Artifact path traversal</h3><span class="tag tag-warn">must-have</span></div>
+          <p><code>/api/packages/{slug}/artifact/{name}</code> and mobile JD scan accept filenames.</p>
+          <ul>
+            <li>Require <code>.resolve().is_relative_to(base)</code> guard</li>
+            <li>Reject <code>..</code>, absolute paths, symlinks</li>
+            <li>Same for <code>/api/tailoring/runs/{slug}/artifact/{name}</code></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Ops admin verbs</h3><span class="tag tag-warn">high blast radius</span></div>
+          <p><code>/ops/admin</code> fires destructive actions with no confirm. New verbs should be reviewed by code owner.</p>
+          <ul>
+            <li>CODEOWNERS on <code>routers/ops.py</code>, <code>services/ops.py</code></li>
+            <li>Audit that each action writes to <code>state_log</code></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>pdflatex shell-escape</h3><span class="tag tag-warn">RCE surface</span></div>
+          <p><code>tailor/compiler.py</code> runs <code>pdflatex</code>. Shell-escape enabled = arbitrary command execution via malicious .tex.</p>
+          <ul>
+            <li>Verify <code>-no-shell-escape</code> flag</li>
+            <li>Rule: flag any <code>pdflatex</code> invocation without that flag</li>
+            <li>Treat JD text as untrusted input</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>YAML loader</h3><span class="tag">deserialization</span></div>
+          <p><code>config.py</code> loads YAML. <code>yaml.load</code> without <code>SafeLoader</code> = code execution.</p>
+          <ul>
+            <li>Semgrep: block <code>yaml.load</code> without explicit <code>Loader=</code></li>
+            <li>Prefer <code>yaml.safe_load</code></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Subprocess shell=True</h3><span class="tag">injection</span></div>
+          <p>Scraper fetchers, compiler, MLX manager all shell out.</p>
+          <ul>
+            <li>Bandit B602 / B603 as errors, not warnings</li>
+            <li>Prefer argument lists to shell strings</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>String-concat SQL</h3><span class="tag">injection</span></div>
+          <p>SQLite via <code>db.py</code> and services. Any f-string or <code>+</code> in a query = finding.</p>
+          <ul>
+            <li>Semgrep: <code>cursor.execute(f"...")</code> or <code>execute("..." + x)</code></li>
+            <li>Require parameterized queries (<code>?</code> placeholders)</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Vite env leak</h3><span class="tag tag-info">frontend</span></div>
+          <p><code>VITE_*</code> env vars ship to the client bundle.</p>
+          <ul>
+            <li>Rule: no secret-shaped values under <code>VITE_</code></li>
+            <li>Keep LLM keys server-side only</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout warn" style="margin-top: 24px;">
+        <div class="callout-title">Also worth a rule</div>
+        <code>dangerouslySetInnerHTML</code> grep on frontend, <code>target="_blank"</code> without <code>rel="noopener"</code>, FastAPI routes missing <code>response_model</code> (DB rows leak through).
+      </div>
+    </section>
+
+    <section id="gating">
+      <h2><span class="num">05</span>Gating policy</h2>
+      <p class="section-lede">Not every finding blocks merge. Policy should match risk class.</p>
+
+      <table>
+        <thead>
+          <tr><th>Finding class</th><th>Action</th><th>Where</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Secret detected</td><td><b style="color:var(--danger)">Block</b></td><td>pre-commit + PR</td></tr>
+          <tr><td>New high/critical SAST</td><td><b style="color:var(--danger)">Block</b></td><td>PR CI</td></tr>
+          <tr><td>Custom rule violation</td><td><b style="color:var(--danger)">Block</b></td><td>PR CI</td></tr>
+          <tr><td>High CVE in direct dep</td><td><b style="color:var(--danger)">Block</b></td><td>PR CI</td></tr>
+          <tr><td>Transitive CVE, no fix</td><td><b style="color:var(--warn)">Warn</b></td><td>PR CI</td></tr>
+          <tr><td>Medium SAST</td><td><b style="color:var(--warn)">Warn</b></td><td>PR CI</td></tr>
+          <tr><td>License drift</td><td><b style="color:var(--warn)">Warn</b></td><td>PR CI</td></tr>
+          <tr><td>Container base CVE</td><td><b style="color:var(--info)">Ticket</b></td><td>nightly</td></tr>
+          <tr><td>Full-history secret (known)</td><td><b style="color:var(--info)">Ticket + rotate</b></td><td>nightly</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Branch protection</h3>
+      <ul class="check">
+        <li>Require PR review + passing CI before merge to <code>main</code></li>
+        <li>CODEOWNERS on sensitive paths: <code>routers/ops.py</code>, <code>services/llm_keys.py</code>, <code>services/ops.py</code>, <code>Dockerfile</code>, <code>.github/workflows/</code></li>
+        <li>No force-push to <code>main</code></li>
+        <li>Signed commits (optional, higher bar)</li>
+      </ul>
+    </section>
+
+    <section id="threats">
+      <h2><span class="num">06</span>Threat model</h2>
+      <p class="section-lede">What we are defending and what attacks are in scope. Drives priority.</p>
+
+      <ul class="threats">
+        <li>
+          <div class="t-label">LAN-only dashboard</div>
+          <div class="t-body">No auth currently. Assume trusted network but still harden <b>CORS</b>, <b>path traversal</b>, <b>SQL injection</b>, and destructive <b>admin endpoints</b>. A compromised LAN device becomes an admin.</div>
+        </li>
+        <li>
+          <div class="t-label">LLM API keys</div>
+          <div class="t-body">Cloud provider keys = money. Treat <b>secret scanning</b> and the <code>llm_keys.json</code> location as first-order concerns. Rotate on any suspected leak.</div>
+        </li>
+        <li>
+          <div class="t-label">pdflatex subprocess</div>
+          <div class="t-body">Shell-escape = <b>arbitrary code execution</b>. Untrusted JD content flows into .tex. Verify <code>-no-shell-escape</code> is set in <code>compiler.py</code>.</div>
+        </li>
+        <li>
+          <div class="t-label">SearXNG container</div>
+          <div class="t-body">Faces external search providers. Keep base image patched, scan weekly, pin by digest.</div>
+        </li>
+        <li>
+          <div class="t-label">Mobile JD OCR ingest</div>
+          <div class="t-body">Reads files from a watched folder. Validate <b>paths</b>, <b>size limits</b>, <b>MIME</b>. Tesseract crashes on hostile input — bound memory.</div>
+        </li>
+        <li>
+          <div class="t-label">Prompt injection</div>
+          <div class="t-body">Malicious JD text can steer tailoring LLM outputs. Not a CI/CD check — design concern. Note it exists; don't trust LLM output as authoritative.</div>
+        </li>
+      </ul>
+    </section>
+
+    <section id="starter">
+      <h2><span class="num">07</span>Minimum viable starter set</h2>
+      <p class="section-lede">If you pick up nothing else, pick up these. Cheap to install, high return.</p>
+
+      <div class="grid">
+        <div class="card">
+          <div class="card-head"><h3>Pre-commit</h3><span class="tag tag-accent">day 1</span></div>
+          <ul class="check">
+            <li><code>gitleaks</code></li>
+            <li><code>ruff</code> + <code>black</code></li>
+            <li><code>eslint</code> + <code>prettier</code></li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>PR CI</h3><span class="tag tag-accent">day 1</span></div>
+          <ul class="check">
+            <li><code>bandit</code></li>
+            <li><code>pip-audit</code></li>
+            <li><code>npm audit</code></li>
+            <li><code>hadolint</code></li>
+            <li>3–5 custom semgrep rules</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Week 2+</h3><span class="tag tag-info">iterate</span></div>
+          <ul class="check">
+            <li><code>trivy</code> container scan</li>
+            <li>SBOM generation</li>
+            <li>Dependabot / Renovate</li>
+            <li>CODEOWNERS</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Later</h3><span class="tag">once auth exists</span></div>
+          <ul class="check">
+            <li>Schemathesis</li>
+            <li>ZAP baseline</li>
+            <li>Signed commits</li>
+            <li>Release signing</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="tools">
+      <h2><span class="num">08</span>Tool matrix</h2>
+      <p class="section-lede">One-line reference. Pick one per row.</p>
+
+      <table>
+        <thead>
+          <tr><th>Job</th><th>Python</th><th>JS/TS</th><th>Other</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>SAST</td><td><code>bandit</code>, <code>semgrep</code></td><td><code>eslint-plugin-security</code>, <code>semgrep</code></td><td>—</td></tr>
+          <tr><td>SCA</td><td><code>pip-audit</code>, <code>safety</code></td><td><code>npm audit</code>, <code>osv-scanner</code></td><td>—</td></tr>
+          <tr><td>Secrets</td><td colspan="2"><code>gitleaks</code>, <code>trufflehog</code></td><td>—</td></tr>
+          <tr><td>Container</td><td colspan="2">—</td><td><code>trivy</code>, <code>grype</code>, <code>hadolint</code></td></tr>
+          <tr><td>IaC</td><td colspan="2">—</td><td><code>checkov</code></td></tr>
+          <tr><td>License</td><td><code>pip-licenses</code></td><td><code>license-checker</code></td><td>—</td></tr>
+          <tr><td>SBOM</td><td><code>cyclonedx-py</code></td><td><code>cyclonedx-npm</code></td><td><code>syft</code></td></tr>
+          <tr><td>DAST</td><td colspan="2">Schemathesis (OpenAPI)</td><td>OWASP ZAP</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="glossary">
+      <h2><span class="num">09</span>Glossary</h2>
+      <ul class="threats">
+        <li><div class="t-label">SAST</div><div class="t-body">Static Application Security Testing — analyze source without running it.</div></li>
+        <li><div class="t-label">DAST</div><div class="t-body">Dynamic Application Security Testing — exercise the running app.</div></li>
+        <li><div class="t-label">SCA</div><div class="t-body">Software Composition Analysis — check dependencies against known CVEs.</div></li>
+        <li><div class="t-label">SBOM</div><div class="t-body">Software Bill of Materials — machine-readable inventory of what shipped.</div></li>
+        <li><div class="t-label">CVE</div><div class="t-body">Common Vulnerabilities and Exposures — public vuln identifier.</div></li>
+        <li><div class="t-label">IaC</div><div class="t-body">Infrastructure as Code — config files (Dockerfile, compose, Terraform).</div></li>
+        <li><div class="t-label">Blast radius</div><div class="t-body">Scope of damage if a component is compromised.</div></li>
+      </ul>
+    </section>
+
+    <footer>
+      TexTailor CI/CD Security Guide · theory reference · 2026
+    </footer>
+  </main>
+</div>
+
+<script>
+  // Active section highlight on scroll
+  const links = document.querySelectorAll('.nav-list a[href^="#"]');
+  const sections = Array.from(links).map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  const byId = new Map(Array.from(links).map(a => [a.getAttribute('href').slice(1), a]));
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const link = byId.get(e.target.id);
+        if (link) link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-30% 0px -60% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

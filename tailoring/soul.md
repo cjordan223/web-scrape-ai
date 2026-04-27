@@ -94,13 +94,13 @@ At Great Wolf Resorts, I managed endpoint operations across a hybrid Azure tenan
 Built a phishing detection system from scratch as a school capstone project — browser extension frontend, Python backend API, real-time URL analysis. It earned Most Innovative Project at the 2024 Capstone Festival. But the real point is: I see a security gap, I prototype a solution, and I ship it. Not a proposal deck — working code.
 
 ### RAG with Purpose (GWR — Security Chatbot)
-Built an RAG-based security knowledge chatbot using LangChain and vector databases — not as a demo, but as internal tooling that reduced repeated questions to the security team. The implementation emphasized retrieval accuracy and source attribution, not flashy UX.
+Built an RAG-based security knowledge chatbot using LangChain and vector databases as internal tooling that reduced repeated questions to the security team. The implementation emphasized retrieval accuracy and source attribution over flashy UX.
 
 ### AI-Native Development (Personal — TexTailor)
 Built TexTailor, a full-stack job search and application automation platform: React + TypeScript SPA, FastAPI backend, SQLite persistence, LLM-powered analysis pipeline. The entire system was built using AI coding tools as daily production instruments — Claude Code, Cursor, Copilot, Codex, Gemini CLI, and others. This isn't dabbling; it's how I ship software every day. The same AI-native workflow extends across all my projects.
 
 ### Integration Engineering (UCOP — Multi-System Dashboard)
-Integrated Rapid7, BigFix, Jamf, CrowdStrike, and Active Directory into a unified security dashboard through their respective APIs and SAML configurations. Designed data connectors, normalization layers, and reconciliation logic across systems that were never meant to talk to each other. This is deep integration work — not just REST calls, but understanding each system's data model and building the correlation layer between them.
+Integrated Rapid7, BigFix, Jamf, CrowdStrike, and Active Directory into a unified security dashboard through their respective APIs and SAML configurations. Designed data connectors, normalization layers, and reconciliation logic across systems that were never meant to talk to each other. This is deep integration work: understanding each system's data model and building the correlation layer between them.
 
 ---
 
@@ -121,7 +121,7 @@ I consistently contribute by:
 ### What I bring to a team
 
 #### Security Engineering
-- I build and operate production security systems, not just prototypes.
+- I build and operate production security systems beyond prototypes.
 - I focus on deployable controls and measurable risk reduction.
 - I think in terms of remediation, reliability, and operational fit.
 

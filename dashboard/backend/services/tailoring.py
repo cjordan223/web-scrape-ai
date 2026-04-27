@@ -1441,6 +1441,31 @@ _INGEST_EXTRACT_SYSTEM = (
 )
 
 
+def _parse_manual_ingest_jd(jd_text: str) -> dict:
+    llm_runtime, model_id = _resolve_active_llm_runtime()
+    return _shared_chat_expect_json(
+        _INGEST_EXTRACT_SYSTEM,
+        jd_text[:12000],
+        llm_runtime=llm_runtime,
+        model_id=model_id,
+        max_tokens=1200,
+        temperature=0.1,
+        trace={"phase": "dashboard_ingest_parse", "response_parse_kind": "json"},
+    )
+
+
+def _validate_package_url(url: str) -> tuple[str, str | None]:
+    url = (url or "").strip()
+    if not url:
+        raise ValueError("LLM parse did not find a URL. Paste a JD with a working application URL.")
+
+    from services.jd_fetch import fetch_jd
+    text, method = fetch_jd(url)
+    if not text or len(text.split()) < 20:
+        raise ValueError("Could not extract job content from this URL")
+    return text[:15000], method
+
+
 def tailoring_ingest_parse(payload: dict = Body(...)):
     _sync_app_state()
     jd_text = (payload.get("jd_text") or "").strip()
@@ -1448,23 +1473,14 @@ def tailoring_ingest_parse(payload: dict = Body(...)):
         return JSONResponse({"ok": False, "error": "jd_text is required"}, 400)
 
     try:
-        llm_runtime, model_id = _resolve_active_llm_runtime()
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)}, 503)
-
-    try:
-        fields = _shared_chat_expect_json(
-            _INGEST_EXTRACT_SYSTEM,
-            jd_text[:12000],
-            llm_runtime=llm_runtime,
-            model_id=model_id,
-            max_tokens=1200,
-            temperature=0.1,
-            trace={"phase": "dashboard_ingest_parse", "response_parse_kind": "json"},
-        )
+        fields = _parse_manual_ingest_jd(jd_text)
         return {"ok": True, "fields": fields}
     except Exception as e:
+        message = str(e)
+        if "No active" in message or "model" in message.lower():
+            return JSONResponse({"ok": False, "error": message}, 503)
         return JSONResponse({"ok": False, "error": f"LLM call failed: {_http_error_details(e)}"}, 500)
+
 
 
 def tailoring_ingest_fetch_url(payload: dict = Body(...)):
@@ -1725,6 +1741,169 @@ def tailoring_ingest_prepare(payload: dict = Body(...)):
         }
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, 500)
+
+
+def tailoring_ingest_package(payload: dict = Body(...)):
+    _sync_app_state()
+    jd_text = (payload.get("jd_text") or "").strip()
+    if not jd_text:
+        return JSONResponse({"ok": False, "error": "jd_text is required"}, 400)
+
+    try:
+        fields = _parse_manual_ingest_jd(jd_text)
+    except Exception as e:
+        message = str(e)
+        if "No active" in message or "model" in message.lower():
+            return JSONResponse({"ok": False, "error": message}, 503)
+        return JSONResponse({"ok": False, "error": f"LLM call failed: {_http_error_details(e)}"}, 500)
+
+    fields = fields or {}
+    title = (fields.get("title") or "").strip()
+    if not title:
+        return JSONResponse({"ok": False, "error": "LLM parse did not find a title."}, 422)
+
+    url = (fields.get("url") or "").strip()
+    try:
+        fetched_text, fetch_method = _validate_package_url(url)
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 422)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"URL check failed: {_http_error_details(e)}"}, 422)
+
+    source_text = jd_text if len(jd_text.split()) >= 20 else fetched_text
+    package_payload = {
+        "title": title,
+        "company": (fields.get("company") or "").strip(),
+        "url": url,
+        "seniority": (fields.get("seniority") or "").strip(),
+        "snippet": (fields.get("snippet") or "").strip(),
+        "salary_k": fields.get("salary_k"),
+        "experience_years": fields.get("experience_years"),
+        "jd_text": source_text,
+    }
+
+    try:
+        title, url, company, board, seniority, snippet, jd_text, salary_k, experience_years, now = _prepare_manual_ingest_fields(package_payload)
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 400)
+
+    llm_available = False
+    llm_runtime = None
+    model_id = None
+    try:
+        llm_runtime, model_id = _resolve_active_llm_runtime()
+        if model_id:
+            llm_available = True
+    except Exception:
+        pass
+
+    conn = None
+    try:
+        conn = get_db_write()
+        _ensure_results_approved_jd_column(conn)
+        job_id = _insert_manual_ingest_job(
+            conn,
+            title=title,
+            url=url,
+            company=company,
+            board=board,
+            seniority=seniority,
+            snippet=snippet,
+            jd_text=jd_text,
+            salary_k=salary_k,
+            experience_years=experience_years,
+            now=now,
+        )
+        if job_id is None:
+            conn.close()
+            conn = None
+            return JSONResponse({"ok": False, "error": "Duplicate — this URL already exists for manual-ingest"}, 409)
+
+        from services.audit import log_state_change
+        log_state_change(
+            conn,
+            job_id=job_id,
+            job_url=url,
+            old_state=None,
+            new_state="qa_pending",
+            action="ingest_manual",
+            detail={
+                "query": "manual-ingest",
+                "prepare_for_tailoring": True,
+                "package_start": True,
+                "url_fetch_method": fetch_method,
+            },
+        )
+
+        row = conn.execute(
+            "SELECT id, title, url, snippet, jd_text, salary_text, salary_k, decision FROM results WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        approval = _approve_job_row(
+            conn,
+            row=row,
+            llm_available=llm_available,
+            llm_runtime=llm_runtime,
+            model_id=model_id,
+        )
+        conn.commit()
+        final_decision = conn.execute(
+            "SELECT decision FROM results WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        decision = final_decision["decision"] if final_decision else None
+        if decision != "qa_approved":
+            conn.close()
+            conn = None
+            reason = approval.get("reason") if isinstance(approval, dict) else None
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": f"Job was not approved for tailoring: {decision or 'unknown'}",
+                    "job_id": job_id,
+                    "decision": decision,
+                    "approval": approval,
+                    "reason": reason,
+                },
+                409,
+            )
+        conn.close()
+        conn = None
+
+        job, error = _ready_job_for_tailoring(int(job_id))
+        if error:
+            return error
+        added, duplicates = _enqueue_tailoring_queue_items([{"job": job, "skip_analysis": False}])
+        item = added[0] if added else None
+        if not item and duplicates:
+            duplicate = next((d for d in duplicates if int(d.get("job_id", -1)) == int(job_id)), None)
+            if duplicate:
+                item = duplicate
+            else:
+                return JSONResponse(
+                    {"ok": False, "error": "Another job is already queued or running", "duplicates": duplicates},
+                    409,
+                )
+        if added and _app._TAILORING_RUNNER.get("proc") is None:
+            _app._process_tailoring_queue()
+
+        return {
+            "ok": True,
+            "job_id": job_id,
+            "url": url,
+            "decision": decision,
+            "fields": package_payload,
+            "approval": approval,
+            "queued": len(added),
+            "item": item,
+            "duplicates": duplicates,
+            "runner": _tailoring_runner_snapshot(),
+        }
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 500)
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -3554,19 +3733,49 @@ def llm_chat(payload: dict = Body(...)):
 
     import urllib.request
 
-    req_body = json.dumps({
-        "model": model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-    }).encode()
-
     headers = {"Content-Type": "application/json"}
     api_key = llm_runtime.get("api_key", "")
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
     try:
+        if llm_runtime.get("manage_models"):
+            req_body = json.dumps({
+                "model": model,
+                "messages": messages,
+                "stream": False,
+                "think": False,
+                "options": {
+                    "num_predict": max_tokens,
+                    "temperature": temperature,
+                },
+            }).encode()
+            chat_url = f"{llm_runtime['base_url'].rstrip('/')}/api/chat"
+            req = urllib.request.Request(
+                chat_url, data=req_body, headers=headers, method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = json.loads(resp.read())
+            message = data.get("message") or {}
+            reply = message.get("content", "")
+            usage = {
+                "prompt_tokens": data.get("prompt_eval_count"),
+                "completion_tokens": data.get("eval_count"),
+                "total_duration": data.get("total_duration"),
+            }
+            return {
+                "ok": True,
+                "reply": reply,
+                "model": data.get("model", model),
+                "usage": usage,
+            }
+
+        req_body = json.dumps({
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }).encode()
         req = urllib.request.Request(
             llm_runtime["chat_url"], data=req_body, headers=headers, method="POST"
         )

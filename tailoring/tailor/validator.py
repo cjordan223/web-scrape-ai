@@ -19,6 +19,7 @@ from typing import Any
 
 from . import config as cfg
 from .compiler import compile_tex
+from .cover_style import audit_cover_style_text
 from .grounding import build_grounding_context
 
 logger = logging.getLogger(__name__)
@@ -710,6 +711,24 @@ def validate_cover_letter(tex_path: Path, *, pdf_path: Path | None = None) -> Va
     # Gate 4: No literal \\n tokens
     if re.search(r"(?<!\\newcommand)(?<!\\noindent)(?<!\\newpage)\\n(?![a-zA-Z])", tex):
         _add_failure(failures, failure_details, "literal_newline_token", "literal \\n token found in .tex")
+
+    # Gate 5: deterministic cover style bans
+    style_findings = audit_cover_style_text(body)
+    metrics["cover_style_hits"] = len(style_findings)
+    for finding in style_findings:
+        message = (
+            f"banned cover-letter style pattern '{finding['label']}' found: "
+            f"{finding['matched_text']}"
+        )
+        failures.append(message)
+        failure_details.append(
+            {
+                "category": "cover_style_banned_pattern",
+                "message": message,
+                "pattern_family": finding["family"],
+                "matched_text": finding["matched_text"],
+            }
+        )
 
     analysis_path = tex_path.parent / "analysis.json"
     exempt_literals: list[str] = []

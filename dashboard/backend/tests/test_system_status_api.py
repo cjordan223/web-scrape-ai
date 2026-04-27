@@ -28,7 +28,7 @@ class TestSystemStatusAPI(unittest.TestCase):
         tiers = {row["tier"] for row in data["tiers"]}
         self.assertIn("workhorse", tiers)
         self.assertIn("discovery", tiers)
-        self.assertIn("lead", tiers)
+        self.assertNotIn("lead", tiers)
 
     def test_scheduler_enabled_reflects_env_var(self):
         old = os.environ.get("TEXTAILOR_SCRAPE_SCHEDULER")

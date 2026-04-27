@@ -23,6 +23,7 @@ from typing import Any, Callable
 
 from . import config as cfg
 from .compiler import compile_tex
+from .cover_style import COVER_STYLE_RULE_PROMPT, audit_cover_style_text
 from .grounding import (
     build_grounding_context,
     enrich_cover_strategy_with_grounding,
@@ -152,9 +153,11 @@ STYLE GUARDRAILS (HARD):
 # opinions, tradeoffs, and forward-looking statements are encouraged and
 # do NOT require source evidence. Narrative vignettes provide this material.
 _COVER_GUARDRAILS = _STYLE_GUARDRAILS + """
-- Persona vignettes contain reasoning, tradeoffs, and lessons learned. Use these as PRIMARY content for cover letters, not just for voice.
+- Persona vignettes contain reasoning, tradeoffs, and lessons learned. Use these as PRIMARY content for cover letters, beyond voice alone.
 - Motivation and opinion statements from the persona are encouraged. They do not require factual source evidence.
-- The cover letter must ADD value beyond the resume. If a paragraph could be reconstructed from resume bullets alone, it is failing its purpose."""
+- The cover letter must ADD value beyond the resume. If a paragraph could be reconstructed from resume bullets alone, it is failing its purpose.
+
+""" + COVER_STYLE_RULE_PROMPT
 
 _RESUME_STRATEGY_SYSTEM = f"""\
 You are a resume tailoring strategist. Build a precise writing plan for a LaTeX generator.
@@ -429,13 +432,8 @@ Output requirements:
   - Connect it to the company's situation: why this experience matters for their specific needs
   - If a paragraph reads like resume bullets expanded into prose, rewrite it. Ask: "what does this paragraph say that the resume doesn't?"
   - TONE: Frame stories as collaborative problem-solving, not adversarial. Avoid "pushed back", "stepped in because others couldn't", "bridged a gap no one else could", or similar phrasing that positions the candidate against colleagues. Show teamwork and initiative, not conflict.
-- AVOID COVER-LETTER CLICHÉS (these patterns mark the letter as AI-generated when stacked):
-  - "not just X, Y" / "not X, but Y" — use at most ONCE per letter
-  - "I don't just X — I Y" — use at most ONCE per letter
-  - "That same mindset / pattern / insight shaped Y" — use at most ONCE
-  - "That taught me that…" / "I learned that…" at the END of a body paragraph — NEVER in body paragraphs; save for the closing if at all
-  - Stacked aphoristic maxims ("reliable first, clever second") — at most ONE such maxim in the whole letter
-  Do not end body paragraphs with a distilled moral. End on what shipped or what the candidate decided.
+- The banned rhetorical patterns in the hard guardrails are validation failures. Remove them from every paragraph rather than limiting their frequency.
+- Do not end body paragraphs with a distilled moral. End on what shipped or what the candidate decided.
 - Use the strategy's narrative_angle to drive each paragraph. The reasoning and tradeoffs from vignettes are the content, not decoration.
 - The closing MUST tie back to the company-specific hook. Never end with generic "thank you for your consideration" or "I would welcome the opportunity to discuss."
 - Keep tone grounded, direct, and technically credible. This is a mid-career engineer who builds above their experience level, not a senior architect.
@@ -602,32 +600,25 @@ so the connection is obvious, or use "and", "also".
 - Compulsive rule of three: vary groupings. Two items or four, not always three.
 - If a sentence works after deleting an inflation clause, delete it.
 
-─── COVER-LETTER TIC CAPS (audit 2026-04 — fix if exceeded) ───
+─── COVER-LETTER TIC BANS (audit 2026-04) ───
 Recent audit found the same rhetorical devices repeated across every \
-letter, which reads as AI-generated when compared side-by-side. Enforce \
-these caps across the whole letter (opening + body + closing combined):
+letter, which reads as AI-generated when compared side-by-side. The hard \
+guardrails list the banned constructions. Remove every occurrence across \
+the whole letter (opening + body + closing combined).
 
-- "not just X, Y" / "not X, but Y" construction: at most ONE occurrence.
-- "I don't just X — I Y" / "I don't just X, I Y" construction: at most ONE.
-- "That same mindset / instinct / pattern / insight / approach shaped Y": \
-  at most ONE occurrence.
-- "That taught me that…" / "I learned that…" paragraph-ender: at most ONE \
-  in the entire letter. Body paragraphs should end on what happened or \
-  shipped, NOT on a distilled lesson. Save the single lesson for the \
-  closing paragraph only.
-- Triplet lists ("X, Y, and Z"): at most TWO per letter. Vary to pairs \
-  or quads when a third item isn't earned.
+- Triplet lists ("X, Y, and Z"): use no more than two per letter. Vary to \
+  pairs or quads when a third item isn't earned.
 - Aphoristic maxims ("reliable first, clever second"; "I'd rather be \
-  slow than wrong"; "the right action is also the easiest"; etc.): at \
-  most ONE per letter. Stacking multiple reads as performance, not voice.
+  slow than wrong"; "the right action is also the easiest"; etc.): use no \
+  more than one per letter. Stacking multiple reads as performance, not voice.
 
 MORAL-AT-END RULE (HARD): body paragraphs 2 and 3 must NOT end with a \
 sentence that abstracts the story into a lesson or principle. End on what \
 the candidate did, shipped, or decided. The closing paragraph is the only \
 place a lesson may land.
 
-When a cap is exceeded, rewrite the offending sentence to say the same \
-thing in plain language, or cut it. Do not merely swap one tic for \
+When a banned pattern appears, rewrite the offending sentence to say the \
+same thing in plain language, or cut it. Do not merely swap one tic for \
 another from the list.
 
 TONE TARGET:
@@ -638,6 +629,22 @@ TONE TARGET:
 5. Earn emphasis — don't tell the reader something is interesting. Make it interesting.
 
 If the letter is already clean, return it unchanged. Do not over-edit."""
+
+
+_COVER_STYLE_REPAIR_SYSTEM = f"""\
+You are a surgical cover-letter style repair editor.
+
+{_COVER_GUARDRAILS}
+
+Task:
+- Rewrite ONLY the sentences listed as banned-pattern findings.
+- Preserve all facts, company names, tools, employers, role titles, dates, and paragraph order.
+- Keep the same JSON schema: paragraphs + closing.
+- Do not add new examples, claims, tools, metrics, or projects.
+- Do not introduce any banned rhetorical pattern while repairing.
+- Prefer direct causality and concrete action over contrastive phrasing.
+
+Return ONLY JSON. No markdown fences."""
 
 
 def _strip_disallowed_dashes(text: str) -> str:
@@ -1128,6 +1135,62 @@ def _coerce_cover_chunks(payload: dict[str, Any]) -> dict[str, Any]:
     return {"paragraphs": normalized_paragraphs, "closing": closing}
 
 
+def _cover_payload_text(payload: dict[str, Any]) -> str:
+    paragraphs = payload.get("paragraphs") or []
+    closing = payload.get("closing") or ""
+    return "\n\n".join([*map(str, paragraphs), str(closing)])
+
+
+def _repair_cover_style_chunks(
+    payload: dict[str, Any],
+    *,
+    analysis: dict[str, Any],
+    grounding: dict,
+    attempt: int,
+    trace_recorder: Callable[[dict], None] | None = None,
+    repair_fn: Callable[..., dict] | None = None,
+    max_passes: int = 2,
+) -> dict[str, Any]:
+    """Run a narrow repair pass when deterministic cover-style audit finds banned tics."""
+    repaired = _coerce_cover_chunks(payload)
+    repair_fn = repair_fn or chat_expect_json
+
+    for repair_pass in range(1, max_passes + 1):
+        findings = audit_cover_style_text(_cover_payload_text(repaired))
+        if not findings:
+            return repaired
+
+        user_prompt = (
+            f"## Cover Chunks to Repair\n```json\n{json.dumps(repaired, indent=2)}\n```\n\n"
+            f"## Banned Pattern Findings (rewrite these exact sentences)\n"
+            f"```json\n{json.dumps(findings, indent=2)}\n```\n\n"
+            f"## Target Context\n"
+            f"Company: {analysis.get('company_name', '')}\n"
+            f"Role: {analysis.get('role_title', '')}\n\n"
+            f"## Grounding Context (DO NOT MODIFY THESE FACTS)\n"
+            f"{grounding_prompt_block(grounding)}\n"
+        )
+        candidate = repair_fn(
+            _COVER_STYLE_REPAIR_SYSTEM,
+            user_prompt,
+            max_tokens=2200,
+            temperature=0.05,
+            trace={
+                "doc_type": "cover",
+                "phase": "style_repair",
+                "attempt": attempt,
+                "repair_pass": repair_pass,
+                "response_parse_kind": "json",
+                "response_parse_status": "ok",
+            },
+            trace_recorder=trace_recorder,
+            thinking_multiplier=1,
+        )
+        repaired = _coerce_cover_chunks(candidate)
+
+    return repaired
+
+
 def _assemble_resume_tex(
     baseline: str,
     *,
@@ -1268,6 +1331,7 @@ def _cover_strategy(
     attempt: int,
     trace_recorder: Callable[[dict], None] | None = None,
     resume_strategy: dict | None = None,
+    previous_feedback: RetryFeedback | None = None,
 ) -> dict:
     from datetime import date
     today = date.today().strftime("%B %d, %Y")
@@ -1300,6 +1364,12 @@ def _cover_strategy(
         f"Today's Date: {today}\n"
         f"Tone Notes: {analysis.get('tone_notes', 'standard professional tone')}\n"
     )
+    retry_feedback_block = _format_retry_feedback_block(previous_feedback)
+    if retry_feedback_block:
+        user_prompt += (
+            f"\n## PREVIOUS ATTEMPT FEEDBACK (CRITICAL: DO NOT RE-SEED THESE ISSUES)\n"
+            f"{retry_feedback_block}\n"
+        )
     strategy = chat_expect_json(
         _COVER_STRATEGY_SYSTEM,
         user_prompt,
@@ -2011,6 +2081,7 @@ def write_cover_letter(
         attempt=attempt,
         trace_recorder=trace_recorder,
         resume_strategy=resume_strategy,
+        previous_feedback=previous_feedback,
     )
     (output_dir / "cover_strategy.json").write_text(json.dumps(strategy, indent=2))
     write_grounding_artifacts(
@@ -2169,6 +2240,11 @@ def write_cover_letter(
         f"Role: {analysis.get('role_title', job.title)}\n"
         f"{grounding_prompt_block(grounding)}\n"
     )
+    if retry_feedback_block:
+        humanize_prompt += (
+            f"\n## PREVIOUS ATTEMPT FEEDBACK (CRITICAL: FIX THESE)\n"
+            f"{retry_feedback_block}\n"
+        )
 
     humanize_chunks = chat_expect_json(
         _COVER_HUMANIZE_SYSTEM,
@@ -2186,6 +2262,13 @@ def write_cover_letter(
         thinking_multiplier=2,
     )
     humanized_payload = _coerce_cover_chunks(humanize_chunks)
+    humanized_payload = _repair_cover_style_chunks(
+        humanized_payload,
+        analysis=analysis,
+        grounding=grounding,
+        attempt=attempt,
+        trace_recorder=trace_recorder,
+    )
     humanized_payload["paragraphs"], humanized_payload["closing"] = _trim_cover_text_to_budget(
         humanized_payload["paragraphs"],
         humanized_payload["closing"],
