@@ -9,7 +9,7 @@ from job_scraper.tiers import (
 
 def test_registry_has_all_spiders():
     expected = {
-        "ashby", "greenhouse", "lever", "workable",
+        "ashby", "greenhouse", "lever", "smartrecruiters", "workable",
         "searxng", "remotive",
         "aggregator", "generic",
     }
@@ -20,6 +20,7 @@ def test_tiers_assigned_correctly():
     assert spider_tier("ashby") is Tier.WORKHORSE
     assert spider_tier("greenhouse") is Tier.WORKHORSE
     assert spider_tier("lever") is Tier.WORKHORSE
+    assert spider_tier("smartrecruiters") is Tier.WORKHORSE
     assert spider_tier("workable") is Tier.WORKHORSE
     assert spider_tier("searxng") is Tier.DISCOVERY
     assert spider_tier("remotive") is Tier.DISCOVERY

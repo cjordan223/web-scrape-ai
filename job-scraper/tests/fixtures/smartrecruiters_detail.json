@@ -1,0 +1,40 @@
+{
+  "id": "744000123755755",
+  "uuid": "fcdbfcfa-e9dd-4e89-ac2e-4f6c456532ac",
+  "name": "Senior Security Engineer",
+  "company": {
+    "name": "Nexthink",
+    "identifier": "Nexthink"
+  },
+  "location": {
+    "city": "Boston",
+    "region": "MA",
+    "country": "us",
+    "remote": true,
+    "hybrid": false,
+    "fullLocation": "Boston, MA, United States"
+  },
+  "customField": [
+    {
+      "fieldLabel": "Base Salary Range",
+      "valueLabel": "109000 - 169000"
+    }
+  ],
+  "postingUrl": "https://jobs.smartrecruiters.com/Nexthink/744000123755755-senior-security-engineer",
+  "jobAd": {
+    "sections": {
+      "companyDescription": {
+        "title": "Company Description",
+        "text": "<p>Nexthink builds digital employee experience software.</p>"
+      },
+      "jobDescription": {
+        "title": "Job Description",
+        "text": "<p>Secure cloud platforms and automate detection workflows.</p>"
+      },
+      "qualifications": {
+        "title": "Qualifications",
+        "text": "<p>Security engineering experience.</p>"
+      }
+    }
+  }
+}

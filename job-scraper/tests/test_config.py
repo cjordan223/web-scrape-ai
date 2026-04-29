@@ -44,6 +44,28 @@ def test_linkedin_queries_present():
     assert len(linkedin_queries) >= 10
 
 
+def test_board_target_enabled_flag_and_smartrecruiters_company(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        """
+crawl:
+  targets:
+    - url: https://jobs.smartrecruiters.com/Nexthink
+      board: smartrecruiters
+    - url: https://apply.workable.com/stale/
+      board: workable
+      enabled: false
+queries: []
+filter: {}
+"""
+    )
+    cfg = load_config(config_file)
+    assert cfg.boards[0].company == "Nexthink"
+    assert cfg.boards[0].enabled is True
+    assert cfg.boards[1].company == "stale"
+    assert cfg.boards[1].enabled is False
+
+
 def test_dotenv_loads_env_file(tmp_path, monkeypatch):
     """settings.py should load .env via python-dotenv."""
     env_file = tmp_path / ".env"

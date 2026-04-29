@@ -85,6 +85,15 @@ def _company_from_board_url(url: str, board_type: str) -> str:
         return path_parts[0] if path_parts else "unknown"
     if board_type == "lever" and "lever.co" in parsed.netloc:
         return path_parts[0] if path_parts else "unknown"
+    if board_type == "workable" and "workable.com" in parsed.netloc:
+        return path_parts[0] if path_parts else "unknown"
+    if board_type == "smartrecruiters":
+        if "api.smartrecruiters.com" in parsed.netloc and "companies" in path_parts:
+            idx = path_parts.index("companies")
+            if len(path_parts) > idx + 1:
+                return path_parts[idx + 1]
+        if "smartrecruiters.com" in parsed.netloc:
+            return path_parts[0] if path_parts else "unknown"
     host = parsed.netloc.replace("www.", "")
     parts = host.split(".")
     return parts[0] if parts else "unknown"
@@ -99,7 +108,12 @@ def load_config(path: str | Path | None = None) -> ScraperConfig:
     for target in raw.get("crawl", {}).get("targets", []):
         board_type = target.get("board", "unknown")
         company = target.get("company") or _company_from_board_url(target["url"], board_type)
-        boards.append(BoardTarget(url=target["url"], board_type=board_type, company=company))
+        boards.append(BoardTarget(
+            url=target["url"],
+            board_type=board_type,
+            company=company,
+            enabled=bool(target.get("enabled", True)),
+        ))
 
     queries = []
     for q in raw.get("queries", []):

@@ -291,15 +291,105 @@ crawl:
   - url: https://job-boards.greenhouse.io/pachama
     board: greenhouse
     company: pachama
+  - url: https://jobs.ashbyhq.com/illumio
+    board: ashby
+    company: illumio
+  - url: https://jobs.ashbyhq.com/horizon3ai
+    board: ashby
+    company: horizon3ai
+  - url: https://jobs.ashbyhq.com/owner
+    board: ashby
+    company: owner
+  - url: https://jobs.ashbyhq.com/workos
+    board: ashby
+    company: workos
+  - url: https://jobs.ashbyhq.com/mercor
+    board: ashby
+    company: mercor
+  - url: https://jobs.ashbyhq.com/opengov
+    board: ashby
+    company: opengov
+  - url: https://jobs.ashbyhq.com/skydio
+    board: ashby
+    company: skydio
+  - url: https://jobs.ashbyhq.com/atlan
+    board: ashby
+    company: atlan
+  - url: https://job-boards.greenhouse.io/hubspotjobs
+    board: greenhouse
+    company: hubspotjobs
+  - url: https://job-boards.greenhouse.io/grafanalabs
+    board: greenhouse
+    company: grafanalabs
+  - url: https://job-boards.greenhouse.io/sofi
+    board: greenhouse
+    company: sofi
+  - url: https://job-boards.greenhouse.io/sezzle
+    board: greenhouse
+    company: sezzle
+  - url: https://job-boards.greenhouse.io/alphasense
+    board: greenhouse
+    company: alphasense
+  - url: https://job-boards.greenhouse.io/honeycomb
+    board: greenhouse
+    company: honeycomb
+  - url: https://job-boards.greenhouse.io/webflow
+    board: greenhouse
+    company: webflow
+  - url: https://jobs.lever.co/sonatype
+    board: lever
+    company: sonatype
+  - url: https://jobs.lever.co/gohighlevel
+    board: lever
+    company: gohighlevel
+  - url: https://jobs.lever.co/outreach
+    board: lever
+    company: outreach
+  - url: https://jobs.lever.co/palantir
+    board: lever
+    company: palantir
+  - url: https://jobs.lever.co/mistral
+    board: lever
+    company: mistral
+  - url: https://jobs.lever.co/moonpay
+    board: lever
+    company: moonpay
+  - url: https://jobs.lever.co/saviynt
+    board: lever
+    company: saviynt
+  - url: https://jobs.lever.co/coalfire
+    board: lever
+    company: coalfire
+  - url: https://jobs.smartrecruiters.com/Nexthink
+    board: smartrecruiters
+    company: Nexthink
+  - url: https://jobs.smartrecruiters.com/Experian
+    board: smartrecruiters
+    company: Experian
+  - url: https://jobs.smartrecruiters.com/Achieve1
+    board: smartrecruiters
+    company: Achieve1
+  - url: https://jobs.smartrecruiters.com/RenesasElectronics
+    board: smartrecruiters
+    company: RenesasElectronics
+  - url: https://jobs.smartrecruiters.com/JSHeldLLC
+    board: smartrecruiters
+    company: JSHeldLLC
+  - url: https://jobs.smartrecruiters.com/SoftwareMind
+    board: smartrecruiters
+    company: SoftwareMind
   - url: https://apply.workable.com/remote/
     board: workable
     company: remote
+    enabled: false
   - url: https://apply.workable.com/deel/
     board: workable
     company: deel
+    enabled: false
   - url: https://apply.workable.com/tryhackme/
     board: workable
     company: tryhackme
+    enabled: false
 watchers: []
 queries:
 - title_phrase: security engineer

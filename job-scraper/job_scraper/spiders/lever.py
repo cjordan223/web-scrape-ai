@@ -12,7 +12,7 @@ from job_scraper.tiers import rotation_filter
 
 logger = logging.getLogger(__name__)
 
-_MAX_BOARDS_PER_RUN = 2
+_MAX_BOARDS_PER_RUN = 6
 
 
 class LeverSpider(scrapy.Spider):

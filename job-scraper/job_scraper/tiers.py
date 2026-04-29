@@ -20,6 +20,7 @@ SPIDER_TIERS: dict[str, Tier] = {
     "ashby": Tier.WORKHORSE,
     "greenhouse": Tier.WORKHORSE,
     "lever": Tier.WORKHORSE,
+    "smartrecruiters": Tier.WORKHORSE,
     "workable": Tier.WORKHORSE,
     "searxng": Tier.DISCOVERY,
     "remotive": Tier.DISCOVERY,
