@@ -24,3 +24,5 @@ def test_lever_json_path_yields_item():
     assert item["company"] == "acmeco"
     assert "Remote" in item["location"]
     assert item["salary_k"] == 180.0
+    assert "build-time security" in item["jd_text"]
+    assert "United States" in item["jd_text"]

@@ -8,7 +8,9 @@
       "commitment": "Full-time"
     },
     "hostedUrl": "https://jobs.lever.co/acmeco/aaaa-bbbb-cccc",
-    "descriptionHtml": "<p>You'll own our build-time security pipeline.</p>",
+    "description": "<p>You'll own our build-time security pipeline.</p>",
+    "descriptionPlain": "You'll own our build-time security pipeline.",
+    "additionalPlain": "Remote role for candidates in the United States.",
     "salaryRange": {"currency": "USD", "interval": "per-year-salary", "min": 150000, "max": 180000},
     "createdAt": 1712764800000
   }

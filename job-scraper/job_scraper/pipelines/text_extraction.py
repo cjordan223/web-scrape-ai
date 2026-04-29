@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import logging
+import re
+from html import unescape
 
 import trafilatura
 from scrapy.exceptions import DropItem
+from w3lib.html import remove_tags
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,11 @@ class TextExtractionPipeline:
         html = item.get("jd_html")
         if html:
             text = trafilatura.extract(html, include_comments=False, include_tables=True)
+            if not text and ("&lt;" in html or "&gt;" in html):
+                decoded_html = unescape(html)
+                text = trafilatura.extract(decoded_html, include_comments=False, include_tables=True)
+                if not text:
+                    text = re.sub(r"\s+", " ", remove_tags(decoded_html)).strip()
             if text and len(text.strip()) >= _MIN_JD_CHARS:
                 item["jd_text"] = text
                 return item

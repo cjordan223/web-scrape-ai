@@ -36,6 +36,21 @@ def test_extracts_text_from_html(spider):
     assert "engineer" in result["jd_text"].lower()
 
 
+def test_extracts_text_from_escaped_greenhouse_html(spider):
+    pipe = TextExtractionPipeline()
+    item = JobItem(
+        url="https://job-boards.greenhouse.io/example/jobs/1",
+        title="Security Engineer",
+        company="Example",
+        board="greenhouse",
+        source="greenhouse",
+        jd_html="&lt;p&gt;We need a security engineer to improve cloud detection and response.&lt;/p&gt;",
+        created_at="2026-01-01T00:00:00Z",
+    )
+    result = pipe.process_item(item, spider)
+    assert "cloud detection" in result["jd_text"].lower()
+
+
 def test_falls_back_to_snippet_when_html_empty(spider):
     pipe = TextExtractionPipeline()
     item = JobItem(

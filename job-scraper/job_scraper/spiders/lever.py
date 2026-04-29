@@ -81,6 +81,23 @@ class LeverSpider(scrapy.Spider):
             top = sr.get("max") or sr.get("min")
             if top:
                 salary_k = top / 1000.0
+            jd_html = (
+                job.get("descriptionHtml")
+                or job.get("descriptionBody")
+                or job.get("description")
+                or ""
+            )
+            additional_html = job.get("additional") or ""
+            if additional_html:
+                jd_html = f"{jd_html}\n{additional_html}".strip()
+            jd_text = (
+                job.get("descriptionPlain")
+                or job.get("descriptionBodyPlain")
+                or ""
+            )
+            additional_plain = job.get("additionalPlain") or ""
+            if additional_plain:
+                jd_text = f"{jd_text}\n{additional_plain}".strip()
             yield JobItem(
                 url=job.get("hostedUrl", ""),
                 ats_provider="lever",
@@ -90,8 +107,8 @@ class LeverSpider(scrapy.Spider):
                 board="lever",
                 location=categories.get("location", ""),
                 salary_k=salary_k,
-                jd_html=job.get("descriptionHtml") or "",
-                jd_text="",
+                jd_html=jd_html,
+                jd_text=jd_text,
                 source=self.name,
                 created_at=datetime.now(timezone.utc).isoformat(),
             )
