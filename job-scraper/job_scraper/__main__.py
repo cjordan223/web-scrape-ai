@@ -160,5 +160,35 @@ def reclassify_fingerprints(
         console.print(sample_table)
 
 
+@app.command("discover-boards")
+def discover_boards(
+    limit: int = typer.Option(1000, "--limit", "-n", help="Recent jobs to inspect"),
+    include_configured: bool = typer.Option(False, "--include-configured", help="Show boards already in config"),
+):
+    """Suggest direct ATS boards observed through discovery/search jobs."""
+    from .board_discovery import discover_board_candidates
+
+    candidates = discover_board_candidates(limit=limit, include_configured=include_configured)
+    table = Table(title="Observed ATS Board Candidates")
+    table.add_column("Board")
+    table.add_column("Company")
+    table.add_column("Observed", justify="right")
+    table.add_column("Configured")
+    table.add_column("Board URL", style="cyan")
+    table.add_column("Latest Seen")
+    for candidate in candidates:
+        table.add_row(
+            candidate.board_type,
+            candidate.company,
+            str(candidate.observed_jobs),
+            "yes" if candidate.already_configured else "no",
+            candidate.board_url,
+            candidate.latest_seen_at[:19],
+        )
+    if not candidates:
+        table.add_row("(none)", "", "0", "", "", "")
+    console.print(table)
+
+
 if __name__ == "__main__":
     app()

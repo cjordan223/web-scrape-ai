@@ -37,6 +37,7 @@ def scrape_all(
     from .spiders.lever import LeverSpider
     from .spiders.workable import WorkableSpider
     from .spiders.searxng import SearXNGSpider
+    from .spiders.remotive import RemotiveSpider
     from .spiders.aggregator import AggregatorSpider
     from .spiders.generic import GenericSpider
     from .tiers import SPIDER_TIERS, Tier
@@ -47,6 +48,7 @@ def scrape_all(
         "lever": LeverSpider,
         "workable": WorkableSpider,
         "searxng": SearXNGSpider,
+        "remotive": RemotiveSpider,
         "aggregator": AggregatorSpider,
         "generic": GenericSpider,
     }

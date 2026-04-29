@@ -22,6 +22,7 @@ SPIDER_TIERS: dict[str, Tier] = {
     "lever": Tier.WORKHORSE,
     "workable": Tier.WORKHORSE,
     "searxng": Tier.DISCOVERY,
+    "remotive": Tier.DISCOVERY,
     # Legacy/low-signal spiders get a tier too so metrics don't crash.
     "aggregator": Tier.DISCOVERY,
     "generic": Tier.DISCOVERY,

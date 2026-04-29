@@ -10,7 +10,7 @@ from job_scraper.tiers import (
 def test_registry_has_all_spiders():
     expected = {
         "ashby", "greenhouse", "lever", "workable",
-        "searxng",
+        "searxng", "remotive",
         "aggregator", "generic",
     }
     assert set(SPIDER_TIERS.keys()) == expected
@@ -22,6 +22,7 @@ def test_tiers_assigned_correctly():
     assert spider_tier("lever") is Tier.WORKHORSE
     assert spider_tier("workable") is Tier.WORKHORSE
     assert spider_tier("searxng") is Tier.DISCOVERY
+    assert spider_tier("remotive") is Tier.DISCOVERY
 
 
 def test_rotation_filter_partitions_evenly():
