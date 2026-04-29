@@ -855,6 +855,11 @@ def tier_stats_rollup(since: str = "7d"):
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     conn = get_db()
     try:
+        tier_cols = {r["name"] for r in conn.execute("PRAGMA table_info(run_tier_stats)").fetchall()}
+
+        def sum_col(name: str) -> str:
+            return f"COALESCE(SUM({name}), 0) AS {name}" if name in tier_cols else f"0 AS {name}"
+
         per_run = [
             dict(r)
             for r in conn.execute(
@@ -879,6 +884,13 @@ def tier_stats_rollup(since: str = "7d"):
                 """SELECT source, tier,
                           SUM(raw_hits) AS raw_hits,
                           SUM(dedup_drops) AS dedup_drops,
+                          {duplicate_url},
+                          {duplicate_ats_id},
+                          {duplicate_fingerprint},
+                          {duplicate_similar},
+                          {duplicate_content},
+                          {reposts},
+                          {changed_postings},
                           SUM(filter_drops) AS filter_drops,
                           SUM(llm_rejects + llm_uncertain_low) AS llm_rejects,
                           SUM(stored_pending) AS stored_pending,
@@ -886,7 +898,15 @@ def tier_stats_rollup(since: str = "7d"):
                           COUNT(DISTINCT run_id) AS runs
                    FROM run_tier_stats
                    WHERE run_id IN (SELECT run_id FROM runs WHERE started_at >= ?)
-                   GROUP BY source, tier""",
+                   GROUP BY source, tier""".format(
+                    duplicate_url=sum_col("duplicate_url"),
+                    duplicate_ats_id=sum_col("duplicate_ats_id"),
+                    duplicate_fingerprint=sum_col("duplicate_fingerprint"),
+                    duplicate_similar=sum_col("duplicate_similar"),
+                    duplicate_content=sum_col("duplicate_content"),
+                    reposts=sum_col("reposts"),
+                    changed_postings=sum_col("changed_postings"),
+                ),
                 (cutoff,),
             ).fetchall()
         ]

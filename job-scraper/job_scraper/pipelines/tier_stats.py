@@ -14,7 +14,10 @@ from job_scraper.tiers import Tier
 
 
 TierStatField = Literal[
-    "raw_hits", "dedup_drops", "filter_drops",
+    "raw_hits", "dedup_drops",
+    "duplicate_url", "duplicate_ats_id", "duplicate_fingerprint",
+    "duplicate_similar", "duplicate_content", "reposts", "changed_postings",
+    "filter_drops",
     "llm_rejects", "llm_uncertain_low", "llm_overflow",
     "stored_pending", "stored_lead",
     "duration_ms",

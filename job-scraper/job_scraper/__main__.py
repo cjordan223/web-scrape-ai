@@ -100,5 +100,65 @@ def recent(
     console.print(table)
 
 
+@app.command("backfill-fingerprints")
+def backfill_fingerprints(
+    limit: Optional[int] = typer.Option(None, "--limit", "-n", help="Maximum jobs to backfill"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Classify without writing fingerprint rows"),
+):
+    """Backfill canonical fingerprint rows for existing jobs."""
+    db = JobDB()
+    try:
+        result = db.backfill_job_fingerprints(limit=limit, dry_run=dry_run)
+    finally:
+        db.close()
+
+    table = Table(title="Fingerprint Backfill")
+    table.add_column("Status", style="bold")
+    table.add_column("Count", justify="right")
+    for status, count in sorted(result["counts"].items()):
+        table.add_row(status, str(count))
+    if not result["counts"]:
+        table.add_row("(none)", "0")
+    console.print(table)
+    console.print(f"Processed {result['processed']} job(s){' (dry run)' if dry_run else ''}.")
+
+
+@app.command("reclassify-fingerprints")
+def reclassify_fingerprints(
+    limit: Optional[int] = typer.Option(None, "--limit", "-n", help="Maximum existing fingerprints to scan"),
+    dry_run: bool = typer.Option(True, "--dry-run/--write", help="Preview by default; pass --write to update rows"),
+):
+    """Reclassify historical 'new' fingerprints as similar_posting where safe."""
+    db = JobDB()
+    try:
+        result = db.reclassify_similar_fingerprints(limit=limit, dry_run=dry_run)
+    finally:
+        db.close()
+
+    table = Table(title="Fingerprint Reclassification")
+    table.add_column("Status", style="bold")
+    table.add_column("Count", justify="right")
+    for status, count in sorted(result["counts"].items()):
+        table.add_row(status, str(count))
+    console.print(table)
+    console.print(f"Processed {result['processed']} fingerprint(s){' (dry run)' if dry_run else ''}.")
+
+    samples = result.get("samples") or []
+    if samples:
+        sample_table = Table(title="Sample Matches")
+        sample_table.add_column("Job", justify="right")
+        sample_table.add_column("Title")
+        sample_table.add_column("Matched Job", justify="right")
+        sample_table.add_column("Matched Title")
+        for sample in samples[:10]:
+            sample_table.add_row(
+                str(sample.get("job_id") or ""),
+                str(sample.get("title_norm") or "")[:50],
+                str(sample.get("duplicate_of_job_id") or ""),
+                str(sample.get("matched_title_norm") or "")[:50],
+            )
+        console.print(sample_table)
+
+
 if __name__ == "__main__":
     app()

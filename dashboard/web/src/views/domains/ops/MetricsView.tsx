@@ -382,7 +382,22 @@ function LegendItem({ color, label, value }: { color: string; label: string; val
 }
 
 type TierRunRow = { run_id: string; started_at: string; net_new: number | null; gate_mode: string | null; rotation_group: number | null };
-type TierSourceRow = { source: string; tier: string; raw_hits: number; dedup_drops: number; filter_drops: number; llm_rejects: number; stored_pending: number; stored_lead: number; runs: number };
+type TierSourceRow = {
+  source: string;
+  tier: string;
+  raw_hits: number;
+  dedup_drops: number;
+  duplicate_url?: number;
+  duplicate_ats_id?: number;
+  duplicate_fingerprint?: number;
+  duplicate_similar?: number;
+  duplicate_content?: number;
+  filter_drops: number;
+  llm_rejects: number;
+  stored_pending: number;
+  stored_lead: number;
+  runs: number;
+};
 type TierDayRow = { day: string; net_new: number };
 type TierStatsPayload = { per_run: TierRunRow[]; by_source: TierSourceRow[]; daily_net_new: TierDayRow[] };
 
@@ -455,6 +470,7 @@ function TierStatsPanel() {
                   <th style={{ padding: '10px 12px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600 }}>Source</th>
                   <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600 }}>Raw</th>
                   <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600 }}>Dedup-drop</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600 }}>Dup detail</th>
                   <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600 }}>Filter-drop</th>
                   <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600 }}>LLM-reject</th>
                   <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600 }}>Pending</th>
@@ -469,6 +485,9 @@ function TierStatsPanel() {
                     <td style={{ padding: '8px 12px', fontFamily: 'var(--font-mono)' }}>{r.source}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{r.raw_hits}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{r.dedup_drops}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
+                      {(r.duplicate_url ?? 0) + (r.duplicate_ats_id ?? 0) + (r.duplicate_fingerprint ?? 0) + (r.duplicate_similar ?? 0) + (r.duplicate_content ?? 0)}
+                    </td>
                     <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{r.filter_drops}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{r.llm_rejects}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{r.stored_pending}</td>

@@ -105,6 +105,8 @@ class AshbySpider(scrapy.Spider):
 
             yield JobItem(
                 url=job.get("jobUrl", ""),
+                ats_provider="ashby",
+                ats_job_id=job.get("id", ""),
                 title=job.get("title", "Unknown"),
                 company=company,
                 board="ashby",

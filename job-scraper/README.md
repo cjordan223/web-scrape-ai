@@ -4,13 +4,19 @@ Python scraper that discovers security jobs via SearXNG and crawler targets, eva
 
 ## What It Does
 
-1. Runs configured search templates
-2. Crawls configured board/aggregator targets
-3. Canonicalizes URLs for stable dedup
-4. Deduplicates against historical URLs
-5. Fetches page text (best effort)
-6. Applies filtering/scoring pipeline
-7. Persists accepted jobs, rejected jobs, and run metadata
+1. Runs configured direct ATS spiders for known companies
+2. Runs SearXNG discovery queries for broader coverage
+3. Normalizes job items from each source
+4. Extracts usable JD text
+5. Deduplicates against historical URLs
+6. Applies hard filters and discovery-tier LLM relevance checks
+7. Persists pending, QA, rejected, and lead outcomes with run metadata
+
+For the full end-to-end operational flow, see
+[`docs/SCRAPING_PROCESS.md`](docs/SCRAPING_PROCESS.md).
+
+For an outside-review handoff, see
+[`docs/CONSULTANT_BRIEF.md`](docs/CONSULTANT_BRIEF.md).
 
 ## Quick Start
 
@@ -32,9 +38,9 @@ SearXNG must be running on `:8888`.
 ```bash
 python -m job_scraper scrape
 python -m job_scraper scrape -v
-python -m job_scraper scrape --dry-run
-python -m job_scraper scrape --no-fetch
-python -m job_scraper scrape -c my_config.yaml
+python -m job_scraper scrape --spider ashby
+python -m job_scraper scrape --tiers workhorse,discovery
+python -m job_scraper scrape --tiers workhorse --rotation-group 2 --run-index 30
 python -m job_scraper stats
 python -m job_scraper recent -n 50
 ```
@@ -66,9 +72,17 @@ Override with `JOB_SCRAPER_DB`.
 Core tables:
 
 - `seen_urls` — canonical URL dedup history
-- `results` — accepted jobs
-- `rejected` — rejected jobs with stage/reason
+- `jobs` — canonical job records for pending, QA, lead, and rejected outcomes
+- `job_fingerprints` — canonical URL, ATS ID, normalized field fingerprint,
+  content hash, and duplicate status metadata
 - `runs` — run metadata and status
+- `run_tier_stats` — source/tier counters for each run, including duplicate
+  class counters
+
+Compatibility views:
+
+- `results` — legacy view over `jobs`
+- `rejected` — rejected-job subset view over `jobs`
 
 ## Config
 
@@ -76,17 +90,19 @@ Default config:
 
 - `job_scraper/config.default.yaml`
 
-Override with `--config`.
+The current CLI loads this default file directly.
 
 Important knobs:
 
+- direct ATS board list
+- SearXNG query templates
 - remote requirement
 - location policy
 - salary floor
 - seniority exclusions
-- scoring thresholds
-- LLM review behavior
-- crawl/search target lists
+- pipeline order
+- scheduler cadence and rotation profile
+- discovery-tier LLM gate behavior
 
 ## Dashboard Integration
 
@@ -112,16 +128,16 @@ job-scraper/
 ├── api/                           # scraping-domain handlers for dashboard
 ├── docs/
 │   ├── DEPLOYMENT.md
-│   └── ENGINES.md
+│   ├── CONSULTANT_BRIEF.md
+│   ├── ENGINES.md
+│   └── SCRAPING_PROCESS.md
 └── job_scraper/
     ├── __main__.py
     ├── config.default.yaml
     ├── config.py
-    ├── models.py
-    ├── searcher.py
-    ├── crawler.py
-    ├── fetcher.py
-    ├── dedup.py
-    ├── filters.py
-    └── urlnorm.py
+    ├── db.py
+    ├── scrape_profile.py
+    ├── settings.py
+    ├── spiders/
+    └── pipelines/
 ```

@@ -191,6 +191,34 @@ def _run_source_count(conn: sqlite3.Connection, run_id: str) -> int:
     return int(row["count"] or 0) if row else 0
 
 
+def _tier_stat_select_columns(conn: sqlite3.Connection) -> str:
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(run_tier_stats)").fetchall()}
+
+    def col(name: str) -> str:
+        return f"COALESCE({name}, 0) AS {name}" if name in cols else f"0 AS {name}"
+
+    return ", ".join([
+        "tier",
+        "source",
+        "raw_hits",
+        "dedup_drops",
+        col("duplicate_url"),
+        col("duplicate_ats_id"),
+        col("duplicate_fingerprint"),
+        col("duplicate_similar"),
+        col("duplicate_content"),
+        col("reposts"),
+        col("changed_postings"),
+        "filter_drops",
+        "llm_rejects",
+        "llm_uncertain_low",
+        "llm_overflow",
+        "stored_pending",
+        "stored_lead",
+        "duration_ms",
+    ])
+
+
 def _scraper_report_from_row(
     conn: sqlite3.Connection,
     row: sqlite3.Row,
@@ -219,27 +247,86 @@ def _scraper_report_from_row(
 
     if include_detail:
         report["errors"] = _loads_json(report.get("errors"), [])
+        tier_stat_cols = _tier_stat_select_columns(conn)
         report["tier_stats"] = [
             dict(r)
             for r in conn.execute(
-                """SELECT tier, source, raw_hits, dedup_drops, filter_drops,
-                          llm_rejects, llm_uncertain_low, llm_overflow,
-                          stored_pending, stored_lead, duration_ms
+                f"""SELECT {tier_stat_cols}
                    FROM run_tier_stats
                    WHERE run_id = ?
                    ORDER BY tier, source""",
                 (run_id,),
             ).fetchall()
         ]
+        fp_cols = {r["name"] for r in conn.execute("PRAGMA table_info(job_fingerprints)").fetchall()}
+        has_fingerprints = {"job_id", "duplicate_status", "duplicate_of_job_id"}.issubset(fp_cols)
+        if has_fingerprints:
+            def fp_field(name: str, alias: str | None = None) -> str:
+                out = alias or name
+                return f"f.{name} AS {out}" if name in fp_cols else f"NULL AS {out}"
+
+            latest_fields = ", ".join([
+                "f.job_id",
+                "f.id AS fingerprint_id",
+                "f.duplicate_status",
+                "f.duplicate_of_job_id",
+                fp_field("canonical_url", "fingerprint_canonical_url"),
+                fp_field("ats_provider"),
+                fp_field("ats_job_id"),
+                fp_field("company_norm"),
+                fp_field("title_norm"),
+                fp_field("location_bucket"),
+                fp_field("remote_flag"),
+                fp_field("salary_bucket"),
+                fp_field("fingerprint"),
+                fp_field("content_hash"),
+            ])
+            fingerprint_select = """fp.fingerprint_id, fp.duplicate_status, fp.duplicate_of_job_id,
+                          fp.fingerprint_canonical_url, fp.ats_provider, fp.ats_job_id,
+                          fp.company_norm, fp.title_norm, fp.location_bucket,
+                          fp.remote_flag, fp.salary_bucket, fp.fingerprint,
+                          fp.content_hash,
+                          matched.title AS duplicate_of_title,
+                          matched.company AS duplicate_of_company,
+                          matched.url AS duplicate_of_url,
+                          matched.source AS duplicate_of_source"""
+            fingerprint_join = """
+                   LEFT JOIN (
+                       SELECT {latest_fields}
+                       FROM job_fingerprints f
+                       JOIN (
+                           SELECT job_id, MAX(id) AS max_id
+                           FROM job_fingerprints
+                           WHERE job_id IS NOT NULL
+                           GROUP BY job_id
+                       ) latest ON latest.max_id = f.id
+                   ) fp ON fp.job_id = jobs.id
+                   LEFT JOIN jobs matched ON matched.id = fp.duplicate_of_job_id""".format(
+                latest_fields=latest_fields
+            )
+        else:
+            fingerprint_select = """NULL AS fingerprint_id, NULL AS duplicate_status,
+                          NULL AS duplicate_of_job_id,
+                          NULL AS fingerprint_canonical_url, NULL AS ats_provider,
+                          NULL AS ats_job_id, NULL AS company_norm, NULL AS title_norm,
+                          NULL AS location_bucket, NULL AS remote_flag,
+                          NULL AS salary_bucket, NULL AS fingerprint, NULL AS content_hash,
+                          NULL AS duplicate_of_title, NULL AS duplicate_of_company,
+                          NULL AS duplicate_of_url, NULL AS duplicate_of_source"""
+            fingerprint_join = ""
         report["jobs"] = [
             dict(r)
             for r in conn.execute(
-                """SELECT id, title, company, url, board, source, status,
-                          rejection_stage, rejection_reason, seniority,
-                          experience_years, salary_k, score, created_at
+                f"""SELECT jobs.id, jobs.title, jobs.company, jobs.url, jobs.board,
+                          jobs.source, jobs.status, jobs.rejection_stage,
+                          jobs.rejection_reason, jobs.seniority,
+                          jobs.experience_years, jobs.salary_k, jobs.score,
+                          jobs.created_at,
+                          {fingerprint_select}
                    FROM jobs
-                   WHERE run_id = ?
-                   ORDER BY created_at DESC
+                   {fingerprint_join}
+                   WHERE jobs.run_id = ?
+                   ORDER BY jobs.created_at DESC
                    LIMIT 500""",
                 (run_id,),
             ).fetchall()

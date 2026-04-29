@@ -69,6 +69,8 @@ Open: `http://localhost:8899`
 ## Documentation Index
 
 - Scraper: [`job-scraper/README.md`](job-scraper/README.md)
+- Scraper process: [`job-scraper/docs/SCRAPING_PROCESS.md`](job-scraper/docs/SCRAPING_PROCESS.md)
+- Scraper consultant brief: [`job-scraper/docs/CONSULTANT_BRIEF.md`](job-scraper/docs/CONSULTANT_BRIEF.md)
 - Scraper deployment: [`job-scraper/docs/DEPLOYMENT.md`](job-scraper/docs/DEPLOYMENT.md)
 - SearXNG engines: [`job-scraper/docs/ENGINES.md`](job-scraper/docs/ENGINES.md)
 - Dashboard overview: [`dashboard/README.md`](dashboard/README.md)

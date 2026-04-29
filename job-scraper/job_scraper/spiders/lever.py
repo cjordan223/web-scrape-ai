@@ -83,6 +83,8 @@ class LeverSpider(scrapy.Spider):
                 salary_k = top / 1000.0
             yield JobItem(
                 url=job.get("hostedUrl", ""),
+                ats_provider="lever",
+                ats_job_id=str(job.get("id") or ""),
                 title=job.get("text", "Unknown"),
                 company=company,
                 board="lever",

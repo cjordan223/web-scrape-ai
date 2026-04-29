@@ -33,7 +33,13 @@ class SQLitePipeline:
         job["run_id"] = self._run_id
         tier = spider_tier(spider.name)
         try:
-            self._db.insert_job(job)
+            job_id = self._db.insert_job(job)
+            if job.get("fingerprint"):
+                self._db.save_job_fingerprint(
+                    job_id,
+                    job,
+                    duplicate_status=job.get("duplicate_status") or "new",
+                )
             if self._tier_stats is not None:
                 status = job.get("status", "pending")
                 if status != "rejected":

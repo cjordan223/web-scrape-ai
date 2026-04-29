@@ -7,6 +7,7 @@ import logging
 from scrapy.exceptions import DropItem
 
 from job_scraper.db import JobDB
+from job_scraper.fingerprints import build_fingerprint_data
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,10 @@ class DeduplicationPipeline:
         return cls(db=db, ttl_days=ttl, tier_stats=_get_shared_stats(crawler))
 
     def process_item(self, item, spider):
-        url = item["url"]
+        fp = build_fingerprint_data(dict(item))
+        for key, value in fp.as_dict().items():
+            item[key] = value
+        url = item.get("canonical_url") or item["url"]
         if self._tier_stats is not None:
             from job_scraper.tiers import spider_tier
             self._tier_stats.bump(spider.name, spider_tier(spider.name), "raw_hits")
@@ -53,7 +57,44 @@ class DeduplicationPipeline:
             if self._tier_stats is not None:
                 from job_scraper.tiers import spider_tier
                 self._tier_stats.bump(spider.name, spider_tier(spider.name), "dedup_drops")
+                self._tier_stats.bump(spider.name, spider_tier(spider.name), "duplicate_url")
+            item["duplicate_status"] = "duplicate_url"
             raise DropItem(f"Already seen: {url}")
+
+        decision = self._db.classify_fingerprint(fp.as_dict(), ttl_days=self._ttl_days)
+        status = decision["duplicate_status"]
+        item["duplicate_status"] = status
+        if decision.get("duplicate_of_job_id") is not None:
+            item["duplicate_of_job_id"] = decision["duplicate_of_job_id"]
+        drop_statuses = {
+            "duplicate_url",
+            "duplicate_ats_id",
+            "duplicate_fingerprint",
+            "similar_posting",
+            "mirror",
+        }
+        if status in drop_statuses:
+            if self._tier_stats is not None:
+                from job_scraper.tiers import spider_tier
+                self._tier_stats.bump(spider.name, spider_tier(spider.name), "dedup_drops")
+                field = {
+                    "duplicate_url": "duplicate_url",
+                    "duplicate_ats_id": "duplicate_ats_id",
+                    "duplicate_fingerprint": "duplicate_fingerprint",
+                    "similar_posting": "duplicate_similar",
+                    "mirror": "duplicate_content",
+                }[status]
+                self._tier_stats.bump(spider.name, spider_tier(spider.name), field)
+            self._db.touch_fingerprint(decision.get("fingerprint_id"), status)
+            raise DropItem(f"Duplicate job ({status}): {url}")
+
+        if status in {"repost", "changed_posting"} and self._tier_stats is not None:
+            from job_scraper.tiers import spider_tier
+            self._tier_stats.bump(
+                spider.name,
+                spider_tier(spider.name),
+                "reposts" if status == "repost" else "changed_postings",
+            )
         self._db.mark_seen(url)
         return item
 

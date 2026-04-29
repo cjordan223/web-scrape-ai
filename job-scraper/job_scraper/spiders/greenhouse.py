@@ -78,6 +78,8 @@ class GreenhouseSpider(scrapy.Spider):
             loc = (job.get("location") or {}).get("name") or ""
             yield JobItem(
                 url=job.get("absolute_url", ""),
+                ats_provider="greenhouse",
+                ats_job_id=str(job.get("id") or ""),
                 title=job.get("title", "Unknown"),
                 company=company,
                 board="greenhouse",

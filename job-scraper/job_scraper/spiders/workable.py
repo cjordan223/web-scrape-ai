@@ -69,6 +69,8 @@ class WorkableSpider(scrapy.Spider):
             )
             yield JobItem(
                 url=job.get("url") or job.get("application_url", ""),
+                ats_provider="workable",
+                ats_job_id=str(job.get("id") or job.get("shortcode") or ""),
                 title=job.get("title", "Unknown"),
                 company=company,
                 board="workable",

@@ -43,6 +43,13 @@ type SourceRow = {
   tier: string;
   raw_hits: number;
   dedup_drops: number;
+  duplicate_url: number;
+  duplicate_ats_id: number;
+  duplicate_fingerprint: number;
+  duplicate_similar: number;
+  duplicate_content: number;
+  reposts: number;
+  changed_postings: number;
   filter_drops: number;
   llm_rejects: number;
   stored_pending: number;
@@ -114,6 +121,23 @@ type ScraperReportJob = {
   salary_k: number | null;
   score: number | null;
   created_at: string | null;
+  fingerprint_id: number | null;
+  duplicate_status: string | null;
+  duplicate_of_job_id: number | null;
+  fingerprint_canonical_url: string | null;
+  ats_provider: string | null;
+  ats_job_id: string | null;
+  company_norm: string | null;
+  title_norm: string | null;
+  location_bucket: string | null;
+  remote_flag: string | null;
+  salary_bucket: string | null;
+  fingerprint: string | null;
+  content_hash: string | null;
+  duplicate_of_title: string | null;
+  duplicate_of_company: string | null;
+  duplicate_of_url: string | null;
+  duplicate_of_source: string | null;
 };
 
 type ScraperTierStat = {
@@ -121,6 +145,13 @@ type ScraperTierStat = {
   source: string;
   raw_hits: number;
   dedup_drops: number;
+  duplicate_url: number;
+  duplicate_ats_id: number;
+  duplicate_fingerprint: number;
+  duplicate_similar: number;
+  duplicate_content: number;
+  reposts: number;
+  changed_postings: number;
   filter_drops: number;
   llm_rejects: number;
   llm_uncertain_low: number;
@@ -300,6 +331,12 @@ export default function ScraperMetricsView() {
           value={kpis.gateTotal === 0 ? '—' : `${Math.round((kpis.overflow / kpis.gateTotal) * 100)}%`}
           unit={kpis.gateTotal === 0 ? '' : `${kpis.overflow}/${kpis.gateTotal} runs`}
           tone={kpis.gateTotal === 0 ? 'muted' : kpis.overflow === 0 ? 'good' : kpis.overflow / kpis.gateTotal > 0.33 ? 'bad' : 'warn'}
+        />
+        <KpiTile
+          label={`Duplicate catches (${since})`}
+          value={String(kpis.totalDuplicates)}
+          unit="before filters/LLM"
+          tone={kpis.totalDuplicates > 0 ? 'good' : 'muted'}
         />
         <KpiTile
           label="Rotation coverage"
@@ -492,6 +529,7 @@ function ScraperReportsPanel({
                     <tr style={{ color: 'var(--text-muted)', textAlign: 'left' }}>
                       <th style={th}>Source</th>
                       <th style={{ ...th, textAlign: 'right' }}>Raw</th>
+                      <th style={{ ...th, textAlign: 'right' }}>Dup</th>
                       <th style={{ ...th, textAlign: 'right' }}>Stored</th>
                     </tr>
                   </thead>
@@ -503,6 +541,12 @@ function ScraperReportsPanel({
                           <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>{row.tier}</div>
                         </td>
                         <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{row.raw_hits}</td>
+                        <td
+                          style={{ ...td, textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}
+                          title={duplicateTitle(row)}
+                        >
+                          {duplicateTotal(row)}
+                        </td>
                         <td style={{ ...td, textAlign: 'right', color: 'rgb(134,239,172)', fontVariantNumeric: 'tabular-nums' }}>{row.stored_pending + row.stored_lead}</td>
                       </tr>
                     ))}
@@ -533,8 +577,19 @@ function ScraperReportsPanel({
                         <div style={{ fontWeight: 650, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{job.title || `Job #${job.id}`}</div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 3 }}>{job.company || 'Unknown'} · {job.board || job.source || '--'}</div>
                       </div>
-                      <span style={{ color: job.status === 'rejected' ? 'rgb(252,165,165)' : 'rgb(134,239,172)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{job.status}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        {job.duplicate_status && job.duplicate_status !== 'new' ? (
+                          <span
+                            style={duplicateStatusStyle(job.duplicate_status)}
+                            title={job.duplicate_of_job_id ? `Likely duplicate of job #${job.duplicate_of_job_id}` : duplicateStatusLabel(job.duplicate_status)}
+                          >
+                            {duplicateStatusLabel(job.duplicate_status)}
+                          </span>
+                        ) : null}
+                        <span style={{ color: job.status === 'rejected' ? 'rgb(252,165,165)' : 'rgb(134,239,172)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{job.status}</span>
+                      </div>
                     </div>
+                    {job.duplicate_status && job.duplicate_status !== 'new' ? <DuplicateDrilldown job={job} /> : null}
                     {job.rejection_reason ? <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 6 }}>{job.rejection_stage}: {job.rejection_reason}</div> : null}
                     {job.url ? <a href={job.url} target="_blank" rel="noreferrer" style={{ color: 'rgb(147,197,253)', fontSize: 12, marginTop: 6, display: 'inline-block' }}>Open JD</a> : null}
                   </div>
@@ -689,6 +744,7 @@ function computeKpis(stats: TierStats | null, target: number) {
   const dayCount = stats?.daily_net_new.length ?? 0;
   const totalNetNew = stats?.daily_net_new.reduce((acc, d) => acc + (d.net_new ?? 0), 0) ?? null;
   const totalQaPending = stats?.daily_net_new.reduce((acc, d) => acc + d.net_new_qa_pending, 0) ?? 0;
+  const totalDuplicates = stats?.by_source.reduce((acc, row) => acc + duplicateTotal(row), 0) ?? 0;
   const runsInWindow = stats?.per_run.length ?? 0;
   const windowTarget = runsInWindow * target;
   const rotationSeen = new Set<number>();
@@ -704,7 +760,7 @@ function computeKpis(stats: TierStats | null, target: number) {
   return {
     lastNetNew, lastQaPending,
     totalNetNew, totalQaPending,
-    rotationSeen, overflow, gateTotal, windowTarget, dayCount,
+    totalDuplicates, rotationSeen, overflow, gateTotal, windowTarget, dayCount,
   };
 }
 
@@ -857,6 +913,7 @@ function SourceTable({ rows }: { rows: SourceRow[] }) {
           <th style={th}>Tier</th>
           <th style={{ ...th, textAlign: 'right' }}>Raw</th>
           <th style={{ ...th, textAlign: 'right' }}>Dedup</th>
+          <th style={{ ...th, textAlign: 'right' }}>Dup detail</th>
           <th style={{ ...th, textAlign: 'right' }}>Filter</th>
           <th style={{ ...th, textAlign: 'right' }}>LLM</th>
           <th style={{ ...th, textAlign: 'right' }}>Stored</th>
@@ -867,6 +924,7 @@ function SourceTable({ rows }: { rows: SourceRow[] }) {
       <tbody>
         {sorted.map((r) => {
           const stored = r.stored_pending + r.stored_lead;
+          const duplicates = duplicateTotal(r);
           return (
             <tr key={`${r.source}-${r.tier}`} style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
               <td style={{ ...td, fontFamily: 'var(--font-mono)' }}>{r.source}</td>
@@ -875,6 +933,12 @@ function SourceTable({ rows }: { rows: SourceRow[] }) {
               </td>
               <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.raw_hits}</td>
               <td style={{ ...td, textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{r.dedup_drops}</td>
+              <td
+                style={{ ...td, textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}
+                title={duplicateTitle(r)}
+              >
+                {duplicates}
+              </td>
               <td style={{ ...td, textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{r.filter_drops}</td>
               <td style={{ ...td, textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{r.llm_rejects}</td>
               <td style={{ ...td, textAlign: 'right', color: 'rgb(134, 239, 172)', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{stored}</td>
@@ -888,6 +952,112 @@ function SourceTable({ rows }: { rows: SourceRow[] }) {
       </tbody>
     </table>
   );
+}
+
+function duplicateTotal(row: Pick<SourceRow, 'duplicate_url' | 'duplicate_ats_id' | 'duplicate_fingerprint' | 'duplicate_similar' | 'duplicate_content'>) {
+  return (row.duplicate_url ?? 0)
+    + (row.duplicate_ats_id ?? 0)
+    + (row.duplicate_fingerprint ?? 0)
+    + (row.duplicate_similar ?? 0)
+    + (row.duplicate_content ?? 0);
+}
+
+function duplicateTitle(row: Pick<SourceRow, 'duplicate_url' | 'duplicate_ats_id' | 'duplicate_fingerprint' | 'duplicate_similar' | 'duplicate_content' | 'reposts' | 'changed_postings'>) {
+  return [
+    `url=${row.duplicate_url ?? 0}`,
+    `ats=${row.duplicate_ats_id ?? 0}`,
+    `fingerprint=${row.duplicate_fingerprint ?? 0}`,
+    `similar=${row.duplicate_similar ?? 0}`,
+    `content=${row.duplicate_content ?? 0}`,
+    `reposts=${row.reposts ?? 0}`,
+    `changed=${row.changed_postings ?? 0}`,
+  ].join(' · ');
+}
+
+function duplicateStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    duplicate_url: 'dup url',
+    duplicate_ats_id: 'dup ats',
+    duplicate_fingerprint: 'dup fp',
+    similar_posting: 'similar',
+    mirror: 'mirror',
+    repost: 'repost',
+    changed_posting: 'changed',
+  };
+  return labels[status] ?? status.replace(/_/g, ' ');
+}
+
+function duplicateStatusStyle(status: string): React.CSSProperties {
+  const isChanged = status === 'changed_posting' || status === 'repost';
+  const isMirror = status === 'mirror' || status === 'similar_posting';
+  return {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10,
+    padding: '2px 6px',
+    borderRadius: 4,
+    border: isChanged ? '1px solid rgba(234,179,8,0.3)' : '1px solid rgba(148,163,184,0.25)',
+    background: isChanged
+      ? 'rgba(234,179,8,0.1)'
+      : isMirror
+        ? 'rgba(59,130,246,0.1)'
+        : 'rgba(148,163,184,0.1)',
+    color: isChanged
+      ? 'rgb(252,211,77)'
+      : isMirror
+        ? 'rgb(147,197,253)'
+        : 'var(--text-muted)',
+    whiteSpace: 'nowrap',
+  };
+}
+
+function DuplicateDrilldown({ job }: { job: ScraperReportJob }) {
+  const reason = duplicateReason(job);
+  const matched = job.duplicate_of_job_id
+    ? `#${job.duplicate_of_job_id}${job.duplicate_of_title ? ` · ${job.duplicate_of_title}` : ''}`
+    : 'prior fingerprint';
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        padding: '8px 10px',
+        borderRadius: 6,
+        border: '1px solid rgba(148,163,184,0.16)',
+        background: 'rgba(15,23,42,0.36)',
+        color: 'var(--text-muted)',
+        fontSize: 12,
+        lineHeight: 1.45,
+      }}
+    >
+      <div>
+        <span style={{ color: 'var(--text-secondary)' }}>Matched </span>
+        {job.duplicate_of_url ? (
+          <a href={job.duplicate_of_url} target="_blank" rel="noreferrer" style={{ color: 'rgb(147,197,253)' }}>{matched}</a>
+        ) : (
+          <span style={{ color: 'var(--text-primary)' }}>{matched}</span>
+        )}
+        {job.duplicate_of_company ? <span> · {job.duplicate_of_company}</span> : null}
+      </div>
+      <div style={{ marginTop: 3 }}>{reason}</div>
+      <div style={{ marginTop: 3, fontFamily: 'var(--font-mono)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {job.ats_provider && job.ats_job_id ? `ats=${job.ats_provider}/${job.ats_job_id} · ` : ''}
+        {job.location_bucket ? `loc=${job.location_bucket} · ` : ''}
+        {job.remote_flag ? `remote=${job.remote_flag} · ` : ''}
+        {job.salary_bucket ? `salary=${job.salary_bucket}` : ''}
+      </div>
+    </div>
+  );
+}
+
+function duplicateReason(job: ScraperReportJob) {
+  const status = job.duplicate_status;
+  if (status === 'duplicate_url') return `Same canonical URL: ${job.fingerprint_canonical_url || job.url}`;
+  if (status === 'duplicate_ats_id') return `Same ATS posting ID${job.ats_provider ? ` from ${job.ats_provider}` : ''}.`;
+  if (status === 'duplicate_fingerprint') return 'Same normalized company/title/location/remote/salary fingerprint.';
+  if (status === 'similar_posting') return 'Same company, explicit US-remote bucket, and highly similar normalized title.';
+  if (status === 'mirror') return 'Identical normalized job-description content hash.';
+  if (status === 'repost') return 'Previously seen matching posting outside the active TTL.';
+  if (status === 'changed_posting') return 'Same ATS ID or fingerprint, but the normalized description content changed.';
+  return duplicateStatusLabel(status || 'duplicate');
 }
 
 function FunnelBar({ raw, stored, dedup, filter, llm }: { raw: number; stored: number; dedup: number; filter: number; llm: number }) {

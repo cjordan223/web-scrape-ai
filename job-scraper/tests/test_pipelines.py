@@ -4,6 +4,7 @@ import sqlite3
 import pytest
 from scrapy import Spider
 from scrapy.exceptions import DropItem
+from job_scraper.fingerprints import content_hash
 from job_scraper.items import JobItem
 from job_scraper.pipelines.text_extraction import TextExtractionPipeline
 from job_scraper.pipelines.dedup import DeduplicationPipeline
@@ -72,6 +73,8 @@ def test_new_url_passes(dedup_pipeline, spider):
                    board="b", source="s", created_at="2026-01-01T00:00:00Z")
     result = pipe.process_item(item, spider)
     assert result["url"] == "https://example.com/job/new"
+    assert result["canonical_url"] == "https://example.com/job/new"
+    assert result["duplicate_status"] == "new"
 
 
 def test_seen_url_dropped(dedup_pipeline, spider):
@@ -89,6 +92,100 @@ def test_marks_url_as_seen_after_pass(dedup_pipeline, spider):
                    board="b", source="s", created_at="2026-01-01T00:00:00Z")
     pipe.process_item(item, spider)
     assert db.is_seen("https://example.com/job/mark")
+
+
+def test_tracking_url_variant_dropped(dedup_pipeline, spider):
+    pipe, db = dedup_pipeline
+    db.mark_seen("https://example.com/job/mark")
+    item = JobItem(url="https://example.com/job/mark?utm_source=search", title="E", company="C",
+                   board="b", source="s", created_at="2026-01-01T00:00:00Z")
+    with pytest.raises(DropItem):
+        pipe.process_item(item, spider)
+
+
+def test_duplicate_ats_id_dropped(dedup_pipeline, spider):
+    pipe, db = dedup_pipeline
+    db.save_job_fingerprint(1, {
+        "canonical_url": "https://jobs.lever.co/acme/old",
+        "ats_provider": "lever",
+        "ats_job_id": "abc",
+        "company_norm": "acme",
+        "title_norm": "security-engineer",
+        "location_bucket": "us-remote",
+        "remote_flag": "true",
+        "salary_bucket": "unknown",
+        "fingerprint": "acme|security-engineer|us-remote|true|unknown",
+        "content_hash": "",
+    })
+    item = JobItem(
+        url="https://jobs.lever.co/acme/new-path",
+        ats_provider="lever",
+        ats_job_id="abc",
+        title="Security Engineer",
+        company="Acme",
+        board="lever",
+        location="Remote, United States",
+        source="lever",
+        created_at="2026-01-01T00:00:00Z",
+    )
+    with pytest.raises(DropItem):
+        pipe.process_item(item, spider)
+
+
+def test_duplicate_fingerprint_dropped(dedup_pipeline, spider):
+    pipe, db = dedup_pipeline
+    db.save_job_fingerprint(2, {
+        "canonical_url": "https://jobs.ashbyhq.com/acme/one",
+        "ats_provider": "ashby",
+        "ats_job_id": "one",
+        "company_norm": "acme",
+        "title_norm": "security-engineer",
+        "location_bucket": "us-remote",
+        "remote_flag": "true",
+        "salary_bucket": "160k-200k",
+        "fingerprint": "acme|security-engineer|us-remote|true|160k-200k",
+        "content_hash": content_hash("same text"),
+    })
+    item = JobItem(
+        url="https://job-boards.greenhouse.io/acme/jobs/123",
+        title="Security Engineer - Remote US",
+        company="Acme Inc.",
+        board="greenhouse",
+        location="Remote, United States",
+        salary_k=180,
+        jd_text="same text",
+        source="greenhouse",
+        created_at="2026-01-01T00:00:00Z",
+    )
+    with pytest.raises(DropItem):
+        pipe.process_item(item, spider)
+
+
+def test_similar_posting_dropped(dedup_pipeline, spider):
+    pipe, db = dedup_pipeline
+    db.save_job_fingerprint(3, {
+        "canonical_url": "https://jobs.example.com/acme/one",
+        "ats_provider": "",
+        "ats_job_id": "",
+        "company_norm": "acme",
+        "title_norm": "cloud-security-engineer",
+        "location_bucket": "us-remote",
+        "remote_flag": "true",
+        "salary_bucket": "unknown",
+        "fingerprint": "acme|cloud-security-engineer|us-remote|true|unknown",
+        "content_hash": "",
+    })
+    item = JobItem(
+        url="https://jobs.example.com/acme/two",
+        title="Cloud Security Engineering",
+        company="Acme",
+        board="custom",
+        location="Remote, United States",
+        source="custom",
+        created_at="2026-01-01T00:00:00Z",
+    )
+    with pytest.raises(DropItem):
+        pipe.process_item(item, spider)
 
 
 # --- Hard Filter ---
@@ -274,6 +371,29 @@ def test_stores_pending_job(storage_pipeline, spider):
                    created_at="2026-01-01T00:00:00Z")
     pipe.process_item(item, spider)
     assert db.job_count() == 1
+
+
+def test_storage_writes_fingerprint_record(storage_pipeline, spider):
+    pipe, db = storage_pipeline
+    item = JobItem(
+        url="https://jobs.lever.co/acme/abc",
+        canonical_url="https://jobs.lever.co/acme/abc",
+        ats_provider="lever",
+        ats_job_id="abc",
+        title="Engineer",
+        company="Acme",
+        board="lever",
+        source="lever",
+        fingerprint="acme|engineer|unclear|unclear|unknown",
+        content_hash="hash",
+        duplicate_status="new",
+        created_at="2026-01-01T00:00:00Z",
+    )
+    pipe.process_item(item, spider)
+    row = db._conn.execute("SELECT job_id, ats_provider, ats_job_id, fingerprint FROM job_fingerprints").fetchone()
+    assert row["job_id"] == 1
+    assert row["ats_provider"] == "lever"
+    assert row["ats_job_id"] == "abc"
 
 
 def test_stores_rejected_job(storage_pipeline, spider):
