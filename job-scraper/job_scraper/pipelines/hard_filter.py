@@ -92,7 +92,21 @@ _US_LOCATION_PATTERN = re.compile(
     r"chicago|boston|portland|atlanta|dallas|houston|miami|"
     r"washington,?\s*d\.?c\.?|raleigh|phoenix|minneapolis|"
     r"salt lake|san diego|san jose|remote.{0,10}us\b|us.only|usa.only"
-    r")\b", re.I
+    r")\b|"
+    r"\bu\.s\.(?:a\.)?", re.I
+)
+
+_US_ELIGIBILITY_TEXT_PATTERN = re.compile(
+    r"\b("
+    r"usa|united states|u\.s\.a?|us[- ]?only|u\.s\.[- ]?only|"
+    r"remote(?:\s+eligible)?\s*[-,]?\s*(?:us|usa|u\.s\.|united states)|"
+    r"(?:us|usa|u\.s\.|united states)\s*[-,]?\s*remote|"
+    r"authorized\s+to\s+work\s+in\s+the\s+(?:us|u\.s\.|united states)|"
+    r"candidates?\s+(?:based|located)\s+in\s+the\s+(?:us|u\.s\.|united states)|"
+    r"applicants?\s+(?:based|located)\s+in\s+the\s+(?:us|u\.s\.|united states)"
+    r")\b|"
+    r"\bu\.s\.(?:a\.)?",
+    re.I,
 )
 
 # Remote / distributed / work-from-home markers.
@@ -171,6 +185,7 @@ def _is_non_us_only(location: str, jd_text: str, require_us: bool = True, allow_
     missing data should not silently pass a hard requirement.
     """
     normalized_location = location.strip()
+    jd_has_us_eligibility = bool(jd_text and _US_ELIGIBILITY_TEXT_PATTERN.search(jd_text[:4000]))
     if normalized_location:
         if re.search(r"\b(international|worldwide)\b", normalized_location, re.I):
             if not _US_LOCATION_PATTERN.search(normalized_location):
@@ -194,10 +209,10 @@ def _is_non_us_only(location: str, jd_text: str, require_us: bool = True, allow_
     if require_us and normalized_location:
         if _US_LOCATION_PATTERN.search(normalized_location):
             return None
-        if re.search(r"\bremote\b", normalized_location, re.I) and not re.search(
-            r"\b(europe|emea|eu\b|apac|uk\b|only)", normalized_location, re.I
-        ):
+        if jd_has_us_eligibility:
             return None
+        if _REMOTE_PATTERN.search(normalized_location):
+            return f"Remote location lacks explicit US eligibility: {normalized_location}"
         return f"Non-US location (no US signal): {normalized_location}"
 
     if not location.strip():
@@ -213,8 +228,7 @@ def _is_non_us_only(location: str, jd_text: str, require_us: bool = True, allow_
                     non_us = _NON_US_PATTERN.findall(context)
                     return f"Non-US location (JD): {', '.join(set(non_us[:3]))}"
         if require_us:
-            jd_has_us = bool(jd_text and _US_LOCATION_PATTERN.search(jd_text))
-            if not jd_has_us:
+            if not jd_has_us_eligibility:
                 return "Empty location and no US signal (enrichment missing)"
 
     return None
@@ -351,7 +365,7 @@ class HardFilterPipeline:
 
         location = item.get("location") or ""
         geo_reason = _is_non_us_only(
-            location, jd_text,
+            location, f"{title}\n{jd_text}",
             require_us=self._config.require_us_location,
             allow_canada=self._config.allow_canada,
         )

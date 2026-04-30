@@ -290,6 +290,49 @@ def test_turkiye_remote_location_rejected(filter_pipeline, spider):
     assert "türkiye" in result["rejection_reason"].lower()
 
 
+def test_remote_without_us_eligibility_rejected(filter_pipeline, spider):
+    item = JobItem(url="https://example.com/job/4d", title="Platform Engineer",
+                   company="Acme", board="ashby", source="ashby",
+                   location="Remote",
+                   jd_text="Help us build reliable infrastructure for a distributed team.",
+                   created_at="2026-01-01T00:00:00Z")
+    result = filter_pipeline.process_item(item, spider)
+    assert result["status"] == "rejected"
+    assert result["rejection_stage"] == "geo_non_us"
+    assert "lacks explicit US eligibility" in result["rejection_reason"]
+
+
+def test_remote_with_us_eligibility_in_jd_passes_geo(filter_pipeline, spider):
+    item = JobItem(url="https://example.com/job/4e", title="Platform Engineer",
+                   company="Acme", board="ashby", source="ashby",
+                   location="Remote",
+                   jd_text="Remote role open to candidates based in the United States.",
+                   created_at="2026-01-01T00:00:00Z")
+    result = filter_pipeline.process_item(item, spider)
+    assert result.get("rejection_stage") not in {"geo_non_us", "not_remote"}
+
+
+def test_remote_us_with_periods_passes_geo(filter_pipeline, spider):
+    item = JobItem(url="https://example.com/job/4f", title="Platform Engineer",
+                   company="Acme", board="ashby", source="ashby",
+                   location="Remote U.S.",
+                   jd_text="Remote infrastructure role.",
+                   created_at="2026-01-01T00:00:00Z")
+    result = filter_pipeline.process_item(item, spider)
+    assert result.get("rejection_stage") not in {"geo_non_us", "not_remote"}
+
+
+def test_empty_location_with_us_remote_title_passes_geo(filter_pipeline, spider):
+    item = JobItem(url="https://example.com/job/4g",
+                   title="Senior Cyber Security Engineer (Remote Eligible, US)",
+                   company="Acme", board="linkedin", source="searxng",
+                   location="",
+                   jd_text="Search result snippet for a remote security role.",
+                   created_at="2026-01-01T00:00:00Z")
+    result = filter_pipeline.process_item(item, spider)
+    assert result.get("rejection_stage") not in {"geo_non_us", "not_remote"}
+
+
 def test_content_blocklist_rejected(filter_pipeline, spider):
     item = JobItem(url="https://example.com/job/5", title="Engineer",
                    company="C", board="b", source="s",
