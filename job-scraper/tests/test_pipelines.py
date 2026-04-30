@@ -322,6 +322,32 @@ def test_remote_us_with_periods_passes_geo(filter_pipeline, spider):
     assert result.get("rejection_stage") not in {"geo_non_us", "not_remote"}
 
 
+def test_distributed_systems_not_treated_as_remote(filter_pipeline, spider):
+    item = JobItem(url="https://example.com/job/4f2",
+                   title="Senior Software Engineer, Identity and Access Platform",
+                   company="Outreach", board="lever", source="lever",
+                   location="Seattle, WA",
+                   jd_text="Own complex distributed systems for identity and access management.",
+                   created_at="2026-01-01T00:00:00Z")
+    result = filter_pipeline.process_item(item, spider)
+    assert result["status"] == "rejected"
+    assert result["rejection_stage"] == "not_remote"
+    assert "Location-specific posting is not remote" in result["rejection_reason"]
+
+
+def test_hybrid_location_rejected_even_when_remote_also_present(filter_pipeline, spider):
+    item = JobItem(url="https://example.com/job/4f3",
+                   title="Software Engineer",
+                   company="Acme", board="ashby", source="ashby",
+                   location="San Francisco, United States, Hybrid, Remote",
+                   jd_text="Remote collaboration with a hybrid office schedule.",
+                   created_at="2026-01-01T00:00:00Z")
+    result = filter_pipeline.process_item(item, spider)
+    assert result["status"] == "rejected"
+    assert result["rejection_stage"] == "not_remote"
+    assert "Hybrid" in result["rejection_reason"]
+
+
 def test_empty_location_with_us_remote_title_passes_geo(filter_pipeline, spider):
     item = JobItem(url="https://example.com/job/4g",
                    title="Senior Cyber Security Engineer (Remote Eligible, US)",

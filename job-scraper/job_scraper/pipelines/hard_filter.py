@@ -111,8 +111,21 @@ _US_ELIGIBILITY_TEXT_PATTERN = re.compile(
 
 # Remote / distributed / work-from-home markers.
 _REMOTE_PATTERN = re.compile(
-    r"\b(remote|work from home|work-from-home|wfh|distributed|"
+    r"\b(remote|work from home|work-from-home|wfh|"
     r"fully remote|100% remote|remote[- ]?first|anywhere)\b",
+    re.I,
+)
+
+_LOCATION_SPECIFIC_PATTERN = re.compile(
+    r"\b("
+    r"(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IA|KS|KY|LA|ME|MD|"
+    r"MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|"
+    r"TN|TX|UT|VT|VA|WA|WV|WI|WY)|"
+    r"new york|nyc|san francisco|los angeles|seattle|austin|denver|"
+    r"chicago|boston|portland|atlanta|dallas|houston|miami|"
+    r"washington,?\s*d\.?c\.?|raleigh|phoenix|minneapolis|"
+    r"salt lake|san diego|san jose"
+    r")\b",
     re.I,
 )
 
@@ -239,13 +252,12 @@ def _check_remote(location: str, jd_text: str, require_explicit: bool) -> str | 
     loc = location or ""
     jd = jd_text or ""
 
-    if _REMOTE_PATTERN.search(loc):
-        # Explicit remote in the location field — accept even if JD mentions hybrid elsewhere.
-        return None
-
     if _ONSITE_PATTERN.search(loc):
         match = _ONSITE_PATTERN.search(loc)
         return f"Non-remote location: {match.group(0)}"
+
+    if _REMOTE_PATTERN.search(loc):
+        return None
 
     jd_has_remote = bool(_REMOTE_PATTERN.search(jd))
     jd_has_onsite_strict = bool(re.search(r"\b(in[- ]?office [1-5] days?|must be on[- ]?site|no remote|onsite only|on-site only|in-office only)\b", jd, re.I))
@@ -257,9 +269,11 @@ def _check_remote(location: str, jd_text: str, require_explicit: bool) -> str | 
         if not jd_has_remote and not _REMOTE_PATTERN.search(loc):
             return "Remote not explicitly stated"
 
-    if loc and not _REMOTE_PATTERN.search(loc) and not jd_has_remote:
-        # Location set to a specific city with no remote mention anywhere.
-        return f"No remote signal (location: {loc[:80]})"
+    if loc and not _REMOTE_PATTERN.search(loc):
+        if _LOCATION_SPECIFIC_PATTERN.search(loc):
+            return f"Location-specific posting is not remote: {loc[:80]}"
+        if not jd_has_remote:
+            return f"No remote signal (location: {loc[:80]})"
 
     if not loc and not jd_has_remote:
         # Empty location and no remote signal in JD — fail closed instead of
