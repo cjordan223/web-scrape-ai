@@ -279,6 +279,17 @@ def test_international_location_rejected(filter_pipeline, spider):
     assert result["rejection_stage"] == "geo_non_us"
 
 
+def test_turkiye_remote_location_rejected(filter_pipeline, spider):
+    item = JobItem(url="https://example.com/job/4c", title="Site Reliability Engineer II",
+                   company="Sezzle", board="greenhouse", source="greenhouse",
+                   location="Türkiye, Remote",
+                   created_at="2026-01-01T00:00:00Z")
+    result = filter_pipeline.process_item(item, spider)
+    assert result["status"] == "rejected"
+    assert result["rejection_stage"] == "geo_non_us"
+    assert "türkiye" in result["rejection_reason"].lower()
+
+
 def test_content_blocklist_rejected(filter_pipeline, spider):
     item = JobItem(url="https://example.com/job/5", title="Engineer",
                    company="C", board="b", source="s",

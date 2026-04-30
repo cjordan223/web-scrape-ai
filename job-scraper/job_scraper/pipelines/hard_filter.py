@@ -63,7 +63,7 @@ _NON_US_PATTERN = re.compile(
     r"pakistan|bangladesh|sri lanka|nepal|myanmar|cambodia|laos|"
     r"mongolia|kazakhstan|uzbekistan|azerbaijan|armenia|georgia|"
     # Europe catch-alls
-    r"russia|turkey|cyprus|malta|iceland|luxembourg|liechtenstein|monaco|andorra|"
+    r"russia|turkey|turkiye|türkiye|cyprus|malta|iceland|luxembourg|liechtenstein|monaco|andorra|"
     # Oceania / other
     r"fiji|papua new guinea|"
     # Region labels
